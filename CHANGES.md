@@ -1,3 +1,7 @@
+## Unreleased
+
+A token address that is not a Robinhood Stock Token gets Toll's free `check_coin` read: fixed Figures lines only (launch venue and age, maker's launch count, flagged wallets and their share, what the maker holds now). Verdict words and finding prose are never copied; a still-reading answer prints nothing.
+
 ## 0.5.3
 
 Cards added to JSON tool results keep the result valid JSON, so Hermes Desktop still shows the command output.
