@@ -1,0 +1,7 @@
+{
+  "case": "1_clean_swap_ALLOW",
+  "what": "fresh unsigned swap built 2026-11-11 (HookrRouter, buy $CLEAR with 0.00048 ETH, minOut -5%, deadline +10 min); not sent, so no hash",
+  "hash": null,
+  "block": null,
+  "source": "gist.github.com/soli0x/ade945e806b63984509dde871a34f2ea updated 2026-11-11T19:11:19Z"
+}

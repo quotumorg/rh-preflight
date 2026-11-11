@@ -1,0 +1,1 @@
+Toll check_tx samples for rh-preflight (Robinhood Chain 4663). POST https://t0ll.xyz/api/tx/check (REST) or MCP tool check_tx at https://t0ll.xyz/mcp. Answers are ERC-8265 RiskAssessment shaped, versioned in x-toll.presign.version.

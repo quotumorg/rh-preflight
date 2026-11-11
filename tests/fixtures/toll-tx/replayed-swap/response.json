@@ -1,0 +1,935 @@
+{
+  "action": "WARN",
+  "warnings": [
+    {
+      "code": "coin-partly-read",
+      "severity": "medium",
+      "message": "$CLEAR: part of the coin check could not be read yet (holders). Ask again in a minute for the whole check.",
+      "x-toll-evidence": {
+        "token": "0x41b57f6273b5a78cf9125ce6800f415738e0bba0",
+        "missing": [
+          "holders"
+        ],
+        "check": "https://t0ll.xyz/check/0x41b57f6273b5a78cf9125ce6800f415738e0bba0"
+      }
+    },
+    {
+      "code": "sim-insufficient-eth",
+      "severity": "medium",
+      "message": "The signer has 0.001051180421151043 ETH but this transaction needs 0.002350386168447476 ETH: as it stands it would fail. Its effects were simulated as if it had enough.",
+      "x-toll-evidence": {
+        "have": "1051180421151043",
+        "want": "2350386168447476"
+      }
+    },
+    {
+      "code": "sim-reverted",
+      "severity": "medium",
+      "message": "Simulated at block 111932209, this transaction reverts (no reason given). Signed as it is, it would fail and still cost gas.",
+      "x-toll-evidence": {
+        "block": 111932209,
+        "reason": null,
+        "data": "0x11157667"
+      }
+    },
+    {
+      "code": "swap-deadline-expired",
+      "severity": "medium",
+      "message": "This swap's deadline (1794205472) has already passed (chain time 1794424007): it will revert.",
+      "x-toll-evidence": {
+        "deadline": "1794205472",
+        "now": "1794424007"
+      }
+    },
+    {
+      "code": "router-third-party",
+      "severity": "low",
+      "message": "This swap goes through HookrRouter (0xc2bc...93c9).",
+      "x-toll-evidence": {
+        "router": "0xc2bc9a3fe6c4ce8c2f7eb4655b0869b01d8c93c9",
+        "known": "HookrRouter"
+      }
+    },
+    {
+      "code": "coin-careful",
+      "severity": "low",
+      "message": "$CLEAR: 2 findings to read before buying (careful): nobody bought in the pool's first 3 s: its first trade came 16 min after it was made; the main pool runs on Hookr's root hook, which can take a cut of every trade; how much was not read.",
+      "x-toll-evidence": {
+        "token": "0x41b57f6273b5a78cf9125ce6800f415738e0bba0",
+        "findings": [
+          "nobody bought in the pool's first 3 s: its first trade came 16 min after it was made",
+          "the main pool runs on Hookr's root hook, which can take a cut of every trade; how much was not read"
+        ],
+        "check": "https://t0ll.xyz/check/0x41b57f6273b5a78cf9125ce6800f415738e0bba0"
+      }
+    },
+    {
+      "code": "coin-read-stale",
+      "severity": "low",
+      "message": "$CLEAR: this is the last coin check we hold, read 2026-11-11T10:22:27.000Z; a newer read is running.",
+      "x-toll-evidence": {
+        "token": "0x41b57f6273b5a78cf9125ce6800f415738e0bba0",
+        "read_ts": 1794392547
+      }
+    },
+    {
+      "code": "swap-fcfs-note",
+      "severity": "low",
+      "message": "One sequencer, first come first served: the fill is at the next block or later; minOut is your only protection.",
+      "x-toll-evidence": {}
+    }
+  ],
+  "scanners": [
+    {
+      "provider": "Toll (ERC-8004 agent #20030 on chain 4663)",
+      "verdict": "WARN",
+      "url": "https://t0ll.xyz/check/0x41b57f6273b5a78cf9125ce6800f415738e0bba0"
+    }
+  ],
+  "x-toll": {
+    "scanner": {
+      "agent_id": 20030,
+      "chain_id": 4663,
+      "registry": "0x8004A169FB4a3325136EB29fA0ceB6D2e539a432",
+      "site": "https://t0ll.xyz"
+    },
+    "decoded": [
+      {
+        "kind": "swap",
+        "venue": "HookrRouter",
+        "router": "0xc2bc9a3fe6c4ce8c2f7eb4655b0869b01d8c93c9",
+        "bought": [
+          "0x41b57f6273b5a78cf9125ce6800f415738e0bba0"
+        ],
+        "sold": [
+          "0x0000000000000000000000000000000000000000"
+        ],
+        "payees": [
+          "0xdc36d51963d08862c525045ccfd39fae6a0c7f40"
+        ],
+        "unresolved": null,
+        "permits": [],
+        "minOut": {
+          "field": "amountBound",
+          "amount": "212415289807220828771220"
+        },
+        "deadline": "1794205472",
+        "fn": "swap",
+        "hook": {
+          "address": "0x89c9fb50d1f03192230ffb1c279bb6e7d3fe6acc",
+          "name": "Hookr's root hook"
+        }
+      }
+    ],
+    "coins": [
+      {
+        "token": "0x41b57f6273b5a78cf9125ce6800f415738e0bba0",
+        "sym": "$CLEAR",
+        "tally": {
+          "against": 0,
+          "careful": 2,
+          "clear": 0
+        },
+        "missing": [
+          "holders"
+        ],
+        "check": "https://t0ll.xyz/check/0x41b57f6273b5a78cf9125ce6800f415738e0bba0",
+        "read_ts": 1794392547
+      }
+    ],
+    "injection": {
+      "scanned": true,
+      "flagged": false,
+      "evidence": {
+        "findings": []
+      }
+    },
+    "simulation": {
+      "status": "insufficient-eth",
+      "have": "1051180421151043",
+      "want": "2350386168447476",
+      "effects": {
+        "status": "reverted",
+        "block": 111932209,
+        "baseHash": "0x024da8550517e73b3e73365d65322e348b61741b6d6fed573ca032a48a8565c4",
+        "gasUsed": "25408",
+        "revertReason": null,
+        "deltas": [],
+        "approvals": []
+      }
+    },
+    "to": [
+      {
+        "address": "0xc2bc9a3fe6c4ce8c2f7eb4655b0869b01d8c93c9",
+        "role": "tx.to",
+        "known": "HookrRouter",
+        "contract": true,
+        "nonce": 1
+      }
+    ],
+    "link": "https://t0ll.xyz/check/0x41b57f6273b5a78cf9125ce6800f415738e0bba0",
+    "checked_at": "2026-11-11T19:06:43.864Z",
+    "note": "Facts read from the chain and from Toll's own records, not advice. Toll never says a transaction is safe: ALLOW means none of the checks we run found a reason to stop, nothing more.",
+    "presign": {
+      "report": true,
+      "request": {
+        "version": "erc-presign/1",
+        "subject": {
+          "type": "calls",
+          "chainId": "eip155:4663",
+          "from": "eip155:4663:0xdc36d51963d08862c525045ccfd39fae6a0c7f40",
+          "calls": [
+            {
+              "to": "0xc2bc9a3fe6c4ce8c2f7eb4655b0869b01d8c93c9",
+              "value": "2350386168447476",
+              "data": "0x19b36adf000000000000000000000000000000000000000000000000000000000000000000000000000000000000000041b57f6273b5a78cf9125ce6800f415738e0bba0000000000000000000000000000000000000000000000000000000000080000000000000000000000000000000000000000000000000000000000000000000c800000000000000000000000089c9fb50d1f03192230ffb1c279bb6e7d3fe6acc0000000000000000000000000000000000000000000000000000000000000001fffffffffffffffffffffffffffffffffffffffffffffffffff7a65613583e0c000000000000000000000000000000000000000000002cfb0e51af3a7a73939400000000000000000000000000000000000000000000000000000001000276a4000000000000000000000000dc36d51963d08862c525045ccfd39fae6a0c7f40000000000000000000000000000000000000000000000000000000006af16720000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000001a00000000000000000000000000000000000000000000000000000000000000000"
+            }
+          ]
+        }
+      },
+      "signed": true,
+      "coverage": {
+        "status": "complete",
+        "gaps": []
+      }
+    }
+  },
+  "reports": [
+    {
+      "version": "erc-presign/1",
+      "subjectDigest": "0xcc616a9b6762fd155b8f232cfd87ad0a8c7fc93800206e522b3bcf7bd37ed14f",
+      "contextDigest": "0x0000000000000000000000000000000000000000000000000000000000000000",
+      "chainId": "eip155:4663",
+      "signer": "eip155:4663:0xdc36d51963d08862c525045ccfd39fae6a0c7f40",
+      "source": {
+        "registry": "eip155:4663:0x8004a169fb4a3325136eb29fa0ceb6d2e539a432",
+        "agentId": "20030",
+        "signer": "eip155:4663:0x02593abff31f4e8ec1d5c2f297a347c51ef06e5c"
+      },
+      "issuedAt": "2026-11-11T19:06:48Z",
+      "expiresAt": "2026-11-11T19:16:48Z",
+      "blocks": [
+        {
+          "chainId": "eip155:4663",
+          "block": "111932289",
+          "hash": "0xfb690dc83726eb403c6ff84be3b780f22d6dcc9ea1c1437c60c809d9eaabe786"
+        },
+        {
+          "chainId": "eip155:4663",
+          "block": "111932208",
+          "hash": "0x024da8550517e73b3e73365d65322e348b61741b6d6fed573ca032a48a8565c4"
+        }
+      ],
+      "entities": {
+        "tokens": [
+          "eip155:4663:0x41b57f6273b5a78cf9125ce6800f415738e0bba0"
+        ],
+        "approvals": [],
+        "addresses": [
+          {
+            "address": "eip155:4663:0xc2bc9a3fe6c4ce8c2f7eb4655b0869b01d8c93c9",
+            "role": "target"
+          },
+          {
+            "address": "eip155:4663:0xdc36d51963d08862c525045ccfd39fae6a0c7f40",
+            "role": "recipient"
+          },
+          {
+            "address": "eip155:4663:0x41b57f6273b5a78cf9125ce6800f415738e0bba0",
+            "role": "token"
+          }
+        ],
+        "payment": false,
+        "texts": [
+          {
+            "index": 0,
+            "field": "token.name",
+            "ref": "eip155:4663:0x41b57f6273b5a78cf9125ce6800f415738e0bba0",
+            "digest": "0x1da5ffbd352577c4f2ee70864808a9700e89786f2a0bd36913216c9b0a1da44e"
+          },
+          {
+            "index": 1,
+            "field": "token.symbol",
+            "ref": "eip155:4663:0x41b57f6273b5a78cf9125ce6800f415738e0bba0",
+            "digest": "0x06ac253a00ee13562eecafc06057c6db73566a05bdce988194aad3616e28e87c"
+          }
+        ]
+      },
+      "coverage": {
+        "status": "complete",
+        "gaps": []
+      },
+      "findings": [
+        {
+          "kind": "erc.presign.text.control-chars",
+          "entity": {
+            "text": 0
+          },
+          "status": "read",
+          "value": 0,
+          "at": {
+            "chainId": "eip155:4663",
+            "block": "111932289"
+          },
+          "evidence": [
+            {
+              "type": "call",
+              "chainId": "eip155:4663",
+              "block": "111932289",
+              "to": "0x41b57f6273b5a78cf9125ce6800f415738e0bba0",
+              "data": "0x06fdde03",
+              "result": "0x00000000000000000000000000000000000000000000000000000000000000200000000000000000000000000000000000000000000000000000000000000007436c656172656400000000000000000000000000000000000000000000000000"
+            }
+          ],
+          "note": "Unicode General Category Cf, Co or Cc, tab, LF and CR not counted"
+        },
+        {
+          "kind": "erc.presign.text.mixed-script",
+          "entity": {
+            "text": 0
+          },
+          "status": "read",
+          "value": false,
+          "at": {
+            "chainId": "eip155:4663",
+            "block": "111932289"
+          },
+          "evidence": [
+            {
+              "type": "call",
+              "chainId": "eip155:4663",
+              "block": "111932289",
+              "to": "0x41b57f6273b5a78cf9125ce6800f415738e0bba0",
+              "data": "0x06fdde03",
+              "result": "0x00000000000000000000000000000000000000000000000000000000000000200000000000000000000000000000000000000000000000000000000000000007436c656172656400000000000000000000000000000000000000000000000000"
+            }
+          ],
+          "note": "Unicode Script property, Common and Inherited not counted"
+        },
+        {
+          "kind": "erc.presign.text.addresses",
+          "entity": {
+            "text": 0
+          },
+          "status": "read",
+          "value": [],
+          "at": {
+            "chainId": "eip155:4663",
+            "block": "111932289"
+          },
+          "evidence": [
+            {
+              "type": "call",
+              "chainId": "eip155:4663",
+              "block": "111932289",
+              "to": "0x41b57f6273b5a78cf9125ce6800f415738e0bba0",
+              "data": "0x06fdde03",
+              "result": "0x00000000000000000000000000000000000000000000000000000000000000200000000000000000000000000000000000000000000000000000000000000007436c656172656400000000000000000000000000000000000000000000000000"
+            }
+          ],
+          "note": "20-byte hex addresses and CAIP-10 accounts, in order"
+        },
+        {
+          "kind": "erc.presign.text.injection",
+          "entity": {
+            "text": 0
+          },
+          "param": {
+            "uri": "https://t0ll.xyz/erc8481/injection-patterns-v1.json",
+            "hash": "0x6c5f96460d12fa643210ed029876b68cde9bee87fa6a1078bab31213c8dfee64"
+          },
+          "status": "read",
+          "value": [],
+          "at": {
+            "chainId": "eip155:4663",
+            "block": "111932289"
+          },
+          "evidence": [
+            {
+              "type": "call",
+              "chainId": "eip155:4663",
+              "block": "111932289",
+              "to": "0x41b57f6273b5a78cf9125ce6800f415738e0bba0",
+              "data": "0x06fdde03",
+              "result": "0x00000000000000000000000000000000000000000000000000000000000000200000000000000000000000000000000000000000000000000000000000000007436c656172656400000000000000000000000000000000000000000000000000"
+            }
+          ],
+          "note": "no pattern of the set matched ([] does not mean the text holds no instruction)"
+        },
+        {
+          "kind": "erc.presign.text.control-chars",
+          "entity": {
+            "text": 1
+          },
+          "status": "read",
+          "value": 0,
+          "at": {
+            "chainId": "eip155:4663",
+            "block": "111932289"
+          },
+          "evidence": [
+            {
+              "type": "call",
+              "chainId": "eip155:4663",
+              "block": "111932289",
+              "to": "0x41b57f6273b5a78cf9125ce6800f415738e0bba0",
+              "data": "0x95d89b41",
+              "result": "0x00000000000000000000000000000000000000000000000000000000000000200000000000000000000000000000000000000000000000000000000000000005434c454152000000000000000000000000000000000000000000000000000000"
+            }
+          ],
+          "note": "Unicode General Category Cf, Co or Cc, tab, LF and CR not counted"
+        },
+        {
+          "kind": "erc.presign.text.mixed-script",
+          "entity": {
+            "text": 1
+          },
+          "status": "read",
+          "value": false,
+          "at": {
+            "chainId": "eip155:4663",
+            "block": "111932289"
+          },
+          "evidence": [
+            {
+              "type": "call",
+              "chainId": "eip155:4663",
+              "block": "111932289",
+              "to": "0x41b57f6273b5a78cf9125ce6800f415738e0bba0",
+              "data": "0x95d89b41",
+              "result": "0x00000000000000000000000000000000000000000000000000000000000000200000000000000000000000000000000000000000000000000000000000000005434c454152000000000000000000000000000000000000000000000000000000"
+            }
+          ],
+          "note": "Unicode Script property, Common and Inherited not counted"
+        },
+        {
+          "kind": "erc.presign.text.addresses",
+          "entity": {
+            "text": 1
+          },
+          "status": "read",
+          "value": [],
+          "at": {
+            "chainId": "eip155:4663",
+            "block": "111932289"
+          },
+          "evidence": [
+            {
+              "type": "call",
+              "chainId": "eip155:4663",
+              "block": "111932289",
+              "to": "0x41b57f6273b5a78cf9125ce6800f415738e0bba0",
+              "data": "0x95d89b41",
+              "result": "0x00000000000000000000000000000000000000000000000000000000000000200000000000000000000000000000000000000000000000000000000000000005434c454152000000000000000000000000000000000000000000000000000000"
+            }
+          ],
+          "note": "20-byte hex addresses and CAIP-10 accounts, in order"
+        },
+        {
+          "kind": "erc.presign.text.injection",
+          "entity": {
+            "text": 1
+          },
+          "param": {
+            "uri": "https://t0ll.xyz/erc8481/injection-patterns-v1.json",
+            "hash": "0x6c5f96460d12fa643210ed029876b68cde9bee87fa6a1078bab31213c8dfee64"
+          },
+          "status": "read",
+          "value": [],
+          "at": {
+            "chainId": "eip155:4663",
+            "block": "111932289"
+          },
+          "evidence": [
+            {
+              "type": "call",
+              "chainId": "eip155:4663",
+              "block": "111932289",
+              "to": "0x41b57f6273b5a78cf9125ce6800f415738e0bba0",
+              "data": "0x95d89b41",
+              "result": "0x00000000000000000000000000000000000000000000000000000000000000200000000000000000000000000000000000000000000000000000000000000005434c454152000000000000000000000000000000000000000000000000000000"
+            }
+          ],
+          "note": "no pattern of the set matched ([] does not mean the text holds no instruction)"
+        },
+        {
+          "kind": "erc.presign.token.issuer-listing",
+          "entity": {
+            "token": "eip155:4663:0x41b57f6273b5a78cf9125ce6800f415738e0bba0"
+          },
+          "param": {
+            "issuer": "Robinhood",
+            "list": "https://api.robinhood.com/rhj/assets/"
+          },
+          "status": "read",
+          "value": "none",
+          "at": {
+            "chainId": "eip155:4663",
+            "block": "111932289"
+          },
+          "evidence": [
+            {
+              "type": "document",
+              "uri": "https://api.robinhood.com/rhj/assets/",
+              "hash": "0xe149b8652d4613c961f52627e6c725b62e9d80fc7be289f34bfb448bc6a3a719",
+              "retrievedAt": "2026-10-30T18:53:47.602Z"
+            }
+          ],
+          "note": "not Robinhood's contract and uses no listed token's name or symbol; the copy of the list shipped with the site, read 2026-10-30T18:53:47.602Z (hash of that copy)"
+        },
+        {
+          "kind": "erc.presign.token.observation",
+          "entity": {
+            "token": "eip155:4663:0x41b57f6273b5a78cf9125ce6800f415738e0bba0"
+          },
+          "param": {
+            "registry": "eip155:4663:0x730e3c356299c9203cb042f6c0a9274aeabf9af3",
+            "kind": "0xf1503018582646f41619eefcdeaae1c1b9ad5e71e1a74f59a7c177cd5d8a1b0c",
+            "param": "0"
+          },
+          "status": "read",
+          "value": {
+            "value": "10",
+            "detector": "eip155:4663:0x02593abff31f4e8ec1d5c2f297a347c51ef06e5c",
+            "observationId": "288",
+            "observedBlock": "107595247",
+            "recordedAt": "1793970892"
+          },
+          "at": {
+            "chainId": "eip155:4663",
+            "block": "111932289"
+          },
+          "evidence": [
+            {
+              "type": "observation",
+              "registry": "eip155:4663:0x730e3c356299c9203cb042f6c0a9274aeabf9af3",
+              "observationId": "288"
+            }
+          ],
+          "note": "copied from the Launch Observations registry (ERC-8470)"
+        },
+        {
+          "kind": "erc.presign.token.observation",
+          "entity": {
+            "token": "eip155:4663:0x41b57f6273b5a78cf9125ce6800f415738e0bba0"
+          },
+          "param": {
+            "registry": "eip155:4663:0x730e3c356299c9203cb042f6c0a9274aeabf9af3",
+            "kind": "0xde1880e1c55491741e8806f8091354331ccfae6d260de5624fa7b5131f8ab19a",
+            "param": "3"
+          },
+          "status": "not-read",
+          "reason": "unavailable",
+          "evidence": [
+            {
+              "type": "observation",
+              "registry": "eip155:4663:0x730e3c356299c9203cb042f6c0a9274aeabf9af3",
+              "observationId": "288"
+            }
+          ],
+          "note": "the detector recorded this finding as not read"
+        },
+        {
+          "kind": "erc.presign.token.observation",
+          "entity": {
+            "token": "eip155:4663:0x41b57f6273b5a78cf9125ce6800f415738e0bba0"
+          },
+          "param": {
+            "registry": "eip155:4663:0x730e3c356299c9203cb042f6c0a9274aeabf9af3",
+            "kind": "0xb559eb50996235dcc907f3c528e2b0bd21669b438572d50973405b9394544c38",
+            "param": "0"
+          },
+          "status": "not-read",
+          "reason": "unavailable",
+          "evidence": [
+            {
+              "type": "observation",
+              "registry": "eip155:4663:0x730e3c356299c9203cb042f6c0a9274aeabf9af3",
+              "observationId": "288"
+            }
+          ],
+          "note": "the detector recorded this finding as not read"
+        },
+        {
+          "kind": "erc.presign.token.observation",
+          "entity": {
+            "token": "eip155:4663:0x41b57f6273b5a78cf9125ce6800f415738e0bba0"
+          },
+          "param": {
+            "registry": "eip155:4663:0x730e3c356299c9203cb042f6c0a9274aeabf9af3",
+            "kind": "0xd0f99f8b1f2648a01d4d94c4ac89e81b3f3036b775a02e9d840391fece5b51d0",
+            "param": "1"
+          },
+          "status": "read",
+          "value": {
+            "value": "0",
+            "detector": "eip155:4663:0x02593abff31f4e8ec1d5c2f297a347c51ef06e5c",
+            "observationId": "288",
+            "observedBlock": "107595247",
+            "recordedAt": "1793970892"
+          },
+          "at": {
+            "chainId": "eip155:4663",
+            "block": "111932289"
+          },
+          "evidence": [
+            {
+              "type": "observation",
+              "registry": "eip155:4663:0x730e3c356299c9203cb042f6c0a9274aeabf9af3",
+              "observationId": "288"
+            }
+          ],
+          "note": "copied from the Launch Observations registry (ERC-8470)"
+        },
+        {
+          "kind": "erc.presign.token.observation",
+          "entity": {
+            "token": "eip155:4663:0x41b57f6273b5a78cf9125ce6800f415738e0bba0"
+          },
+          "param": {
+            "registry": "eip155:4663:0x730e3c356299c9203cb042f6c0a9274aeabf9af3",
+            "kind": "0x2af827bba451d4ec3e3a25936a27478e62bf16a8046dfec8f9369f5b9f139345",
+            "param": "0"
+          },
+          "status": "not-read",
+          "reason": "unavailable",
+          "evidence": [
+            {
+              "type": "observation",
+              "registry": "eip155:4663:0x730e3c356299c9203cb042f6c0a9274aeabf9af3",
+              "observationId": "288"
+            }
+          ],
+          "note": "the detector recorded this finding as not read"
+        },
+        {
+          "kind": "erc.presign.token.observation",
+          "entity": {
+            "token": "eip155:4663:0x41b57f6273b5a78cf9125ce6800f415738e0bba0"
+          },
+          "param": {
+            "registry": "eip155:4663:0x730e3c356299c9203cb042f6c0a9274aeabf9af3",
+            "kind": "0x0b9baa9f583b056e93eb0a650daaafff3b7aa27fbe9f4243b91f5f4337fbc10a",
+            "param": "0"
+          },
+          "status": "not-read",
+          "reason": "unavailable",
+          "evidence": [
+            {
+              "type": "observation",
+              "registry": "eip155:4663:0x730e3c356299c9203cb042f6c0a9274aeabf9af3",
+              "observationId": "288"
+            }
+          ],
+          "note": "the detector recorded this finding as not read"
+        },
+        {
+          "kind": "erc.presign.token.observation",
+          "entity": {
+            "token": "eip155:4663:0x41b57f6273b5a78cf9125ce6800f415738e0bba0"
+          },
+          "param": {
+            "registry": "eip155:4663:0x730e3c356299c9203cb042f6c0a9274aeabf9af3",
+            "kind": "0x69c611869dc6d3ce968978b3e0a2a3b7d975d9ab462081222ae451a444230bc5",
+            "param": "0"
+          },
+          "status": "read",
+          "value": {
+            "value": "0",
+            "detector": "eip155:4663:0x02593abff31f4e8ec1d5c2f297a347c51ef06e5c",
+            "observationId": "288",
+            "observedBlock": "107595247",
+            "recordedAt": "1793970892"
+          },
+          "at": {
+            "chainId": "eip155:4663",
+            "block": "111932289"
+          },
+          "evidence": [
+            {
+              "type": "observation",
+              "registry": "eip155:4663:0x730e3c356299c9203cb042f6c0a9274aeabf9af3",
+              "observationId": "288"
+            }
+          ],
+          "note": "copied from the Launch Observations registry (ERC-8470)"
+        },
+        {
+          "kind": "erc.presign.address.code",
+          "entity": {
+            "address": "eip155:4663:0xc2bc9a3fe6c4ce8c2f7eb4655b0869b01d8c93c9",
+            "role": "target"
+          },
+          "status": "read",
+          "value": "contract",
+          "at": {
+            "chainId": "eip155:4663",
+            "block": "111932289"
+          },
+          "evidence": [],
+          "note": "eth_getCode at the block"
+        },
+        {
+          "kind": "erc.presign.address.first-seen-block",
+          "entity": {
+            "address": "eip155:4663:0xc2bc9a3fe6c4ce8c2f7eb4655b0869b01d8c93c9",
+            "role": "target"
+          },
+          "status": "not-read",
+          "reason": "unsupported",
+          "evidence": [],
+          "note": "not read in this report yet"
+        },
+        {
+          "kind": "erc.presign.address.source-verified",
+          "entity": {
+            "address": "eip155:4663:0xc2bc9a3fe6c4ce8c2f7eb4655b0869b01d8c93c9",
+            "role": "target"
+          },
+          "param": "sourcify",
+          "status": "not-read",
+          "reason": "unsupported",
+          "evidence": [],
+          "note": "not read in this report yet"
+        },
+        {
+          "kind": "erc.presign.address.prior-transfers",
+          "entity": {
+            "address": "eip155:4663:0xc2bc9a3fe6c4ce8c2f7eb4655b0869b01d8c93c9",
+            "role": "target"
+          },
+          "status": "not-read",
+          "reason": "unavailable",
+          "evidence": [],
+          "note": "the signer's history could not be read just now"
+        },
+        {
+          "kind": "erc.presign.address.lookalike",
+          "entity": {
+            "address": "eip155:4663:0xc2bc9a3fe6c4ce8c2f7eb4655b0869b01d8c93c9",
+            "role": "target"
+          },
+          "param": {
+            "prefix": 4,
+            "suffix": 4
+          },
+          "status": "not-read",
+          "reason": "unavailable",
+          "evidence": [],
+          "note": "the signer's history could not be read just now"
+        },
+        {
+          "kind": "erc.presign.address.code",
+          "entity": {
+            "address": "eip155:4663:0xdc36d51963d08862c525045ccfd39fae6a0c7f40",
+            "role": "recipient"
+          },
+          "status": "read",
+          "value": "delegated",
+          "at": {
+            "chainId": "eip155:4663",
+            "block": "111932289"
+          },
+          "evidence": [
+            {
+              "type": "call",
+              "chainId": "eip155:4663",
+              "block": "111932289",
+              "to": "0xdc36d51963d08862c525045ccfd39fae6a0c7f40",
+              "data": "0x",
+              "result": "0xef010063c0c19a282a1b52b07dd5a65b58948a07dae32b"
+            }
+          ],
+          "note": "EIP-7702 delegation designator; the evidence is the eth_getCode result (data 0x)"
+        },
+        {
+          "kind": "erc.presign.address.first-seen-block",
+          "entity": {
+            "address": "eip155:4663:0xdc36d51963d08862c525045ccfd39fae6a0c7f40",
+            "role": "recipient"
+          },
+          "status": "not-read",
+          "reason": "unsupported",
+          "evidence": [],
+          "note": "not read in this report yet"
+        },
+        {
+          "kind": "erc.presign.address.delegate-single-caller",
+          "entity": {
+            "address": "eip155:4663:0xdc36d51963d08862c525045ccfd39fae6a0c7f40",
+            "role": "recipient"
+          },
+          "status": "not-read",
+          "reason": "unsupported",
+          "evidence": [],
+          "note": "the delegate's code is not analysed in this report yet"
+        },
+        {
+          "kind": "erc.presign.address.delegate-unbounded-outflow",
+          "entity": {
+            "address": "eip155:4663:0xdc36d51963d08862c525045ccfd39fae6a0c7f40",
+            "role": "recipient"
+          },
+          "status": "not-read",
+          "reason": "unsupported",
+          "evidence": [],
+          "note": "the delegate's code is not analysed in this report yet"
+        },
+        {
+          "kind": "erc.presign.address.delegate-authorizations",
+          "entity": {
+            "address": "eip155:4663:0xdc36d51963d08862c525045ccfd39fae6a0c7f40",
+            "role": "recipient"
+          },
+          "status": "not-read",
+          "reason": "unsupported",
+          "evidence": [],
+          "note": "recent authorizations for the delegate are not read in this report yet"
+        },
+        {
+          "kind": "erc.presign.delegate.codehash",
+          "entity": {
+            "address": "eip155:4663:0xdc36d51963d08862c525045ccfd39fae6a0c7f40",
+            "role": "recipient"
+          },
+          "status": "read",
+          "value": {
+            "delegate": "eip155:4663:0x63c0c19a282a1b52b07dd5a65b58948a07dae32b",
+            "codeHash": "0xa06befcb6f1d7b6c566a607d9d5d932f9b267f3470e55940225c6ee9c4c5e6b0",
+            "known": "MetaMask EIP7702StatelessDeleGator",
+            "match": true
+          },
+          "at": {
+            "chainId": "eip155:4663",
+            "block": "111932289"
+          },
+          "evidence": [],
+          "note": "keccak256 of eth_getCode(delegate) at the block, compared with the hash pinned for MetaMask EIP7702StatelessDeleGator (https://github.com/MetaMask/delegation-framework/blob/main/documents/Deployments.md)"
+        },
+        {
+          "kind": "erc.presign.address.prior-transfers",
+          "entity": {
+            "address": "eip155:4663:0xdc36d51963d08862c525045ccfd39fae6a0c7f40",
+            "role": "recipient"
+          },
+          "status": "not-read",
+          "reason": "unavailable",
+          "evidence": [],
+          "note": "the signer's history could not be read just now"
+        },
+        {
+          "kind": "erc.presign.address.lookalike",
+          "entity": {
+            "address": "eip155:4663:0xdc36d51963d08862c525045ccfd39fae6a0c7f40",
+            "role": "recipient"
+          },
+          "param": {
+            "prefix": 4,
+            "suffix": 4
+          },
+          "status": "not-read",
+          "reason": "unavailable",
+          "evidence": [],
+          "note": "the signer's history could not be read just now"
+        },
+        {
+          "kind": "erc.presign.address.code",
+          "entity": {
+            "address": "eip155:4663:0x41b57f6273b5a78cf9125ce6800f415738e0bba0",
+            "role": "token"
+          },
+          "status": "read",
+          "value": "contract",
+          "at": {
+            "chainId": "eip155:4663",
+            "block": "111932289"
+          },
+          "evidence": [],
+          "note": "eth_getCode at the block"
+        },
+        {
+          "kind": "erc.presign.address.first-seen-block",
+          "entity": {
+            "address": "eip155:4663:0x41b57f6273b5a78cf9125ce6800f415738e0bba0",
+            "role": "token"
+          },
+          "status": "not-read",
+          "reason": "unsupported",
+          "evidence": [],
+          "note": "not read in this report yet"
+        },
+        {
+          "kind": "erc.presign.address.source-verified",
+          "entity": {
+            "address": "eip155:4663:0x41b57f6273b5a78cf9125ce6800f415738e0bba0",
+            "role": "token"
+          },
+          "param": "sourcify",
+          "status": "not-read",
+          "reason": "unsupported",
+          "evidence": [],
+          "note": "not read in this report yet"
+        },
+        {
+          "kind": "erc.presign.address.prior-transfers",
+          "entity": {
+            "address": "eip155:4663:0x41b57f6273b5a78cf9125ce6800f415738e0bba0",
+            "role": "token"
+          },
+          "status": "not-read",
+          "reason": "unavailable",
+          "evidence": [],
+          "note": "the signer's history could not be read just now"
+        },
+        {
+          "kind": "erc.presign.address.lookalike",
+          "entity": {
+            "address": "eip155:4663:0x41b57f6273b5a78cf9125ce6800f415738e0bba0",
+            "role": "token"
+          },
+          "param": {
+            "prefix": 4,
+            "suffix": 4
+          },
+          "status": "not-read",
+          "reason": "unavailable",
+          "evidence": [],
+          "note": "the signer's history could not be read just now"
+        },
+        {
+          "kind": "erc.presign.sim.outcome",
+          "entity": {
+            "call": 0
+          },
+          "status": "read",
+          "value": {
+            "status": "insufficient-funds",
+            "gasUsed": "25408",
+            "have": "1051180421151043",
+            "want": "2350386168447476",
+            "funded": "reverted",
+            "revertReason": null,
+            "revertData": "0x11157667"
+          },
+          "at": {
+            "chainId": "eip155:4663",
+            "block": "111932208"
+          },
+          "evidence": [
+            {
+              "type": "simulation",
+              "chainId": "eip155:4663",
+              "method": "eth_simulateV1",
+              "block": "111932208",
+              "call": 0
+            }
+          ],
+          "note": "the call's outcome; gasUsed leaves out the L1 data fee, from eth_simulateV1 of call 0 on top of block 111932208; with the signer's ETH balance set to 2350386168447476 wei (it holds 1051180421151043), so the effects can be shown; the chain can move before the request is sent"
+        }
+      ],
+      "method": "toll-presign/2026-11-09",
+      "detail": "https://t0ll.xyz/agents/x402#presign",
+      "signature": "0x47629d2506c952a6d83693a7c2a0ac24fc908426b3b3b1c1411d969a0a2059c97ce17903dde96ebff7b52b4405abf53eeb4783d9a4d73b5d22d9e9f69af6802f1b"
+    }
+  ]
+}

@@ -1,0 +1,7 @@
+{
+  "case": "1b_same_swap_real_tx_replayed",
+  "what": "the real buy that was sent on 2026-11-09, replayed today: deadline passed + signer short of ETH -> WARN",
+  "hash": "0xd5fac20081f97a0df66c30de8be2676c42f929e8aba0feda0251948daebe69c6",
+  "block": 109837784,
+  "source": "gist.github.com/soli0x/ade945e806b63984509dde871a34f2ea updated 2026-11-11T19:11:19Z"
+}

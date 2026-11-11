@@ -1,0 +1,7 @@
+{
+  "case": "2_unlimited_approval_BLOCK",
+  "what": "constructed: USDG approve(unlimited) to a plain wallet (EOA); not on chain",
+  "hash": null,
+  "block": null,
+  "source": "gist.github.com/soli0x/ade945e806b63984509dde871a34f2ea updated 2026-11-11T19:11:19Z"
+}
