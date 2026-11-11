@@ -1,5 +1,7 @@
 ## 0.5.4
 
+- Document the 0.5.3 upgrade command, preserved settings and ledger, new defaults and pinned-install behavior.
+
 - Bound detector work and route unreadable or malformed writes through on_unchecked; normalize content-read names consistently and document the detector contract in one table.
 
 - Preserve execution flags, structured quote-tool transactions and nested writes across read exclusions; explicit raw broadcasts use on_unchecked without retaining signed bytes.

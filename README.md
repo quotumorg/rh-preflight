@@ -67,6 +67,15 @@ hermes plugins list
 
 For a local checkout, run `hermes plugins install "file://$(pwd)" --no-enable` from the clone root; only committed files are cloned. Then enable and list the plugin as above.
 
+To upgrade an existing unpinned Git install from 0.5.3, run in the same active profile:
+
+```sh
+hermes plugins update rh-preflight
+hermes plugins list
+```
+
+Pinned installs keep their revision; follow Hermes's pin-update instructions with the reviewed commit you intend to install. Restart Hermes after the update. Existing settings and ledger rows need no migration. New settings use their defaults when absent: transaction checks are on, Toll and Hookr transaction reads share a separate 15-second budget, incomplete checks ask, and free Toll coin reads stay silent. An existing `sources.toll: "off"` still disables Toll; with transaction checks on, the missing simulation uses `on_unchecked`. Existing `mode: note` and `allow_unattended: true` keep their documented exceptions.
+
 Confirm `rh-preflight` is enabled in the active profile. Exit Hermes and start it again:
 
 ```sh
