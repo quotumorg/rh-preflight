@@ -4,7 +4,7 @@ import re
 import time
 from dataclasses import replace
 from .card import Card, plain, text, link
-from .extract import ADDRESS, walk
+from .extract import ADDRESS, walk, objects
 from .sources import priors, sherwood, hookr, chain, wormhole, toll, dexscreener, geckoterminal, offrouter, sentinelhood, trnch, borro, hoodlock
 from .sources.common import field, Reading
 from .budget import Pool as BudgetPool, result as budget_result
@@ -68,8 +68,12 @@ class Network:
             reads.extend(('priors', agent, {'agent': True}) for agent in agents)
         if enabled('sherwood'):
             reads.extend(('sherwood', target, {}) for target in targets)
-        if enabled('hookr') and (swap or all_sources):
-            reads.extend(('hookr', target, {}) for target in dict.fromkeys(pools + targets))
+        explicit_hooks = {value.lower() for row in objects(args) for key, value in row.items()
+                          if str(key).lower().replace('_', '') in {'hook', 'hookaddress'}
+                          and isinstance(value, str) and ADDRESS.fullmatch(value)}
+        if enabled('hookr') and (swap or all_sources or explicit_hooks):
+            reads.extend(('hookr', target, {'is_hook': target in explicit_hooks})
+                         for target in dict.fromkeys(pools + targets + sorted(explicit_hooks)))
         with BudgetPool(max_workers=max(8, len(reads) + len(targets) * 9 + 4)) as pool:
             # RPC starts first. Independent registries run while RPC establishes
             # contract presence; only its dependent reads await that result.

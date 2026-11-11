@@ -1,0 +1,5 @@
+ask · your rule: payout to another wallet
+unsigned transaction to 0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa on chain 4663
+pays out to 0xcccccccccccccccccccccccccccccccccccccccc, not the sending wallet
+Toll: simulated at block 10
+Toll · https://t0ll.xyz

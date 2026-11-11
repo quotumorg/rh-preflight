@@ -1,0 +1,5 @@
+stop · your rule: unlimited approval to a spender with no code
+unsigned transaction to 0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa on chain 4663
+approves unlimited 0xcccccccccccccccccccccccccccccccccccccccc to 0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb; spender no code
+Toll: simulated at block 10
+Toll · https://t0ll.xyz

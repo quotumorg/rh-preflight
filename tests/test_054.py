@@ -168,7 +168,7 @@ def test_wallet_request_projection(method, params):
 @pytest.mark.parametrize('slow', ['builder', 'toll'])
 @pytest.mark.parametrize('setting,expected', [('ask', 'approve'), ('stop', 'block'), ('note', None)])
 def test_budget_contains_slow_stub_and_on_unchecked(tmp_path, slow, setting, expected):
-    service = app(tmp_path, timeout=.04, on_unchecked=setting)
+    service = app(tmp_path, timeout=.04, tx_timeout=.04, on_unchecked=setting)
     def wait(*a, **kw):
         time.sleep(.15)
         return None
@@ -237,7 +237,7 @@ def test_one_retry_within_same_deadline_only():
         return 200, {'x-toll': {}}
     client._read_once = read
     assert client.check_tx({}, 14) == {'x-toll': {}}
-    assert calls == [12, 14]
+    assert calls == [14, 14]
     calls.clear()
     def fail(*args):
         calls.append(args)
@@ -304,7 +304,7 @@ def test_key_header_validation(header):
 
 
 def test_slow_simulation_preserves_local_code_less_stop(tmp_path):
-    service = app(tmp_path, timeout=.04)
+    service = app(tmp_path, timeout=.04, tx_timeout=.04)
     args = json.loads((FIXTURES / 'unlimited-approval-eoa' / 'request.json').read_text())
     def slow(*args):
         time.sleep(.15)

@@ -32,6 +32,19 @@ class Client(Keyless):
             return {getattr(self.tx_headers, 'key_header', 'x-api-key'): key}
         return {}
 
+    def _read(self, path, deadline, payload=None):
+        if path != '/api/tx/check':
+            return super()._read(path, deadline, payload)
+        from ..hey import TemporaryUnavailable
+        # A normal swap can take 14 seconds. Do not interrupt a healthy first
+        # attempt after the builder transport's two-second retry window.
+        try:
+            return self._read_once(path, deadline, payload)
+        except TemporaryUnavailable:
+            if deadline - self.clock() <= .01:
+                raise
+            return self._read_once(path, deadline, payload)
+
     def check_tx(self, payload, deadline, key_header="x-api-key"):
         from ..hey import Unavailable
         self.tx_headers.key_header = key_header

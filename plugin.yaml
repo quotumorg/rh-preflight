@@ -63,10 +63,14 @@ config_schema:
     type: str
     default: ask
     description: ask, stop or note when an applicable check cannot complete
+  tx_timeout:
+    type: float
+    default: 15.0
+    description: Toll transaction budget in seconds, at most 25; runs alongside builder reads
   timeout:
     type: float
     default: 4.0
-    description: Shared call budget in seconds, capped at 25 below the Hermes 30-second limit; restart after changing
+    description: Builder and independent-source budget in seconds, capped at 25 below the Hermes 30-second limit; restart after changing
   sources:
     type: dict
     default: {}

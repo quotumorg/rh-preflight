@@ -1,0 +1,4 @@
+ask · your rule: simulation reverted
+unsigned transaction to 0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa on chain 4663
+simulation reverted
+Toll · https://t0ll.xyz

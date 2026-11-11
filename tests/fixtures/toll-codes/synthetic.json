@@ -1,0 +1,304 @@
+{
+  "label": "Synthetic responses, not live API captures",
+  "cases": [
+    {
+      "code": "unbounded-approval",
+      "action": "ask",
+      "line": "approves unlimited",
+      "response": {
+        "warnings": [
+          {
+            "code": "unbounded-approval",
+            "message": "remote message",
+            "x-toll-evidence": {
+              "token": "0xcccccccccccccccccccccccccccccccccccccccc",
+              "spender": "0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+            }
+          }
+        ],
+        "x-toll": {
+          "simulation": {
+            "status": "success",
+            "block": 10
+          }
+        }
+      }
+    },
+    {
+      "code": "unbounded-approval-to-eoa",
+      "action": "block",
+      "line": "spender no code",
+      "response": {
+        "warnings": [
+          {
+            "code": "unbounded-approval-to-eoa",
+            "message": "remote message",
+            "x-toll-evidence": {
+              "token": "0xcccccccccccccccccccccccccccccccccccccccc",
+              "spender": "0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+            }
+          }
+        ],
+        "x-toll": {
+          "simulation": {
+            "status": "success",
+            "block": 10
+          }
+        }
+      }
+    },
+    {
+      "code": "approval-for-all-to-eoa",
+      "action": "block",
+      "line": "spender no code",
+      "response": {
+        "warnings": [
+          {
+            "code": "approval-for-all-to-eoa",
+            "message": "remote message",
+            "x-toll-evidence": {
+              "token": "0xcccccccccccccccccccccccccccccccccccccccc",
+              "spender": "0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+            }
+          }
+        ],
+        "x-toll": {
+          "simulation": {
+            "status": "success",
+            "block": 10
+          }
+        }
+      }
+    },
+    {
+      "code": "swap-pays-other",
+      "action": "ask",
+      "line": "pays out to 0xcccccccccccccccccccccccccccccccccccccccc",
+      "response": {
+        "warnings": [
+          {
+            "code": "swap-pays-other",
+            "message": "remote message",
+            "x-toll-evidence": {
+              "payee": "0xcccccccccccccccccccccccccccccccccccccccc"
+            }
+          }
+        ],
+        "x-toll": {
+          "simulation": {
+            "status": "success",
+            "block": 10
+          }
+        }
+      }
+    },
+    {
+      "code": "swap-deadline-expired",
+      "action": "ask",
+      "line": "transaction deadline passed",
+      "response": {
+        "warnings": [
+          {
+            "code": "swap-deadline-expired",
+            "message": "remote message",
+            "x-toll-evidence": {}
+          }
+        ],
+        "x-toll": {
+          "simulation": {
+            "status": "success",
+            "block": 10
+          }
+        }
+      }
+    },
+    {
+      "code": "sim-reverted",
+      "action": "ask",
+      "line": "simulation reverted",
+      "response": {
+        "warnings": [
+          {
+            "code": "sim-reverted",
+            "message": "remote message",
+            "x-toll-evidence": {}
+          }
+        ],
+        "x-toll": {
+          "simulation": {
+            "status": "success",
+            "block": 10
+          }
+        }
+      }
+    },
+    {
+      "code": "sim-insufficient-eth",
+      "action": "ask",
+      "line": "sender short of ETH for this transaction",
+      "response": {
+        "warnings": [
+          {
+            "code": "sim-insufficient-eth",
+            "message": "remote message",
+            "x-toll-evidence": {}
+          }
+        ],
+        "x-toll": {
+          "simulation": {
+            "status": "success",
+            "block": 10
+          }
+        }
+      }
+    },
+    {
+      "code": "coin-careful",
+      "action": "pass",
+      "line": null,
+      "response": {
+        "warnings": [
+          {
+            "code": "coin-careful",
+            "message": "remote message",
+            "x-toll-evidence": {}
+          }
+        ],
+        "x-toll": {
+          "simulation": {
+            "status": "success",
+            "block": 10
+          }
+        }
+      }
+    },
+    {
+      "code": "coin-against",
+      "action": "pass",
+      "line": null,
+      "response": {
+        "warnings": [
+          {
+            "code": "coin-against",
+            "message": "remote message",
+            "x-toll-evidence": {}
+          }
+        ],
+        "x-toll": {
+          "simulation": {
+            "status": "success",
+            "block": 10
+          }
+        }
+      }
+    },
+    {
+      "code": "coin-not-read",
+      "action": "pass",
+      "line": "Toll has not read 0xcccc…cccc yet",
+      "response": {
+        "warnings": [
+          {
+            "code": "coin-not-read",
+            "message": "remote message",
+            "x-toll-evidence": {
+              "token": "0xcccccccccccccccccccccccccccccccccccccccc"
+            }
+          }
+        ],
+        "x-toll": {
+          "simulation": {
+            "status": "success",
+            "block": 10
+          }
+        }
+      }
+    },
+    {
+      "code": "coin-partly-read",
+      "action": "ask",
+      "line": "Toll could not read all findings for 0xcccc…cccc",
+      "response": {
+        "warnings": [
+          {
+            "code": "coin-partly-read",
+            "message": "remote message",
+            "x-toll-evidence": {
+              "token": "0xcccccccccccccccccccccccccccccccccccccccc"
+            }
+          }
+        ],
+        "x-toll": {
+          "simulation": {
+            "status": "success",
+            "block": 10
+          }
+        }
+      }
+    },
+    {
+      "code": "router-third-party",
+      "action": "pass",
+      "line": "transaction uses third-party router 0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "response": {
+        "warnings": [
+          {
+            "code": "router-third-party",
+            "message": "remote message",
+            "x-toll-evidence": {
+              "router": "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+            }
+          }
+        ],
+        "x-toll": {
+          "simulation": {
+            "status": "success",
+            "block": 10
+          }
+        }
+      }
+    },
+    {
+      "code": "eip7702-delegation",
+      "action": "ask",
+      "line": "Toll: EIP-7702 delegation to 0xcccccccccccccccccccccccccccccccccccccccc",
+      "response": {
+        "warnings": [
+          {
+            "code": "eip7702-delegation",
+            "message": "remote message",
+            "x-toll-evidence": {
+              "delegate": "0xcccccccccccccccccccccccccccccccccccccccc"
+            }
+          }
+        ],
+        "x-toll": {
+          "simulation": {
+            "status": "success",
+            "block": 10
+          }
+        }
+      }
+    },
+    {
+      "code": "typed-data-unread",
+      "action": "ask",
+      "line": "Toll could not decode this signature",
+      "response": {
+        "warnings": [
+          {
+            "code": "typed-data-unread",
+            "message": "remote message",
+            "x-toll-evidence": {}
+          }
+        ],
+        "x-toll": {
+          "simulation": {
+            "status": "success",
+            "block": 10
+          }
+        }
+      }
+    }
+  ]
+}

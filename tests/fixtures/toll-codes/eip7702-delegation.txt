@@ -1,0 +1,5 @@
+ask · your rule: EIP-7702 delegation requires approval
+unsigned transaction to 0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa on chain 4663
+Toll: EIP-7702 delegation to 0xcccccccccccccccccccccccccccccccccccccccc
+Toll: simulated at block 10
+Toll · https://t0ll.xyz

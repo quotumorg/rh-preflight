@@ -4,7 +4,7 @@ from decimal import Decimal, localcontext
 import re
 import json
 
-from .card import Card
+from .card import Card, WORDING
 from .extract import ADDRESS, _chain, objects, json_values, chain_context
 from .sources.common import field
 
@@ -12,6 +12,24 @@ PERMIT2 = '0x000000000022d473030f116ddee9f6b43ac78ba3'
 MAX = 2 ** 256 - 1
 APPROVE = {'095ea7b3', '39509351', '87517c45', 'd505accf', '2b67b570'}
 SWAPS = {'19b36adf', '3593564c', '24856bc3', '414bf389', 'c04b8d59', '04e45aaf', 'b858183f', 'db3e2198', 'f28c0498', '5ae401dc', 'ac9650d8'}
+
+# Provider-stable codes only. None deliberately omits a coin judgement.
+TOLL_CODES = {
+    'unbounded-approval': 'approval',
+    'unbounded-approval-to-eoa': 'approval_eoa',
+    'approval-for-all-to-eoa': 'approval_all_eoa',
+    'swap-pays-other': 'payout_other',
+    'swap-deadline-expired': 'expired',
+    'sim-reverted': 'reverted',
+    'sim-insufficient-eth': 'short_eth',
+    'coin-careful': None,
+    'coin-against': None,
+    'coin-not-read': 'coin_unread',
+    'coin-partly-read': 'coin_partial',
+    'router-third-party': 'router',
+    'eip7702-delegation': 'delegation',
+    'typed-data-unread': 'signature_unread',
+}
 
 
 def addr(value):
@@ -189,37 +207,125 @@ def _payee(data, payee, sender):
             data['lines'].append(line)
 
 
+def short_address(token):
+    return token[:6] + '…' + token[-4:]
+
+
+def token_metadata(response, x):
+    """Join structured metadata by address, never by a warning's message."""
+    metadata = {}
+
+    def add(row):
+        if not isinstance(row, dict):
+            return
+        token = row.get('token')
+        if isinstance(token, dict):
+            add(token)
+            token = token.get('address')
+        token = addr(token) or addr(row.get('address'))
+        if not token:
+            return
+        entry = metadata.setdefault(token, {})
+        symbol = row.get('symbol', row.get('sym'))
+        if (isinstance(symbol, str) and re.fullmatch(r'\$?[A-Za-z0-9._-]{1,24}', symbol)
+                and not WORDING.search(symbol)):
+            entry['symbol'] = symbol
+        decimals = row.get('decimals')
+        if type(decimals) is int and 0 <= decimals <= 255:
+            entry['decimals'] = decimals
+
+    for container in (response, x):
+        for row in container.get('coins') or []:
+            add(row)
+    for row in x.get('decoded') or []:
+        add(row)
+        for key in ('bought', 'sold'):
+            for token in row.get(key) or []:
+                add(token)
+    return metadata, add
+
+
 def project(card, intent, response=None, kinds=None):
     """Never retain remote prose, decisions, reports or scanner classifications."""
     from copy import deepcopy
     d = deepcopy(card.data)
     kinds = kinds or {}
-    x = response.get('x-toll', {}) if isinstance(response, dict) else {}
-    codes = {w.get('code'): w.get('severity') for w in (response or {}).get('warnings', []) if isinstance(w, dict)}
+    response = response if isinstance(response, dict) else {}
+    x = response.get('x-toll') or {}
+    warnings = [w for w in response.get('warnings', [])
+                if isinstance(w, dict) and w.get('code') in TOLL_CODES]
+    codes = {w['code'] for w in warnings}
+    metadata, add_metadata = token_metadata(response, x)
     sender = intent.get('sender')
-    for row in x.get('decoded', []):
-        if row.get('kind') == 'approve' and addr(row.get('spender')):
-            spender = addr(row['spender'])
-            if not any(a['spender'] == spender for a in d['approvals']):
-                d['approvals'].append({'spender': spender, 'token': addr(row.get('token')) or 'not recorded', 'unlimited': unlimited(row.get('amount')), 'kind': 'not read'})
+
+    def approval(row, force_unlimited=False, no_code=False):
+        spender = addr(row.get('spender'))
+        if not spender:
+            return False
+        token = addr(row.get('token')) or 'not recorded'
+        existing = next((a for a in d['approvals'] if a['spender'] == spender and a['token'] == token), None)
+        if existing is None:
+            existing = {'spender': spender, 'token': token,
+                        'unlimited': unlimited(row.get('amount')), 'kind': 'not read'}
+            d['approvals'].append(existing)
+        existing['unlimited'] |= force_unlimited
+        if no_code:
+            existing['kind'] = 'no code'
+        return True
+
+    for row in x.get('decoded') or []:
+        if row.get('kind') == 'approve':
+            approval(row)
         for payee in row.get('payees', []):
             _payee(d, addr(payee), sender)
-    if codes.get('swap-pays-other') in {'high', 'critical'} and not d['payout_other']:
-        d['payout_other'] = True
-        d['lines'].append('pays out to another wallet; recipient not recorded')
     sim = x.get('simulation') or {}
     effects = sim.get('effects') or sim
     for row in effects.get('approvals', []):
-        spender = addr(row.get('spender'))
-        if spender and not any(a['spender'] == spender for a in d['approvals']):
-            d['approvals'].append({'spender': spender, 'token': addr(row.get('token')) or 'not recorded', 'unlimited': unlimited(row.get('amount')), 'kind': 'not read'})
-    for approval in d['approvals']:
-        approval['kind'] = kinds.get(approval['spender'], 'not read')
-        # This code states the spender's absence of code, rather than an action.
-        if codes.get('unbounded-approval-to-eoa') == 'critical' and approval['unlimited'] and len(d['approvals']) == 1:
-            approval['kind'] = 'no code'
-        quantity = 'unlimited' if approval['unlimited'] else 'a bounded amount of'
-        d['lines'].append(f"approves {quantity} {approval['token']} to {approval['spender']}; spender {approval['kind']}")
+        approval(row)
+    for item in d['approvals']:
+        item['kind'] = kinds.get(item['spender'], 'not read')
+    for warning in warnings:
+        code = warning['code']
+        evidence = warning.get('x-toll-evidence') or {}
+        if code in {'unbounded-approval', 'unbounded-approval-to-eoa', 'approval-for-all-to-eoa'}:
+            no_code = code != 'unbounded-approval'
+            matched = approval(evidence, force_unlimited=True, no_code=no_code)
+            if not matched and len(d['approvals']) == 1:
+                d['approvals'][0]['unlimited'] = True
+                if no_code:
+                    d['approvals'][0]['kind'] = 'no code'
+            elif not matched:
+                d['approval_eoa' if no_code else 'unbounded_approval'] = True
+                d['lines'].append('approves unlimited spending to a spender with no code; spender not recorded'
+                                  if no_code else 'approves unlimited spending; spender not recorded')
+        elif code == 'swap-pays-other' and not d['payout_other']:
+            _payee(d, addr(evidence.get('payee')), sender)
+            if not d['payout_other']:
+                d['payout_other'] = True
+                d['lines'].append('pays out to another wallet; recipient not recorded')
+        elif code in {'coin-not-read', 'coin-partly-read'}:
+            token = addr(evidence.get('token'))
+            add_metadata(evidence)
+            label = metadata.get(token, {}).get('symbol') or (short_address(token) if token else 'this coin')
+            if code == 'coin-not-read':
+                d['lines'].append(f'Toll has not read {label} yet')
+            else:
+                d['lines'].append(f'Toll could not read all findings for {label}')
+                d['unchecked'] = True
+        elif code == 'router-third-party':
+            router = addr(evidence.get('router'))
+            if router:
+                d['lines'].append(f'transaction uses third-party router {router}')
+        elif code == 'eip7702-delegation':
+            delegate = addr(evidence.get('delegate'))
+            d['delegation'] = True
+            d['lines'].append('Toll: EIP-7702 delegation to ' + (delegate or 'delegate not recorded'))
+        elif code == 'typed-data-unread':
+            d['unchecked'] = True
+            d['lines'].append('Toll could not decode this signature')
+    for item in d['approvals']:
+        quantity = 'unlimited' if item['unlimited'] else 'a bounded amount of'
+        d['lines'].append(f"approves {quantity} {item['token']} to {item['spender']}; spender {item['kind']}")
     d['reverted'] = effects.get('status') == 'reverted' or 'sim-reverted' in codes
     d['expired'] = 'swap-deadline-expired' in codes
     d['short_eth'] = sim.get('status') == 'insufficient-eth' or 'sim-insufficient-eth' in codes
@@ -241,14 +347,19 @@ def project(card, intent, response=None, kinds=None):
         token = addr(delta.get('token'))
         number = integer(delta.get('delta'))
         if token and number is not None:
+            add_metadata(delta)
+            info = metadata.get(token, {})
+            decimals = info.get('decimals')
+            label = info.get('symbol') or short_address(token)
             if token in {'0x' + 'e' * 40, '0x' + '0' * 40}:
+                decimals, label = 18, 'ETH'
+            if decimals is not None:
                 with localcontext() as ctx:
-                    ctx.prec = 90
-                    quantity = format(Decimal(number) / Decimal(10 ** 18), '+f')
-                label = 'ETH'
+                    ctx.prec = max(90, len(str(abs(number))) + decimals + 1)
+                    quantity = format(Decimal(number).scaleb(-decimals), '+f')
             else:
-                quantity, label = f'{number:+d}', token + ' base units'
+                quantity, label = f'{number:+d}', label + ' base units'
             d['lines'].append(f'simulated sender balance change: {quantity} {label}')
-    if response is not None or intent['payload'] is not None:
+    if response or intent['payload'] is not None:
         d['lines'].append('Toll · https://t0ll.xyz')
     return Card(card.target, card.kind, d)

@@ -1,0 +1,5 @@
+go · no rule of yours fired
+unsigned transaction to 0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa on chain 4663
+transaction uses third-party router 0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+Toll: simulated at block 10
+Toll · https://t0ll.xyz

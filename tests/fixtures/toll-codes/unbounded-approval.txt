@@ -1,0 +1,5 @@
+ask · your rule: unlimited approval to an unknown contract or unread spender
+unsigned transaction to 0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa on chain 4663
+approves unlimited 0xcccccccccccccccccccccccccccccccccccccccc to 0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb; spender not read
+Toll: simulated at block 10
+Toll · https://t0ll.xyz

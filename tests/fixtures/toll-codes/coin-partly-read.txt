@@ -1,0 +1,5 @@
+ask · your rule: transaction could not be checked
+unsigned transaction to 0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa on chain 4663
+Toll could not read all findings for 0xcccc…cccc
+Toll: simulated at block 10
+Toll · https://t0ll.xyz

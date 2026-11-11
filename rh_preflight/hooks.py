@@ -53,7 +53,8 @@ class Service:
         try:
             settings = self._settings()
             # Leave a margin below Hermes's fail-closed 30-second hook limit.
-            deadline = time.monotonic() + min(settings.timeout, 25.0)
+            started = time.monotonic()
+            deadline = started + min(settings.timeout, 25.0)
             intents = tx_intents(args, settings.assume_chain)
             local = [local_card(intent) for intent in intents]
             targets = extract(tool_name, args, settings)
@@ -85,20 +86,27 @@ class Service:
             if settings.ask_not_verified:
                 required.append("verified_builder")
             # Local signature decoding above always precedes any Toll request.
-            read_deadline = deadline - min(.02, settings.timeout * .1)
+            margin = min(.02, settings.timeout * .1, settings.tx_timeout * .1)
+            read_deadline = deadline - margin
+            tx_enabled = (settings.tx_check == 'on' and settings.sources.get('toll', 'on') == 'on'
+                          and any(intent['payload'] is not None for intent in intents))
+            tx_deadline = started + settings.tx_timeout - margin if tx_enabled else read_deadline
+            hook_deadline = max(deadline, tx_deadline + margin)
             reads = CHECKS.submit(self._read_cards, wanted, tool_name, args, settings, required=required, deadline=read_deadline) if wanted else None
-            txs = CHECKS.submit(self._tx_cards, intents, local, settings, read_deadline) if intents else None
-            try:
-                tx_cards = txs.result(timeout=max(0, deadline - time.monotonic())) if txs else []
-            except TimeoutError:
-                txs.cancel()
-                tx_cards = [project(card, intent) if settings.tx_check == 'on' else card
-                            for card, intent in zip(local, intents)]
+            txs = CHECKS.submit(self._tx_cards, intents, local, settings, tx_deadline, read_deadline) if intents else None
+            # Both start above; collecting builder reads first preserves their
+            # shorter budget even when a custom adapter ignores its deadline.
             try:
                 cards = reads.result(timeout=max(0, deadline - time.monotonic())) if reads else []
             except TimeoutError:
                 reads.cancel()
                 cards = [Card(target, 'unreachable') for target in wanted]
+            try:
+                tx_cards = txs.result(timeout=max(0, hook_deadline - time.monotonic())) if txs else []
+            except TimeoutError:
+                txs.cancel()
+                tx_cards = [project(card, intent) if settings.tx_check == 'on' else card
+                            for card, intent in zip(local, intents)]
             # Only a positive per-address registry answer establishes a known
             # spender. HEY builder presence alone does not establish that role.
             known = {card.target.lower() for card in cards if card.kind == 'network'
@@ -134,41 +142,45 @@ class Service:
                        "rh-preflight could not complete this check")
             return {"action": "block", "message": message}
 
-    def _tx_cards(self, intents, local, settings, deadline):
+    def _tx_cards(self, intents, local, settings, deadline, builder_deadline=None):
         cards = []
+        builder_deadline = builder_deadline if builder_deadline is not None else deadline
         with Pool(max_workers=16) as pool:
-            # Simulation and code reads share the call deadline and start together.
-            simulations = [pool.submit(self.network.clients['toll'].check_tx, intent['payload'], deadline, settings.toll_key_header)
+            # Simulation and code reads start together under separate budgets.
+            def simulate(intent):
+                response = self.network.clients['toll'].check_tx(intent['payload'], deadline, settings.toll_key_header)
+                return response if time.monotonic() <= deadline else None
+            simulations = [pool.submit(simulate, intent)
                            if settings.tx_check == 'on' and settings.sources.get('toll', 'on') == 'on'
                            and intent['payload'] is not None else None for intent in intents]
             codes = {approval['spender']: pool.submit(self.network.clients['chain'].lookup,
-                     approval['spender'], deadline=deadline)
+                     approval['spender'], deadline=builder_deadline)
                      for card in local for approval in card.data['approvals']
                      if settings.sources.get('chain', 'on') == 'on'}
             for intent, card, simulation in zip(intents, local, simulations):
                 kinds = {}
                 for approval in card.data['approvals']:
                     spender = approval['spender']
-                    reading = budget_result(codes[spender], deadline - .005, None) if spender in codes else None
+                    reading = budget_result(codes[spender], builder_deadline - .005, None) if spender in codes else None
                     kinds[spender] = {'code': 'contract with code', 'no_code': 'no code'}.get(reading.state if reading else None, 'not read')
                 response = budget_result(simulation, deadline - .005, None) if simulation else None
                 composed = project(card, intent, response, kinds)
                 # Simulation can reveal approvals in calldata that local selector
                 # decoding did not cover. Establish those spenders' code too.
                 extra_codes = {approval['spender']: pool.submit(self.network.clients['chain'].lookup,
-                               approval['spender'], deadline=deadline)
+                               approval['spender'], deadline=builder_deadline)
                                for approval in composed.data['approvals']
                                if approval['spender'] not in kinds and settings.sources.get('chain', 'on') == 'on'}
                 for spender, future in extra_codes.items():
-                    reading = budget_result(future, deadline - .005, None)
+                    reading = budget_result(future, builder_deadline - .005, None)
                     kinds[spender] = {'code': 'contract with code', 'no_code': 'no code'}.get(reading.state if reading else None, 'not read')
                 if extra_codes:
                     composed = project(card, intent, response, kinds)
                 for approval in composed.data['approvals']:
                     if approval['unlimited'] and approval['kind'] == 'contract with code':
-                        registries = [pool.submit(self.network.clients[name].lookup, approval['spender'], deadline=deadline)
+                        registries = [pool.submit(self.network.clients[name].lookup, approval['spender'], deadline=builder_deadline)
                                       for name in ('priors', 'hookr') if settings.sources.get(name, 'on') == 'on']
-                        readings = [budget_result(future, deadline - .005, None) for future in registries]
+                        readings = [budget_result(future, builder_deadline - .005, None) for future in registries]
                         approval['known'] = any(reading is not None and reading.state == 'present' for reading in readings)
                 if settings.tx_check == 'off':
                     composed = Card(composed.target, composed.kind, {**composed.data,

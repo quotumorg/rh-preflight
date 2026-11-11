@@ -27,6 +27,7 @@ class Settings:
     toll_key_header: str = "x-api-key"
     ask_payout_other: bool = True
     on_unchecked: str = "ask"
+    tx_timeout: float = 15.0
     timeout: float = 4.0
     sources: dict = field(default_factory=dict)
     ask_when: dict = field(default_factory=dict)
@@ -58,6 +59,9 @@ class Settings:
                      "ask_not_verified", "allow_unattended", "ask_payout_other"):
             if type(getattr(self, name)) is not bool:
                 raise ValueError(f"{name} must be a boolean")
+        if (isinstance(self.tx_timeout, bool) or not isinstance(self.tx_timeout, (float, int))
+                or not math.isfinite(self.tx_timeout) or not 0 < self.tx_timeout <= 25):
+            raise ValueError("tx_timeout must be a positive number at most 25 seconds")
         if isinstance(self.timeout, bool) or not isinstance(self.timeout, (float, int)):
             raise ValueError("timeout must be a positive number at most 30 seconds")
         if not math.isfinite(self.timeout) or not 0 < self.timeout <= 30:

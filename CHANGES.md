@@ -4,7 +4,12 @@ Unsigned transactions and wallet requests on chain 4663 receive a Toll simulatio
 Local EIP-712 decoding identifies Permit, Permit2 and signing domains on another chain before any Toll request.
 Unlimited approvals to spenders with no code stop the call, including unattended calls.
 Transaction simulation defaults to on; payout prompts and incomplete-check handling have explicit settings.
-One call budget covers every source, with one transport retry when time remains and no retry during a rate-limit cooldown.
+Toll tx checks default to a separate 15-second budget, configurable up to 25, while builder reads run in parallel with their existing timeout.
+Healthy tx requests get the full budget before a transport retry; rate-limit cooldowns never retry.
+Fourteen stable Toll codes project fixed facts and local rules, including approval-for-all stops, delegation prompts and incomplete signature handling.
+Coin reads print neutral completeness facts; unread coins add no default rule and partial reads use on_unchecked.
+Sender balance changes use structured token symbols and decimals, with short addresses and base units as fallbacks.
+Uncatalogued Uniswap v4 hooks show a public Hookr scan link without an API scan.
 Internal errors stop calls in every mode; the README explains Hermes directives and unattended behavior.
 
 ## 0.5.3

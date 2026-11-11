@@ -24,6 +24,12 @@ def evaluate(cards, settings, unattended=False, now=None):
                     stops.append('your rule: unlimited approval to a spender with no code')
                 elif approval['unlimited'] and not approval.get('known', False):
                     rules.append('your rule: unlimited approval to an unknown contract or unread spender')
+            if d.get('approval_eoa'):
+                stops.append('your rule: unlimited approval to a spender with no code')
+            if d.get('unbounded_approval'):
+                rules.append('your rule: unlimited approval to an unknown contract or unread spender')
+            if d.get('delegation'):
+                rules.append('your rule: EIP-7702 delegation requires approval')
             if d.get('permit'):
                 rules.append('your rule: Permit or Permit2 signature requires approval')
             if d.get('wrong_chain'):

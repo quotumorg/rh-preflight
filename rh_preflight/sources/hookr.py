@@ -1,5 +1,6 @@
 """Hookr catalog descriptions and discovered pools, indexed per list window."""
 from .common import Source, Reading, value, Unavailable
+from ..extract import ADDRESS
 from ..hey import Refused, RateLimited, TemporaryUnavailable
 
 LABEL = "Hookr"
@@ -51,9 +52,9 @@ class Client(Source):
         finally:
             self.index_lock.release()
 
-    def fetch(self, target, deadline, index_result=None):
+    def fetch(self, target, deadline, index_result=None, is_hook=False):
         if index_result is not None:
-            return index_result if isinstance(index_result, Reading) else self.parse(target, *index_result)
+            return index_result if isinstance(index_result, Reading) else self.parse(target, *index_result, is_hook=is_hook)
         try:
             snapshot = self.load_index(deadline)
         except (Refused, RateLimited, TemporaryUnavailable):
@@ -66,7 +67,7 @@ class Client(Source):
                 return Reading(LABEL, "unreadable",
                                "Hookr's page no longer lists hooks in a readable form · " + self.page)
             raise
-        return self.parse(target, *snapshot) if target else snapshot
+        return self.parse(target, *snapshot, is_hook=is_hook) if target else snapshot
 
     @staticmethod
     def index(catalog, integrations, pools):
@@ -80,7 +81,7 @@ class Client(Source):
                     hooks[deployment['address'].lower()] = (item.get("name"), item.get("summary"))
         return {p['poolId'].lower(): p for p in pools['pools'] if p.get("chainId") == 4663}, hooks
 
-    def parse(self, target, pools, hooks):
+    def parse(self, target, pools, hooks, is_hook=False):
         pool = pools.get(target.lower())
         address = (pool.get("hook") or {}).get("address", "").lower() if pool else target.lower()
         description = hooks.get(address)
@@ -93,5 +94,11 @@ class Client(Source):
             else:
                 line = f"{LABEL}: {prefix} {value(name)} listed in Hookr's integrations ({value(summary)})"
         else:
+            discovered = any((row.get('hook') or {}).get('address', '').lower() == address
+                             for row in pools.values())
+            if (pool or discovered or is_hook) and ADDRESS.fullmatch(address) and int(address, 16):
+                # Absence from the catalog does not establish a known spender.
+                return Reading(LABEL, "unlisted", "Hookr: not in the catalog · scan "
+                               + "https://hookr.fun/scan?hook=" + address)
             return Reading(LABEL, "unlisted", "")
         return Reading(LABEL, "present", line + " · " + self.page)
