@@ -199,9 +199,10 @@ def test_network_explicit_hook_is_not_a_catalog_spender():
     answers = {'/api/hooks/catalog': {'root': {}}, '/api/hooks/integrations': {'integrations': []},
                '/api/discover/pools': {'pools': []}}
     network.clients['hookr']._read = lambda path, *args: (200, answers[path])
+    network.clients['hookr']._read_once = lambda *args: (404, {})
     settings = Settings(sources={name: 'on' if name == 'hookr' else 'off' for name in MODULES})
     card = network.enrich([Card(A, 'identifier')], 'swap', {'hook': A}, settings)[0]
-    assert 'Hookr: not in the catalog · scan https://hookr.fun/scan?hook=' + A in card.render()
+    assert 'Hookr scan: https://hookr.fun/scan?hook=' + A in card.render()
     assert not any(row.source == 'Hookr' and row.state == 'present' for row in card.data['sources'])
 
 

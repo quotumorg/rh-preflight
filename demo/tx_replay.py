@@ -43,7 +43,8 @@ def readme_outputs():
     gate = StringIO()
     with TemporaryDirectory() as directory, replay_clock() as clock, redirect_stdout(gate):
         walkthrough(replay_service(directory, clock))
-    tx = {path.parent.name: output for path, output in outputs() if path.parent.parent == TX}
+    from demo.hookr_replay import cards as hookr_cards
+    tx = {name: output + '\n' for name, output in hookr_cards()}
     # The slash command is input, not generated output.
     return iter([priors.render() + '\n', nvda.render() + '\n',
                  '/rh-preflight ' + nvda.target + '\n', gate.getvalue(),

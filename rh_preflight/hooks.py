@@ -16,7 +16,8 @@ from .presentation import present
 from .runtime import unattended
 from .settings import Settings
 from .network import Network, identifiers, POOL, MODULES
-from .extract import chain_context, addresses
+from .extract import chain_context, addresses, objects, ADDRESS
+from .hookr_swap import decode as decode_hookr, ROUTER
 from .card import Card, text, plain
 from .transactions import tx_intents, local_card, project
 from .budget import Pool, result as budget_result
@@ -90,10 +91,12 @@ class Service:
             read_deadline = deadline - margin
             tx_enabled = (settings.tx_check == 'on' and settings.sources.get('toll', 'on') == 'on'
                           and any(intent['payload'] is not None for intent in intents))
-            tx_deadline = started + settings.tx_timeout - margin if tx_enabled else read_deadline
+            hookr_enabled = (settings.tx_check == 'on' and settings.sources.get('hookr', 'on') == 'on'
+                             and any(str((i.get('payload') or {}).get('to', '')).lower() == ROUTER for i in intents))
+            tx_deadline = started + settings.tx_timeout - margin if tx_enabled or hookr_enabled else read_deadline
             hook_deadline = max(deadline, tx_deadline + margin)
             reads = self.executor.submit(self._read_cards, wanted, tool_name, args, settings, required=required, deadline=read_deadline) if wanted else None
-            txs = self.executor.submit(self._tx_cards, intents, local, settings, tx_deadline, read_deadline) if intents else None
+            txs = self.executor.submit(self._tx_cards, intents, local, settings, tx_deadline, read_deadline, args) if intents else None
             # Both start above; collecting builder reads first preserves their
             # shorter budget even when a custom adapter ignores its deadline.
             cards = self.wait(reads, deadline, [Card(target, 'unreachable') for target in wanted]) if reads else []
@@ -135,7 +138,7 @@ class Service:
                        "rh-preflight could not complete this check")
             return {"action": "block", "message": message}
 
-    def _tx_cards(self, intents, local, settings, deadline, builder_deadline=None):
+    def _tx_cards(self, intents, local, settings, deadline, builder_deadline=None, args=None):
         cards = []
         builder_deadline = builder_deadline if builder_deadline is not None else deadline
         with Pool(max_workers=16) as pool:
@@ -146,18 +149,44 @@ class Service:
             simulations = [pool.submit(simulate, intent)
                            if settings.tx_check == 'on' and settings.sources.get('toll', 'on') == 'on'
                            and intent['payload'] is not None else None for intent in intents]
+            hookr = self.network.clients['hookr']
+            hookr_on = settings.tx_check == 'on' and settings.sources.get('hookr', 'on') == 'on'
+            specs = [decode_hookr(intent) for intent in intents]
+            trades = [pool.submit(hookr.check_trade, intent, deadline)
+                      if hookr_on and spec else None for intent, spec in zip(intents, specs)]
+            explicit = {v.lower() for row in objects(args or {}) for k, v in row.items()
+                        if str(k).lower().replace('_', '') in {'hook', 'hooks', 'hookaddress'}
+                        and isinstance(v, str) and ADDRESS.fullmatch(v) and int(v, 16)}
+            scans = {}
+            def start_scan(address):
+                if hookr_on and address not in scans and ADDRESS.fullmatch(address) and int(address, 16):
+                    scans[address] = pool.submit(hookr.screen, address, deadline)
+            for spec in specs:
+                if spec:
+                    start_scan(spec['hook'])
+            for address in explicit:
+                start_scan(address)
             codes = {approval['spender']: pool.submit(self.network.clients['chain'].lookup,
                      approval['spender'], deadline=builder_deadline)
                      for card in local for approval in card.data['approvals']
                      if settings.sources.get('chain', 'on') == 'on'}
-            for intent, card, simulation in zip(intents, local, simulations):
+            for intent, card, simulation, trade, spec in zip(intents, local, simulations, trades, specs):
                 kinds = {}
                 for approval in card.data['approvals']:
                     spender = approval['spender']
                     reading = budget_result(codes[spender], builder_deadline - .005, None) if spender in codes else None
                     kinds[spender] = {'code': 'contract with code', 'no_code': 'no code'}.get(reading.state if reading else None, 'not read')
-                response = budget_result(simulation, deadline - .005, None) if simulation else None
-                composed = project(card, intent, response, kinds)
+                response = budget_result(simulation, deadline - .01, None) if simulation else None
+                if hookr_on:
+                    for row in ((response or {}).get('x-toll') or {}).get('decoded') or []:
+                        hook = row.get('hook') or {}
+                        address = hook.get('address') if isinstance(hook, dict) else hook
+                        if isinstance(address, str):
+                            start_scan(address.lower())
+                    if trade is None and response:
+                        trade = pool.submit(hookr.check_trade, intent, deadline, response)
+                trade_response = budget_result(trade, deadline - .015, None) if trade else None
+                composed = project(card, intent, response, kinds, trade_response, settings.toll_coin_findings)
                 # Simulation can reveal approvals in calldata that local selector
                 # decoding did not cover. Establish those spenders' code too.
                 extra_codes = {approval['spender']: pool.submit(self.network.clients['chain'].lookup,
@@ -168,13 +197,27 @@ class Service:
                     reading = budget_result(future, builder_deadline - .005, None)
                     kinds[spender] = {'code': 'contract with code', 'no_code': 'no code'}.get(reading.state if reading else None, 'not read')
                 if extra_codes:
-                    composed = project(card, intent, response, kinds)
+                    composed = project(card, intent, response, kinds, trade_response, settings.toll_coin_findings)
                 for approval in composed.data['approvals']:
                     if approval['unlimited'] and approval['kind'] == 'contract with code':
                         registries = [pool.submit(self.network.clients[name].lookup, approval['spender'], deadline=builder_deadline)
                                       for name in ('priors', 'hookr') if settings.sources.get(name, 'on') == 'on']
                         readings = [budget_result(future, builder_deadline - .005, None) for future in registries]
                         approval['known'] = any(reading is not None and reading.state == 'present' for reading in readings)
+                hook_lines = []
+                relevant = explicit | ({spec['hook']} if spec else set())
+                for row in ((response or {}).get('x-toll') or {}).get('decoded') or []:
+                    hook = row.get('hook') or {}
+                    address = hook.get('address') if isinstance(hook, dict) else hook
+                    if isinstance(address, str):
+                        relevant.add(address.lower())
+                for address in sorted(relevant):
+                    if address in scans:
+                        reading = budget_result(scans[address], deadline - .005, None)
+                        hook_lines.append(reading.line if reading and reading.line else 'Hookr scan: ' + hookr.scan_link(address))
+                if hook_lines:
+                    composed = Card(composed.target, composed.kind, {**composed.data,
+                        'lines': composed.data['lines'] + hook_lines})
                 if settings.tx_check == 'off':
                     composed = Card(composed.target, composed.kind, {**composed.data,
                         'unchecked': False, 'lines': [line for line in composed.data['lines'] if not line.startswith('Toll')] + ['transaction simulation switched off']})

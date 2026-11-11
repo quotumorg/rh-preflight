@@ -9,7 +9,11 @@ Healthy tx requests get the full budget before a transport retry; rate-limit coo
 Fourteen stable Toll codes project fixed facts and local rules, including approval-for-all stops, delegation prompts and incomplete signature handling.
 Coin reads print neutral completeness facts; unread coins add no default rule and partial reads use on_unchecked.
 Sender balance changes use structured token symbols and decimals, with short addresses and base units as fallbacks.
-Uncatalogued Uniswap v4 hooks show a public Hookr scan link without an API scan.
+Explicit and Toll-decoded v4 hooks use Hookr MCP for hook kind, a numeric automated screen and up to three finding titles; score verdicts and prose never enter cards or rules.
+Hookr scans cache each hook for ten minutes and permit at most six fresh scans per minute; rate limits leave only the public scan link.
+HookrRouter exact-input trades decode PoolKey and poolId locally and check the sender alongside Toll within tx_timeout; unsupported selectors can resolve the first pool by bought token.
+Hookr pool refusals ask by default under ask_hookr_refused; successful reads supply token symbols and decimals without replacing Toll simulation amounts.
+The toll_coin_findings setting defaults to silent; line adds only neutral attribution and an available public coin link.
 Internal errors stop calls in every mode; the README explains Hermes directives and unattended behavior.
 
 ## 0.5.3

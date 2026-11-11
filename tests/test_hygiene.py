@@ -58,6 +58,9 @@ def test_all_authored_user_facing_strings_follow_wording_rule():
                 exempt.update(id(n) for n in ast.walk(node))
         for node in ast.walk(tree):
             if isinstance(node, ast.Constant) and isinstance(node.value, str) and id(node) not in exempt:
+                # Hookr's numeric API field is not authored card wording.
+                if path.name == 'hookr.py' and node.value == 'score':
+                    continue
                 if path.name == 'wormhole.py' and node.value in {
                     'verdict', ' has not observed this token; that is not a verdict · '}:
                     continue

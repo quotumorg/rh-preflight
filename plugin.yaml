@@ -59,6 +59,14 @@ config_schema:
     type: bool
     default: true
     description: Ask when transaction proceeds go to another wallet
+  ask_hookr_refused:
+    type: bool
+    default: true
+    description: Ask when Hookr says this pool's rules refuse the sending wallet
+  toll_coin_findings:
+    type: str
+    default: silent
+    description: line or silent; neutral coin finding attribution, without classifications
   on_unchecked:
     type: str
     default: ask
@@ -66,7 +74,7 @@ config_schema:
   tx_timeout:
     type: float
     default: 15.0
-    description: Toll transaction budget in seconds, at most 25; runs alongside builder reads
+    description: Toll and Hookr transaction budget in seconds, at most 25; runs alongside builder reads
   timeout:
     type: float
     default: 4.0

@@ -5,7 +5,7 @@ import re
 import json
 import shlex
 
-from .card import Card, WORDING
+from .card import Card, WORDING, text, link
 from .extract import ADDRESS, _chain, objects, json_values, chain_context
 from .sources.common import field
 
@@ -359,8 +359,8 @@ def token_metadata(response, x):
     return metadata, add
 
 
-def project(card, intent, response=None, kinds=None):
-    """Never retain remote prose, decisions, reports or scanner classifications."""
+def project(card, intent, response=None, kinds=None, hookr=None, coin_findings="silent"):
+    """Project fixed facts, metadata and the first Hookr refusal sentence only."""
     from copy import deepcopy
     d = deepcopy(card.data)
     kinds = kinds or {}
@@ -371,6 +371,36 @@ def project(card, intent, response=None, kinds=None):
     codes = {w['code'] for w in warnings}
     metadata, add_metadata = token_metadata(response, x)
     sender = intent.get('sender')
+    hookr = hookr if isinstance(hookr, dict) else {}
+    if hookr.get('status') == 'ok':
+        for name in ('pays', 'gets'):
+            add_metadata(hookr.get(name))
+        d['lines'].append("Hookr: this pool's rules allow this wallet")
+    elif hookr.get('status') == 'refused':
+        d['hookr_refused'] = True
+        reason = hookr.get('reason')
+        reason = re.split(r'(?<=[.!?])\s', reason.strip(), maxsplit=1)[0] if isinstance(reason, str) else 'reason not recorded'
+        d['lines'].append("Hookr: this pool's rules refuse this wallet: " + text(reason))
+    if coin_findings == 'line':
+        listed = {addr((w.get('x-toll-evidence') or {}).get('token')) for w in warnings
+                  if w['code'] in {'coin-careful', 'coin-against'}} - {None}
+        coins = [c for c in x.get('coins') or [] if isinstance(c, dict)]
+        coins += [{'token': t} for t in sorted(listed) if not any(addr(c.get('token')) == t for c in coins)]
+        seen = set()
+        for coin in coins:
+            if not isinstance(coin, dict):
+                continue
+            tally = coin.get('tally') or {}
+            tally = tally if isinstance(tally, dict) else {}
+            token = addr(coin.get('token'))
+            if (token in seen or (token not in listed and
+                    not any(type(tally.get(k)) is int and tally[k] > 0 for k in ('against', 'careful')))):
+                continue
+            seen.add(token)
+            label = metadata.get(token, {}).get('symbol') or (short_address(token) if token else 'this coin')
+            page = coin.get('check')
+            public = link(page) if isinstance(page, str) and page.startswith('https://t0ll.xyz/check/') else None
+            d['lines'].append(f'Toll lists findings for {label}' + (' · ' + public if public else ''))
 
     def approval(row, force_unlimited=False, no_code=False, all_items=False):
         spender = addr(row.get('spender'))

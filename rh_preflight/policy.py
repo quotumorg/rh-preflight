@@ -37,6 +37,8 @@ def evaluate(cards, settings, unattended=False, now=None):
                 rules.append('your rule: Permit or Permit2 signature requires approval')
             if d.get('wrong_chain'):
                 rules.append('your rule: signing domain chain differs from 4663')
+            if d.get('hookr_refused') and settings.ask_hookr_refused:
+                rules.append("your rule: Hookr pool rules refuse this wallet")
             if d.get('payout_other') and settings.ask_payout_other:
                 rules.append('your rule: payout to another wallet')
             for fact, rule in [('reverted', 'simulation reverted'), ('expired', 'transaction deadline passed'), ('short_eth', 'sender short of ETH')]:

@@ -26,6 +26,8 @@ class Settings:
     tx_check: str = "on"
     toll_key_header: str = "x-api-key"
     ask_payout_other: bool = True
+    ask_hookr_refused: bool = True
+    toll_coin_findings: str = "silent"
     on_unchecked: str = "ask"
     tx_timeout: float = 15.0
     timeout: float = 4.0
@@ -47,6 +49,8 @@ class Settings:
             raise ValueError("toll_key_header must be an authentication header name")
         if self.tx_check not in {"on", "off"}:
             raise ValueError("tx_check must be on or off")
+        if not isinstance(self.toll_coin_findings, str) or self.toll_coin_findings not in {"line", "silent"}:
+            raise ValueError("toll_coin_findings must be line or silent")
         if self.on_unchecked not in {"ask", "stop", "note"}:
             raise ValueError("on_unchecked must be ask, stop or note")
         if self.mode not in {"ask", "ask_when", "note"}:
@@ -56,7 +60,7 @@ class Settings:
         if self.assume_chain not in {None, 4663}:
             raise ValueError("assume_chain must be 4663 or null")
         for name in ("ask_quiet", "ask_unmeasured", "ask_no_record",
-                     "ask_not_verified", "allow_unattended", "ask_payout_other"):
+                     "ask_not_verified", "allow_unattended", "ask_payout_other", "ask_hookr_refused"):
             if type(getattr(self, name)) is not bool:
                 raise ValueError(f"{name} must be a boolean")
         if (isinstance(self.tx_timeout, bool) or not isinstance(self.tx_timeout, (float, int))

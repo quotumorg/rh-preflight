@@ -28,9 +28,11 @@ OffRouter is read only for its own project. DexScreener, GeckoTerminal and raw R
 
 | Source | Endpoint | What is sent | When |
 | :--- | :--- | :--- | :--- |
+| Hookr MCP hook reads | `POST https://hookr.fun/api/mcp`, JSON-RPC `tools/call`: `hookr_hook`, `hookr_scan` | Only the nonzero hook address `{address}`. No wallet or transaction content. | Explicit v4 hook arguments and Toll `decoded[].hook`; ten-minute in-process cache per hook, six fresh scans/minute per client. Rate limits print only the scan link. |
+| Hookr MCP trade reads | `POST https://hookr.fun/api/mcp`, `hookr_check_trade`; `hookr_pools` when needed | `{poolId, side, amount, wallet}` where wallet is the transaction sender and amount is decimal paying units. Pool lookup sends only `{token}` (bought token for unsupported calldata). | HookrRouter swaps within the shared `tx_timeout`, alongside Toll. No trade-result cache. Refusal asks under `ask_hookr_refused`; failure is silent. |
 | Toll check_tx | `POST https://t0ll.xyz/api/tx/check` | Only the detected unsigned transaction `{chainId, from, to, data, value}` or supported wallet request `{rpc:{method,params}}`, including typed data or personal-sign content. An optional environment key is an HTTP header only. | Chain 4663 transaction/signing content in `pre_tool_call`, after local decode, when `tx_check: on` and Toll is enabled. No raw signed transaction, payment follow-up or result cache. |
 
-Cards project warning codes and severity, decoded fields and simulation facts. Remote action classifications, scanner classifications, report prose and warning messages are discarded. Credit links only to [Toll's public page](https://t0ll.xyz). The access model and optional partner header are pending confirmation; 429 ends the attempt and respects Retry-After as a process cooldown.
+Cards project stable warning codes, decoded fields and simulation facts. Hookr contributes hook kind, a numeric automated screen, at most three finding titles and the first refusal sentence; its price-impact advice and screen verdict fields are discarded. Toll coin classifications stay silent by default; the optional `toll_coin_findings: line` adds neutral attribution and a public coin link without their words. Remote action classifications, scanner classifications, report prose and warning messages are discarded. Credit links only to [Toll's public page](https://t0ll.xyz). The access model and optional partner header are pending confirmation; 429 ends the attempt and respects Retry-After as a process cooldown.
 
 ## Coverage
 

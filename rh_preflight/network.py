@@ -69,7 +69,7 @@ class Network:
         if enabled('sherwood'):
             reads.extend(('sherwood', target, {}) for target in targets)
         explicit_hooks = {value.lower() for row in objects(args) for key, value in row.items()
-                          if str(key).lower().replace('_', '') in {'hook', 'hookaddress'}
+                          if str(key).lower().replace('_', '') in {'hook', 'hooks', 'hookaddress'}
                           and isinstance(value, str) and ADDRESS.fullmatch(value)}
         if enabled('hookr') and (swap or all_sources or explicit_hooks):
             reads.extend(('hookr', target, {'is_hook': target in explicit_hooks})
@@ -83,7 +83,7 @@ class Network:
                       for name in ('hookr', 'sherwood') if enabled(name)}
             def source_read(name, target, kw):
                 start = time.monotonic()
-                if name == 'hookr':
+                if name == 'hookr' and not kw.get('is_hook'):
                     kw = {**kw, 'index_result': primes['hookr'].result()}
                 reading = lookup(name, target, **kw)
                 return replace(reading, elapsed=max(0.0, time.monotonic() - start))

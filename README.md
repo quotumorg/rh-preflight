@@ -152,28 +152,34 @@ The hook recognizes unsigned `{to, data, value, from, chainId}` objects and wall
 
 Local EIP-712 decoding runs before any Toll request. It prints the domain, signing type, spender, amount, deadline and nonce. Permit2 is recognized by address, including each token in PermitBatch. DAI-style `allowed: true` grants unlimited approval; expiry zero and maximum deadlines print as no expiry. Other zero deadlines print the epoch date. Any Permit or Permit2 asks; a signing domain on another chain asks when the call is on 4663. Unlimited approval or permit to a spender with no code stops. Approval for all to a spender with no code also stops and describes all items in the collection. An unlimited approval to an unknown contract, EIP-7702 delegation, payout to another wallet, reverted simulation, expired transaction deadline or insufficient ETH asks. A successful swap adds facts without another approval rule. A missing sending wallet uses `on_unchecked` even if Toll reports simulation success. These checks do not authenticate the signer or prove domain ownership.
 
-Saved Toll responses, rendered by our parser. The first is a fresh unsigned swap, never sent. The second is a constructed payout case, never sent. Simulation blocks describe the replay, not an executed transaction:
+Saved Toll and Hookr responses, rendered by our parser. Hookr captures are a later read, so quote amounts do not replace simulated balances. The first is a fresh unsigned swap, never sent. The second is a constructed payout case, never sent. Simulation blocks describe the replay, not an executed transaction:
 
 ```text
 go · no rule of yours fired
 unsigned transaction to 0xc2bc9a3fe6c4ce8c2f7eb4655b0869b01d8c93c9 on chain 4663
+Hookr: this pool's rules allow this wallet
 transaction uses third-party router 0xc2bc9a3fe6c4ce8c2f7eb4655b0869b01d8c93c9
 Toll: simulated at block 111933448
 simulated sender balance change: -0.000480569378599765 ETH
-simulated sender balance change: +45704730444476128839330 $CLEAR base units
+simulated sender balance change: +45704.730444476128839330 CLEAR
 Toll · https://t0ll.xyz
+Hookr: hook kind shared root
+Hookr scan: 79/100, automated screening · 5 findings: Inline assembly needs manual review, Unchecked arithmetic block, Delegated execution to code fixed at construction, +2 more · https://hookr.fun/scan?hook=0x89c9FB50d1f03192230FFB1c279BB6E7d3Fe6aCc&chain=4663
 ```
 
 ```text
-ask · your rule: payout to another wallet +4 more
+ask · your rule: Hookr pool rules refuse this wallet +5 more
 unsigned transaction to 0xc2bc9a3fe6c4ce8c2f7eb4655b0869b01d8c93c9 on chain 4663
 pays out to 0xdc36d51963d08862c525045ccfd39fae6a0c7f40, not the sending wallet
+Hookr: this pool's rules refuse this wallet: This wallet holds no ERC-8004 agent identity and is not linked as one's agent wallet.
 Toll could not read all findings for $CLEAR
 transaction uses third-party router 0xc2bc9a3fe6c4ce8c2f7eb4655b0869b01d8c93c9
 sender short of ETH for this transaction
 simulation reverted
 transaction deadline passed
 Toll · https://t0ll.xyz
+Hookr: hook kind shared root
+Hookr scan: 79/100, automated screening · 5 findings: Inline assembly needs manual review, Unchecked arithmetic block, Delegated execution to code fixed at construction, +2 more · https://hookr.fun/scan?hook=0x89c9FB50d1f03192230FFB1c279BB6E7d3Fe6aCc&chain=4663
 ```
 
 | Our outcome | Hermes directive | Effect |
@@ -185,11 +191,13 @@ Toll · https://t0ll.xyz
 
 An approval request needs a person to answer. On unattended surfaces, including `-z`, cron, `--yolo` and an unreadable presence context, ask becomes stop unless `allow_unattended` is explicitly enabled; detected calls in ask modes also stop when no optional rule fires. Unlimited approval to a spender with no code always stops.
 
-Builder and independent-source reads use `timeout` (4 seconds by default, capped at 25); Toll transaction checks use `tx_timeout` (15 seconds by default, maximum 25). They start in parallel, so source waits take at most the larger budget, with card assembly and local ledger writes afterward. The tx card can add up to about 15 seconds before a transaction because a first coin read can take about 14 seconds. Healthy tx requests receive the full budget before any retry. A transport or HTTP 5xx failure may retry once within the same deadline; no retry follows 429. `Retry-After` applies as a per-process cooldown and no hook sleeps. An unavailable, refused or rate-limited simulation says `Toll: not simulated` and uses `on_unchecked`. Partial coin or signature reads use `on_unchecked` alongside any simulation facts that did complete. Existing approval and payout facts still apply. With `tx_check: off`, only local facts and rules remain; `sources.toll: off` prevents a Toll request and leaves simulation unchecked when `tx_check` is on. Swap arguments without calldata get local recipient facts only. A standalone typed-data object without a wallet RPC envelope stays local because the signer is not known.
+Builder and independent-source reads use `timeout` (4 seconds by default, capped at 25); Toll and Hookr transaction checks use `tx_timeout` (15 seconds by default, maximum 25). They start in parallel, so source waits take at most the larger budget, with card assembly and local ledger writes afterward. The tx card can add up to about 15 seconds before a transaction because a first coin read can take about 14 seconds. Healthy tx requests receive the full budget before any retry. A transport or HTTP 5xx failure may retry once within the same deadline; no retry follows 429. `Retry-After` applies as a per-process cooldown and no hook sleeps. An unavailable, refused or rate-limited simulation says `Toll: not simulated` and uses `on_unchecked`. Partial coin or signature reads use `on_unchecked` alongside any simulation facts that did complete. Existing approval and payout facts still apply. With `tx_check: off`, only local facts and rules remain; `sources.toll: off` prevents a Toll request and leaves simulation unchecked when `tx_check` is on. Swap arguments without calldata get local recipient facts only. A standalone typed-data object without a wallet RPC envelope stays local because the signer is not known.
 
 Known timing limitation: rare SQLite writer contention can add its five-second lock wait after source checks, reaching Hermes's 30-second fail-closed cutoff at maximum budgets; prolonged process scheduling can do the same. These cases stop at the host boundary.
 
-Only Toll's 14 stable warning codes are projected; unknown codes add no fact or rule. A coin not yet read adds a fact without a rule. Partial coin reads and undecoded signatures use `on_unchecked`. Coin classifications add no line or rule. Amounts use structured symbols and decimals when provided; missing decimals retain base units, and missing symbols use a short token address. Identified Uniswap v4 hooks outside Hookr's catalog link to `https://hookr.fun/scan?hook=<address>`; the plugin does not call the scan API.
+Only Toll's 14 stable warning codes are projected; unknown codes add no fact or rule. A coin not yet read adds a fact without a rule. Partial coin reads and undecoded signatures use `on_unchecked`. Coin classifications add no rule. `toll_coin_findings: silent` is the default; `line` prints only `Toll lists findings for <symbol>` and the public coin link when supplied. Amounts use structured symbols and decimals when provided; missing decimals retain base units, and missing symbols use a short token address. A nonzero v4 hook address in `hook`, `hooks` or `hookAddress` arguments, or Toll's `decoded[].hook`, triggers Hookr MCP `hookr_hook` and `hookr_scan`. The card prints shared root, own hook from Hookr's factory or unknown, then the numeric screen with `automated screening`, at most three finding titles and `+N more`. Classifications, headlines, bands and cap prose are discarded. The numeric result is a screen, not an audit; it fires no policy rule. Each hook's read is cached in process for ten minutes. At most six fresh scans run per minute per client; rate limits leave only the public scan link and never sleep.
+
+For swaps to HookrRouter `0xc2bc9a3fe6c4ce8c2f7eb4655b0869b01d8c93c9`, `hookr_check_trade` runs beside Toll within `tx_timeout`. The captured `0x19b36adf` ABI yields PoolKey, poolId (Ethereum Keccak-256), direction and exact input locally. Native buys need no pool lookup; token-funded inputs use matching pool metadata for decimals and side. With an unsupported selector, Toll's bought token selects the first `hookr_pools` result; only a native-funded buy with a known paying amount is quoted. Exact-output amounts and unread token input amounts are skipped. The wallet is always the sender, including a payout to someone else. `refused` adds the first reason sentence and asks by default under `ask_hookr_refused`; `ok` adds a pool-rule fact and symbol/decimals for the actual Toll balance changes. Hookr price-impact advice is discarded. An unknown or failed trade read adds no fact or rule, and the Toll card still prints. `sources.hookr: off` disables these reads; `tx_check: off` disables transaction enrichment.
 
 Transaction simulation is supplied by [Toll](https://t0ll.xyz). The optional `TOLL_API_KEY` environment variable is read only for this route; it never enters the card or ledger. Keyless access is confirmed; the optional partner-key header still awaits confirmation from Toll. The plugin stores projected facts, not raw calldata, typed messages, remote reports or signatures. No returned API or payment link is followed.
 
@@ -226,12 +234,14 @@ plugins:
 | `allow_unattended` | `false` | Explicitly permit detected actions without requesting a human answer in unattended contexts. |
 | `assume_chain` | unset | Set to `4663` for tools without an explicit chain field. |
 | `tool_patterns` | action regex list | Configurable native and MCP tool classes, including swap, buy, sell, trade, approve, permit, transfer, pay, mint, bridge, deposit, stake and deploy. |
-| `tx_check` | `on` | Toll transaction simulation; `off` leaves local signature and calldata checks enabled. |
+| `tx_check` | `on` | Toll simulation and Hookr transaction enrichment; `off` leaves local signature and calldata checks enabled. |
 | `toll_key_header` | `x-api-key` | Header for the optional environment key; this default awaits Toll confirmation. |
 | `ask_payout_other` | `true` | Ask when transaction proceeds go to another wallet. |
+| `ask_hookr_refused` | `true` | Ask when Hookr says this pool's rules refuse the sender. |
+| `toll_coin_findings` | `silent` | `line` prints neutral coin-finding attribution and any public coin link; `silent` omits it. |
 | `on_unchecked` | `ask` | An incomplete transaction, builder read or enabled dependent source rule asks, stops or adds a note. Internal errors always stop. |
 | `timeout` | `4.0` | Builder and independent-source budget in seconds, capped at 25 below Hermes's 30-second hook limit. |
-| `tx_timeout` | `15.0` | Toll tx-check budget in seconds, maximum 25; runs in parallel with builder reads. |
+| `tx_timeout` | `15.0` | Toll and Hookr tx-check budget in seconds, maximum 25; runs in parallel with builder reads. |
 
 The existing builder rules remain flat settings for compatibility. Payment, vault and Stock Token rules live in the `ask_when` mapping. An additional source's failure uses `on_unchecked` when its dependent rule is enabled. `note` mode suppresses approval prompts; explicit stops for unlimited approval to a spender with no code, `on_unchecked: stop` and internal errors still apply. A failed local check or ledger write always stops.
 
@@ -249,7 +259,7 @@ Each source publishes its own records. Every additional line ends with its publi
 | [HoodLock](https://hoodlock.tech/lock-checker) | Read-only JSON-RPC at `https://rpc.mainnet.chain.robinhood.com`, Locker `0xd0f7d8c6e9f6d80c297bebe4f7fd1b9c8125c32f`, Vesting `0x910e19bcC4bce46999994Ed7297E0Fc4431ec72E` | Percent of total supply in future token locks, earliest unlock, withdrawn locks and vesting schedule count. Token locks and vesting only; LP locks in HoodLock's Liquidity Locker and other lockers are not read. |
 | [Trnch](https://trnch.fun/token/{address}) | `https://trnch.fun/api/bot/v1/check?token={address}` | Trnch's token check, read live per check from its keyless API; credit links to `https://trnch.fun/token/{address}`. Unknown counts as an answered no-record reply. |
 | [Agent Wormhole](https://www.agentwormhole.com) | `https://dashboard.agentwormhole.com/api/v1/token/4663/{address}` | Its metadata rule field, mutation count, first observation and current/expired attestation. Unobserved is explicit. |
-| [Hookr](https://hookr.fun/hooks) | `https://hookr.fun/api/hooks/catalog`, `/api/hooks/integrations`, `/api/discover/pools`; public `/hooks` page fallback | Pool hook and documented behavior. Identified v4 hooks outside the catalog show a public scan link; the scan API is not called. Local catalog matching; called for swap/liquidity tools, explicit hook arguments and full cards. |
+| [Hookr](https://hookr.fun/hooks) | `POST https://hookr.fun/api/mcp`: `hookr_hook`, `hookr_scan`, `hookr_pools`, `hookr_check_trade`; catalog `/api/hooks/catalog`, `/api/hooks/integrations`, `/api/discover/pools` with public `/hooks` fallback | Hook kind, automated screen and finding titles; wallet-specific pool refusal or quote metadata beside Toll. Sends hook address, or token address then poolId, side, amount and sender wallet. Catalog reads still cover pool lookup, integrations and full cards. |
 | [Toll](https://t0ll.xyz) | `https://t0ll.xyz/api/tx/check` for unsigned transactions and wallet requests; `/mcp` free `check_agent(id)` and `check_hook(address)`; `/api/markets/stock/{id}` for stock membership/prices | Simulated sender changes, approval, recipient, delegation and incomplete-read facts under our local rules. Agent card/payTo and hook facts, or official Stock Token ticker, ISIN, active status and registry timestamp, plus price versus timestamped Chainlink reference. Known ids/hooks come from Priors/Hookr or arguments. Toll's own decision words are not printed. |
 | [Borro](https://borro.markets) | `https://borro.markets/markets.json` and `/prices.json` | Official Stock Token lending market, annual stock lending fees before BORRO drip (`lend.apr`), annual short borrow fees (`short.yearly`) and short desk mid price versus feed at the recorded time. Membership must first come from Toll with a response address matching the requested address, ignoring letter case. A missing or mismatched response address prints `Toll: response address differs from requested address; official Stock Token status not established`, keeps the no-HEY-record rule and skips Borro for that target. No market is explicit. |
 | [Sherwood](https://app.sherwood.sh) | `https://app.sherwood.sh/api/v1/vaults`, `/api/v1/vault/{address}` | Listed vault strategy, proposals, assets and agents. Unlisted vaults add no line. |
