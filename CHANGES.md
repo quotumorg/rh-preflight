@@ -16,7 +16,7 @@ Hookr pool refusals ask by default under ask_hookr_refused; successful reads sup
 The toll_coin_findings setting defaults to silent; line adds only neutral attribution and an available public coin link.
 Internal errors stop calls in every mode; the README explains Hermes directives and unattended behavior.
 
-A token address that is not a Robinhood Stock Token gets Toll's free `check_coin` read: fixed Figures lines only (launch venue and age, maker's launch count, flagged wallets and their share, what the maker holds now). Verdict words and finding prose are never copied; a still-reading answer prints nothing.
+A token address that is not a Robinhood Stock Token gets Toll's free `check_coin` read: fixed Figures lines only (launch venue and age, maker's launch count, wallets on Toll's flag list and their share, what the maker holds now). Verdict words and finding prose are never copied. A still-reading answer, a timeout, 429, 5xx or a used-up daily quota prints nothing; a whole answer is kept ten minutes per address.
 
 
 ## 0.5.3
