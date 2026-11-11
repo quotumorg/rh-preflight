@@ -214,10 +214,28 @@ def tx_intents(args, assume_chain=None):
             if any(item['payload'] == payload for item in result):
                 continue
             result.append({'payload': payload, 'typed': None, 'sender': addr(row.get('from'))})
-    # Swap-shaped arguments without calldata still expose a local recipient fact.
+    # Action arguments are not an unsigned transaction. Keep their local facts,
+    # but never treat an unavailable simulation as a completed check.
     for row in rows:
-        if on_chain and {'tokenIn', 'tokenOut', 'amount', 'recipient'} <= row.keys() and 'data' not in row:
-            result.append({'payload': None, 'typed': None, 'sender': addr(row.get('from') or row.get('wallet')), 'shape': row})
+        if (not on_chain or typed_payload(row) or id(row) in typed_children
+                or any(k in row for k in ('data', 'input', 'calldata'))):
+            continue
+        amount = next((row[k] for k in ('amount', 'amountIn', 'amountOut', 'value', 'allowance') if k in row), None)
+        if amount is None:
+            continue
+        if {'tokenIn', 'tokenOut'} <= row.keys():
+            kind = 'swap'
+        elif addr(row.get('spender')):
+            kind = 'approval'
+        elif any(addr(row.get(k)) for k in ('recipient', 'payTo', 'payee', 'to')):
+            if addr(row.get('to')) and 'value' in row:
+                continue  # Already represented by the unsigned native transaction.
+            kind = 'payment'
+        else:
+            continue
+        result.append({'payload': None, 'typed': None,
+                       'sender': addr(row.get('from') or row.get('wallet')),
+                       'shape': row, 'shape_kind': kind, 'shape_amount': amount})
     result.extend(cast_sends(args, assume_chain))
     return result
 
@@ -234,6 +252,9 @@ def local_card(intent):
     lines = data['lines']
     target = 'signature on chain 4663'
     if typed:
+        if sender is None:
+            data['unchecked'] = True
+            lines.append('signing wallet not recorded; sender effects could not be checked')
         domain, message = typed['domain'], typed['message']
         token = addr(domain.get('verifyingContract')) or 'not recorded'
         primary = field(typed['primaryType'])
@@ -301,9 +322,19 @@ def local_card(intent):
             data['unchecked'] = True
             lines.append('transaction arguments could not be decoded locally')
         elif shape:
-            target = 'swap on chain 4663'
-            lines.append('swap arguments without calldata; no transaction simulation requested')
-            _payee(data, addr(shape.get('recipient')), sender)
+            kind = intent.get('shape_kind', 'swap')
+            target = kind + ' on chain 4663'
+            data['unchecked'] = True
+            data['moves'] = True
+            lines.append(kind + ' arguments without calldata; no transaction simulation requested')
+            if kind == 'approval':
+                data['approvals'].append({'spender': addr(shape['spender']),
+                    'token': addr(shape.get('token')) or 'not recorded',
+                    'unlimited': unlimited(intent.get('shape_amount')), 'kind': 'not read'})
+            else:
+                payee = next((addr(shape.get(k)) for k in ('recipient', 'payTo', 'payee', 'to')
+                              if addr(shape.get(k))), None)
+                _payee(data, payee, sender)
         else:
             method = (payload or {}).get('rpc', {}).get('method', 'personal_sign')
             lines.append(f'{method} request on chain 4663')

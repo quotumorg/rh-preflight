@@ -95,13 +95,13 @@ def test_synthetic_typed_data(case, expected, shape):
     intent = intents[0]
     card = project(local_card(intent), intent, kinds={B: 'no code'})
     # This test targets local policy rather than remote simulation availability.
-    card = Card(card.target, card.kind, {**card.data, 'unchecked': False})
-    decision = evaluate([card], Settings())
+    local_only = Card(card.target, card.kind, {**card.data, 'unchecked': False})
+    decision = evaluate([local_only], Settings())
     assert decision.action == expected
     if case == 'permit2-single':
         assert any('Permit2' in line for line in card.data['lines'])
     if shape == 'object':
-        assert present(card, decision).render() + '\n' == (TYPED / (case + '.txt')).read_text()
+        assert present(card, evaluate([card], Settings())).render() + '\n' == (TYPED / (case + '.txt')).read_text()
 
 
 def tx_card(**changes):

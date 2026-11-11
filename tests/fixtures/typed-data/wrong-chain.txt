@@ -1,2 +1,5 @@
-ask · your rule: signing domain chain differs from 4663
+ask · your rule: signing domain chain differs from 4663 +1 more
+your rule: signing domain chain differs from 4663
+your rule: transaction could not be checked
+signing wallet not recorded; sender effects could not be checked
 EIP-712 domain Synthetic SignIn, chainId 1, verifyingContract 0xcccccccccccccccccccccccccccccccccccccccc; primaryType SignIn

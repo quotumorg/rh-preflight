@@ -1,7 +1,8 @@
 ## 0.5.4
 
 Unsigned transactions and wallet requests on chain 4663 receive a Toll simulation card before builder cards, with sender balance changes and our approval rules.
-Local EIP-712 decoding identifies Permit, Permit2 and signing domains on another chain before any Toll request.
+Local EIP-712 decoding identifies Permit, Permit2 and signing domains on another chain before any Toll request. Missing signing wallets use on_unchecked even if simulation succeeds.
+Swap, approval and payment argument shapes without calldata retain local facts and use on_unchecked instead of reporting a completed check.
 Unlimited approvals to spenders with no code stop the call, including unattended calls.
 Transaction simulation defaults to on; payout prompts and incomplete-check handling have explicit settings.
 Toll tx checks default to a separate 15-second budget, configurable up to 25, while builder reads run in parallel with their existing timeout.

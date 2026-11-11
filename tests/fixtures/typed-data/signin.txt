@@ -1,2 +1,3 @@
-go · no rule of yours fired
+ask · your rule: transaction could not be checked
+signing wallet not recorded; sender effects could not be checked
 EIP-712 domain Synthetic SignIn, chainId 4663, verifyingContract 0xcccccccccccccccccccccccccccccccccccccccc; primaryType SignIn
