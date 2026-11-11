@@ -10,6 +10,33 @@ URL = re.compile(r"https?://[^\s\"'<>]+", re.I)
 TERMINAL = re.compile(r"(?:^|__|_)(?:terminal|exec_command|shell|bash|run_command)(?:$|_)", re.I)
 
 
+class DetectionUnreadable(ValueError):
+    """Local parsing could not establish complete transaction coverage."""
+
+
+def bounded_arguments(value):
+    """Reject excessive work before any recursive or repeated detector passes."""
+    pending = [(value, 0)]
+    nodes, characters = 0, 0
+    while pending:
+        item, depth = pending.pop()
+        nodes += 1
+        if nodes > 20_000 or depth > 24:
+            raise DetectionUnreadable('argument structure limit')
+        if isinstance(item, dict):
+            if len(item) > 20_000:
+                raise DetectionUnreadable('argument structure limit')
+            pending.extend((v, depth + 1) for v in item.values())
+        elif isinstance(item, (list, tuple)):
+            if len(item) > 20_000:
+                raise DetectionUnreadable('argument structure limit')
+            pending.extend((v, depth + 1) for v in item)
+        elif isinstance(item, str):
+            characters += len(item)
+            if characters > 2_000_000:
+                raise DetectionUnreadable('argument text limit')
+
+
 def walk(value):
     if isinstance(value, dict):
         for key, item in value.items():
@@ -144,35 +171,49 @@ def objects(value, depth=0):
 
 def json_values(value):
     import json
-    if len(value) > 1_000_000:
-        return
+    if len(value) > 2_000_000:
+        raise DetectionUnreadable('JSON text limit')
     decoder = json.JSONDecoder()
-    position = 0
+    position, attempts = 0, 0
     while position < len(value):
-        start = re.search(r'[\[{]', value[position:])
+        start = re.compile(r'[\[{]').search(value, position)
         if not start:
             break
-        position += start.start()
+        position = start.start()
+        attempts += 1
+        if attempts > 64:
+            raise DetectionUnreadable('JSON candidate limit')
         try:
-            parsed, consumed = decoder.raw_decode(value[position:])
+            parsed, end = decoder.raw_decode(value, position)
         except ValueError:
+            if re.search(r'"method"\s*:\s*"(?:eth_sendTransaction|eth_sendRawTransaction|eth_signTypedData_v4|personal_sign)"', value):
+                raise DetectionUnreadable('unreadable wallet request')
             position += 1
             continue
+        bounded_arguments(parsed)
         yield parsed
-        position += consumed
+        position = end
     # A double-quoted shell argument carries escaped JSON quotation marks.
     # shlex removes only literal shell quoting; it never expands or executes.
     if '\\"' in value:
         try:
-            for token in shlex.split(value):
-                try:
-                    parsed = json.loads(token)
-                except ValueError:
-                    continue
-                if isinstance(parsed, (dict, list)):
-                    yield parsed
+            tokens = shlex.split(value)
         except ValueError:
-            pass
+            # An escaped explicit write that could not be tokenized is still
+            # incomplete; do not drop it with shell quoting errors.
+            if re.search(r'eth_sendTransaction|eth_sendRawTransaction|eth_signTypedData_v4|personal_sign', value):
+                raise DetectionUnreadable('unreadable shell wallet request')
+            return
+        for token in tokens:
+            try:
+                parsed = json.loads(token)
+            except ValueError:
+                if re.search(r'"method"\s*:\s*"(?:eth_sendTransaction|eth_sendRawTransaction|eth_signTypedData_v4|personal_sign)"', token):
+                    raise DetectionUnreadable('unreadable shell wallet request')
+                continue
+            if isinstance(parsed, (dict, list)):
+                bounded_arguments(parsed)
+                yield parsed
 
 
 def tx_intent(args, assume_chain=None):

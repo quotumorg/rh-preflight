@@ -1,5 +1,7 @@
 ## 0.5.4
 
+- Bound detector work and route unreadable or malformed writes through on_unchecked; normalize content-read names consistently and document the detector contract in one table.
+
 - Preserve execution flags, structured quote-tool transactions and nested writes across read exclusions; explicit raw broadcasts use on_unchecked without retaining signed bytes.
 
 - Keep read-only quotes, allowance lookups, research examples and call/estimate RPC payloads out of transaction approval checks; preserve explicit sends/signatures and existing builder checks.

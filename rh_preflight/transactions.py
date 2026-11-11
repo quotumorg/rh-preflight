@@ -6,7 +6,8 @@ import json
 import shlex
 
 from .card import Card, WORDING, text, link
-from .extract import ADDRESS, _chain, objects, json_values, chain_context, robinhood_rpc
+from .extract import (ADDRESS, _chain, objects, json_values, chain_context,
+                      robinhood_rpc, bounded_arguments, DetectionUnreadable)
 from .sources.common import field
 
 PERMIT2 = '0x000000000022d473030f116ddee9f6b43ac78ba3'
@@ -73,6 +74,8 @@ def cast_sends(args, assume_chain):
             lexer.whitespace_split = True
             tokens = list(lexer)
         except ValueError:
+            if chain_context(args, assume_chain, literal):
+                yield unchecked_intent()
             continue
         for index in range(len(tokens) - 1):
             if tokens[index:index + 2] != ['cast', 'send']:
@@ -142,9 +145,13 @@ def typed_payload(row):
     return isinstance(row, dict) and isinstance(row.get('domain'), dict) and isinstance(row.get('types'), dict) and isinstance(row.get('message'), dict) and isinstance(row.get('primaryType'), str)
 
 
+def tool_words(tool_name):
+    return re.sub(r'([a-z0-9])([A-Z])', r'\1_\2', tool_name.rsplit('__', 1)[-1]).lower()
+
+
 def read_only_tool(tool_name):
     """Recognize declared reads, without exempting combined execution tools."""
-    name = re.sub(r'([a-z0-9])([A-Z])', r'\1_\2', tool_name.rsplit('__', 1)[-1]).lower()
+    name = tool_words(tool_name)
     words = set(re.split(r'[^a-z0-9]+', name))
     if words & {'execute', 'send', 'sign', 'approve', 'permit', 'transfer', 'pay', 'submit', 'broadcast'}:
         return False
@@ -162,7 +169,7 @@ READ_RPC = {'eth_call', 'eth_estimateGas', 'eth_createAccessList', 'debug_traceC
 def intent_rows(value, hypothetical=False, depth=0):
     """Skip simulated params, while retaining independent nested write requests."""
     if depth > 24:
-        return
+        raise DetectionUnreadable('nested intent limit')
     if isinstance(value, dict):
         method = value.get('method')
         if method in WRITE_RPC:
@@ -194,13 +201,30 @@ def execution_requested(rows):
 
 
 def tx_intents(args, assume_chain=None, tool_name=None):
+    """An incomplete detector pass must never silently permit a possible write."""
+    try:
+        bounded_arguments(args)
+        return _tx_intents(args, assume_chain, tool_name)
+    except Exception:
+        # No raw arguments, signatures or exception text enter this projection.
+        # The hook avoids reparsing the failed input and applies on_unchecked.
+        return [unchecked_intent(detection_failed=True)]
+
+
+def unchecked_intent(**extra):
+    return {'payload': None, 'typed': None, 'sender': None, 'unparsed_send': True, **extra}
+
+
+def _tx_intents(args, assume_chain=None, tool_name=None):
     """Project only unsigned transaction fields or the supported wallet request."""
     rows = list(intent_rows(args))
+    if len(rows) > 1024:
+        raise DetectionUnreadable('intent row limit')
     explicit_write = any(row.get('method') in WRITE_RPC for row in rows)
     # Concrete structured transactions on quote tools differ from document or
     # research examples. Content reads still yield to explicit execution evidence.
     content_read = tool_name is not None and bool(re.search(
-        r'(?:^|__)(?:read_file|web_search|web_fetch|research|browse)(?:_|$)', tool_name, re.I))
+        r'^(?:read_file|web_search|web_fetch|research|browse)(?:_|$)', tool_words(tool_name)))
     unsigned = any(addr(row.get('to')) and any(k in row for k in ('data', 'input', 'calldata', 'value'))
                    for row in rows)
     if (tool_name is not None and read_only_tool(tool_name) and not explicit_write
@@ -245,12 +269,22 @@ def tx_intents(args, assume_chain=None, tool_name=None):
     # Gate the broadcast locally and never retain or relay its signature.
     if on_chain and any(row.get('method') == 'eth_sendRawTransaction' for row in rows):
         result.append({'payload': None, 'typed': None, 'sender': None, 'unparsed_send': True})
+    # An explicit send envelope is a write even when its transaction is absent
+    # or malformed. A read exclusion or a parser default cannot complete it.
+    for row in rows:
+        if on_chain and row.get('method') == 'eth_sendTransaction':
+            params = row.get('params')
+            if (not isinstance(params, list) or len(params) != 1
+                    or not isinstance(params[0], dict) or not addr(params[0].get('to'))):
+                result.append(unchecked_intent())
     for row in rows:
         rpc = row.get('rpc')
         if not isinstance(rpc, dict) or rpc.get('method') not in {'eth_sendTransaction', 'eth_signTypedData_v4', 'personal_sign'}:
             continue
         params = rpc.get('params')
         if not isinstance(params, list):
+            if on_chain:
+                result.append(unchecked_intent())
             continue
         if rpc['method'] == 'eth_sendTransaction':
             continue  # The nested unsigned object is handled below.
@@ -259,6 +293,10 @@ def tx_intents(args, assume_chain=None, tool_name=None):
             continue
         signer_at = 1 if rpc['method'] == 'personal_sign' else 0
         sender = addr(params[signer_at]) if len(params) > signer_at else None
+        if (len(params) != 2 or sender is None
+                or rpc['method'] == 'personal_sign' and not isinstance(params[0], str)):
+            result.append(unchecked_intent())
+            continue
         key = json.dumps(rpc, sort_keys=True)
         if key not in seen:
             seen.add(key)

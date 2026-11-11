@@ -50,8 +50,12 @@ class Service:
     @staticmethod
     def _key(tool_name, args, kw):
         # The fallback is ephemeral and never enters the ledger.
-        call_id = kw.get("tool_call_id") or hashlib.sha256(
-            json.dumps(args, sort_keys=True, default=str).encode()).hexdigest()
+        call_id = kw.get("tool_call_id")
+        if not call_id:
+            try:
+                call_id = hashlib.sha256(json.dumps(args, sort_keys=True, default=str).encode()).hexdigest()
+            except (ValueError, TypeError, RecursionError):
+                call_id = str(id(args))
         return (kw.get("session_id", ""), kw.get("task_id", ""), call_id, tool_name)
 
     def pre_tool_call(self, tool_name, args, **kwargs):
@@ -62,16 +66,19 @@ class Service:
             deadline = started + min(settings.timeout, 25.0)
             intents = tx_intents(args, settings.assume_chain, tool_name)
             local = [local_card(intent) for intent in intents]
-            targets = extract(tool_name, args, settings)
+            # A failed detector pass has no complete targets. Do not re-enter
+            # failed parsers or perform source reads against partial arguments.
+            check_args = {} if any(i.get('detection_failed') for i in intents) else args
+            targets = extract(tool_name, check_args, settings)
             wanted = list(targets.addresses + targets.repos)
-            payees, agents, pools = identifiers(args)
-            if chain_context(args, settings.assume_chain):
+            payees, agents, pools = identifiers(check_args)
+            if chain_context(check_args, settings.assume_chain):
                 wanted = list(dict.fromkeys(wanted + payees))[:5]
                 if not wanted and (agents or pools):
                     wanted = ["agent #" + agents[0] if agents else pools[0]]
-            if not wanted and not intents and chain_context(args, settings.assume_chain) and settings.sources.get("sherwood", "on") == "on":
+            if not wanted and not intents and chain_context(check_args, settings.assume_chain) and settings.sources.get("sherwood", "on") == "on":
                 # The registry is a public list. Only a known vault causes a bundle or core lookup.
-                candidates = addresses(args)
+                candidates = addresses(check_args)
                 def vaults():
                     return [target for target in candidates
                             if self.network.clients["sherwood"].lookup(target, deadline=deadline).state == "present"]
@@ -95,8 +102,8 @@ class Service:
                              and any(str((i.get('payload') or {}).get('to', '')).lower() == ROUTER for i in intents))
             tx_deadline = started + settings.tx_timeout - margin if tx_enabled or hookr_enabled else read_deadline
             hook_deadline = max(deadline, tx_deadline + margin)
-            reads = self.executor.submit(self._read_cards, wanted, tool_name, args, settings, required=required, deadline=read_deadline) if wanted else None
-            txs = self.executor.submit(self._tx_cards, intents, local, settings, tx_deadline, read_deadline, args) if intents else None
+            reads = self.executor.submit(self._read_cards, wanted, tool_name, check_args, settings, required=required, deadline=read_deadline) if wanted else None
+            txs = self.executor.submit(self._tx_cards, intents, local, settings, tx_deadline, read_deadline, check_args) if intents else None
             # Both start above; collecting builder reads first preserves their
             # shorter budget even when a custom adapter ignores its deadline.
             cards = self.wait(reads, deadline, [Card(target, 'unreachable') for target in wanted]) if reads else []
