@@ -4,7 +4,7 @@ import os
 import threading
 import re
 from urllib.parse import quote
-from .common import plural, Keyless, Reading, field, money
+from .common import plural, Absent, Keyless, Reading, field, money
 from ..card import link
 from ..extract import ADDRESS
 
@@ -83,8 +83,14 @@ class Client(Keyless):
             if not isinstance(target, str) or not re.fullmatch(r'[A-Za-z0-9.]{1,60}|0x[0-9a-fA-F]{40}', target):
                 return Reading(self.label, 'unlisted', '')
             # This free route establishes Robinhood Stock Token membership. A
-            # non-stock 404 ends here, without calling another method.
-            data = self.read('/api/markets/stock/' + quote(target, safe=''), deadline)
+            # non-stock 404 on a ticker ends here, without calling another method.
+            try:
+                data = self.read('/api/markets/stock/' + quote(target, safe=''), deadline)
+            except Absent:
+                if not ADDRESS.fullmatch(target):
+                    raise
+                # Not a Stock Token: Toll's free coin check, fixed Figures lines only.
+                return self.coin(target, deadline)
             return self.stock(data, target)
         tool, argument = TOOLS[kind]
         if kind == 'hook' and not ADDRESS.fullmatch(str(target)):
@@ -120,6 +126,40 @@ class Client(Keyless):
                     f'status {field(data["status"])}, registry as of {field(registry.get("as_of"))}; ' + line)
         return Reading(self.label, 'present', f'{self.label}: {line} · {self.public_page(data.get("page"))}',
                        stock_ticker=ticker if official else None)
+
+    def coin(self, target, deadline):
+        payload = {'jsonrpc': '2.0', 'id': 1, 'method': 'tools/call',
+                   'params': {'name': 'check_coin', 'arguments': {'address': target}}}
+        result = self.read('/mcp', deadline, payload=payload)['result']
+        if result.get('isError'):
+            return Reading(self.label, 'unlisted', '')
+        blocks = result['content']
+        if not isinstance(blocks, list):
+            raise ValueError()
+        lines = [l.strip() for l in '\n'.join(b['text'] for b in blocks if b.get('type') == 'text').splitlines()]
+        # Only a whole answer about this exact token: a still-reading answer, or one naming another
+        # token, gives no facts. Verdict words, finding prose and names are never copied.
+        if 'Code: still_reading' in lines or not any(l.lower() == 'token: ' + target.lower() for l in lines):
+            return Reading(self.label, 'unlisted', '')
+        facts = []
+        for line in lines:
+            match = re.fullmatch(r'Launched on ([A-Za-z][A-Za-z0-9 .]{0,30}), ([0-9]+) days? ago\..*', line)
+            if match:
+                facts.append(f'launched on {field(match[1])} {match[2]} {plural(match[2], "day")} ago')
+            match = re.fullmatch(r"- Maker's launches: ([0-9,]+) launch(?:es)?(?:\b.*)?", line)
+            if match:
+                count = match[1].replace(',', '')
+                facts.append(f'maker has {count} {plural(count, "launch")}')
+            match = re.fullmatch(r'- Flagged wallets: ([0-9,]+), bought (' + NUMBER + r')%', line)
+            if match:
+                count = match[1].replace(',', '')
+                facts.append(f'{count} flagged {plural(count, "wallet")} bought {match[2]}%')
+            match = re.fullmatch(r'- Maker holds now: (' + NUMBER + r')% of supply.*', line)
+            if match:
+                facts.append(f'maker holds {match[1]}%')
+        page = self.page + '/check/' + target.lower()
+        return Reading(self.label, 'present' if facts else 'unlisted',
+                       f'{self.label}: ' + '; '.join(facts[:4]) + ' · ' + page if facts else '')
 
     def public_page(self, candidate):
         # Never relay paid API URLs from a response, even as a citation.
