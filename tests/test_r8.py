@@ -279,7 +279,7 @@ def test_desktop_uses_answer_first_then_coverage_then_human():
 
 
 def test_version_and_public_source_notes():
-    assert __version__ == '0.5.2'
+    assert __version__ == '0.5.3'
     readme = (ROOT / 'README.md').read_text()
     assert readme.startswith('# rh-preflight\n\nrh-preflight by [quotum](https://quotum.org) with [HEY Research Lab](https://heyresearch.xyz).\n\n![rh-preflight](docs/banner.png)')
     assert '../CATALOG' not in readme and 'rh-preflight/0.4' not in readme

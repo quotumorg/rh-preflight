@@ -5,7 +5,7 @@ import subprocess
 import pytest
 
 
-@pytest.mark.parametrize("scenario", ["interactive", "quickstart", "cron", "yolo", "off", "single-query"])
+@pytest.mark.parametrize("scenario", ["interactive", "quickstart", "cron", "yolo", "off", "single-query", "transform"])
 def test_host_dispatch_if_runtime_is_available(tmp_path, scenario):
     python = os.environ.get("RH_PREFLIGHT_HERMES_PYTHON")
     source = os.environ.get("RH_PREFLIGHT_HERMES_SOURCE")

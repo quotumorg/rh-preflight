@@ -103,11 +103,35 @@ class Service:
             return {"action": "block", "message": message}
 
     def transform_tool_result(self, tool_name, args, result, **kwargs):
-        with self.lock:
-            message = self.pending.pop(self._key(tool_name, args, kwargs), None)
+        try:
+            with self.lock:
+                message = self.pending.pop(self._key(tool_name, args, kwargs), None)
+        except Exception:
+            return None
         if message is None:
             return None
-        return str(result) + "\n\nrh-preflight public network data (external source text):\n" + message
+        labelled = "rh-preflight public network data (external source text):\n" + message
+        try:
+            if isinstance(result, str):
+                payload = json.loads(result, parse_int=str, parse_float=str)
+                if isinstance(payload, dict):
+                    key, suffix = "rh_preflight", 2
+                    while key in payload:
+                        key = f"rh_preflight_{suffix}"
+                        suffix += 1
+                    # Serialize only the new field. Keep numeric precision,
+                    # duplicate keys and escaped Unicode in the tool's text.
+                    field = json.dumps({key: labelled}, ensure_ascii=False)[1:-1]
+                    closing = result.rindex("}")
+                    separator = ", " if payload else ""
+                    return result[:closing] + separator + field + result[closing:]
+        except Exception:
+            # Keep the card even if parsing or serialization fails.
+            pass
+        try:
+            return str(result) + "\n\n" + labelled
+        except Exception:
+            return labelled
 
     def post_approval_response(self, pattern_key="", pattern_keys=None, choice="", **kwargs):
         for key in set([pattern_key] + list(pattern_keys or [])):

@@ -58,7 +58,7 @@ def test_note_never_blocks_and_appends_card(server, tmp_path):
     args = {"chainId": 4663, "token": QUIET}
     assert app.pre_tool_call("swap", args, session_id="example-session", tool_call_id="call-a") is None
     transformed = app.transform_tool_result("swap", args, '{"result":"example"}', session_id="example-session", tool_call_id="call-a")
-    assert transformed.startswith('{"result":"example"}') and "Harbor Kit" in transformed
+    assert json.loads(transformed)["result"] == "example" and "Harbor Kit" in transformed
     assert app.transform_tool_result("swap", args, "unchanged", session_id="example-session", tool_call_id="call-a") is None
 
 

@@ -1,3 +1,7 @@
+## 0.5.3
+
+Cards added to JSON tool results keep the result valid JSON, so Hermes Desktop still shows the command output.
+
 ## 0.5.2
 
 Desktop colors the answer by outcome, draws an eleven-segment coverage bar and lists every source with its bucket and source link.

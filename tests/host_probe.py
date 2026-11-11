@@ -1,5 +1,6 @@
 """Optional check against an installed Hermes runtime, using only synthetic calls."""
 
+import json
 import os
 from pathlib import Path
 import sys
@@ -27,6 +28,38 @@ with fake_server() as (origin, state):
                   client=Client(origin), ledger=Ledger(),
                   presence=lambda: unattended(ctx))
     ctx.register_hook("pre_tool_call", app.pre_tool_call)
+    if scenario == "transform":
+        from model_tools import _CallIds, _apply_transform_tool_result_hook
+        from tools.terminal_tool import _error_json
+
+        ctx.register_hook("transform_tool_result", app.transform_tool_result)
+        ids = _CallIds(session_id="example-session", tool_call_id="example-call")
+        args = {"command": f"cast call {ACTIVE} 'symbol()(string)' --rpc-url https://rpc.mainnet.chain.robinhood.com"}
+        label = "rh-preflight public network data (external source text):\n"
+        originals = [json.dumps({"output": "synthetic command output\nλ", "exit_code": 0,
+                                 "error": None, "extra": {"retained": True}}, ensure_ascii=False),
+                     _error_json("synthetic timeout", exit_code=124),
+                     json.dumps({"output": "done", "exit_code": None, "rh_preflight": "tool data"}),
+                     r'{"output":"\ud800","exit_code":0}',
+                     '{"output":"done","large":1e400,"tiny":1e-400,"precise":0.123456789012345678901}']
+        for original in originals:
+            assert resolve_pre_tool_block("terminal", args, **ids.hook_kwargs()) is None
+            pending = app.pending[app._key("terminal", args, ids.hook_kwargs())]
+            transformed = _apply_transform_tool_result_hook("terminal", args, original, 0, ids)
+            closing = original.rindex("}")
+            assert transformed[:closing] == original[:closing]
+            transformed.encode("utf-8")
+            before = json.loads(original, parse_int=str, parse_float=str)
+            after = json.loads(transformed, parse_int=str, parse_float=str)
+            assert list(after)[:-1] == list(before)
+            assert {key: after[key] for key in before} == before
+            assert len(after) == len(before) + 1
+            assert list(after.values())[-1] == label + pending
+            assert "go · no rule of yours fired" in list(after.values())[-1]
+            assert _apply_transform_tool_result_hook("terminal", args, transformed, 0, ids) == transformed
+        assert len(app.ledger.rows()) == len(originals)
+        print("Hermes transform dispatch confirmed; no actions executed")
+        sys.exit(0)
     events = []
     def observe_response(**event):
         events.append(event)
