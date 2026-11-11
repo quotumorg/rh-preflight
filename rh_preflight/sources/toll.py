@@ -25,6 +25,7 @@ class Client(Keyless):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.tx_headers = threading.local()
+        self.coin_stripes = [threading.Lock() for _ in range(16)]
 
     def request_headers(self, path):
         # The one access-model assumption: an optional partner key uses this
@@ -81,7 +82,7 @@ class Client(Keyless):
             return self.page + '/api/hook/' + target
         return self.page + '/markets/' + quote(target, safe='') if isinstance(target, str) else self.page
 
-    def fetch(self, target, deadline, kind='stock'):
+    def fetch(self, target, deadline, kind='stock', coin_findings='silent'):
         if kind == 'stock':
             if not isinstance(target, str) or not re.fullmatch(r'[A-Za-z0-9.]{1,60}|0x[0-9a-fA-F]{40}', target):
                 return Reading(self.label, 'unlisted', '')
@@ -93,7 +94,7 @@ class Client(Keyless):
                 if not ADDRESS.fullmatch(target):
                     raise
                 # Not a Stock Token: Toll's free coin check, fixed Figures lines only.
-                return self.coin(target, deadline)
+                return self.coin(target, deadline) if coin_findings == 'line' else Reading(self.label, 'unlisted', '')
             return self.stock(data, target)
         tool, argument = TOOLS[kind]
         if kind == 'hook' and not ADDRESS.fullmatch(str(target)):
@@ -131,6 +132,17 @@ class Client(Keyless):
                        stock_ticker=ticker if official else None)
 
     def coin(self, target, deadline):
+        stripe = self.coin_stripes[hash(target.lower()) % len(self.coin_stripes)]
+        if not stripe.acquire(timeout=max(0, deadline - self.clock())):
+            return Reading(self.label, 'unlisted', '')
+        try:
+            return self._coin(target, deadline)
+        except (Unavailable, Absent, KeyError, TypeError, ValueError, AttributeError, IndexError):
+            return Reading(self.label, 'unlisted', '')
+        finally:
+            stripe.release()
+
+    def _coin(self, target, deadline):
         key = target.lower()
         with self.lock:
             kept = getattr(self, '_coins', {}).get(key)

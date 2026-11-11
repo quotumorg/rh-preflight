@@ -9,15 +9,16 @@ Healthy tx requests get the full budget before a transport retry; rate-limit coo
 Fourteen stable Toll codes project fixed facts and local rules, including approval-for-all stops, delegation prompts and incomplete signature handling.
 Coin reads print neutral completeness facts; unread coins add no default rule and partial reads use on_unchecked.
 Sender balance changes use structured token symbols and decimals, with short addresses and base units as fallbacks.
-Explicit and Toll-decoded v4 hooks use Hookr MCP for hook kind, a numeric automated screen and up to three finding titles; score verdicts and prose never enter cards or rules.
+Explicit and Toll-decoded v4 hooks use Hookr MCP for hook kind, a numeric automated screen and up to three fixed finding labels; score verdicts and prose never enter cards or rules.
 Hookr scans cache each hook for ten minutes and permit at most six fresh scans per minute; rate limits leave only the public scan link.
 HookrRouter exact-input trades decode PoolKey and poolId locally and check the sender alongside Toll within tx_timeout; unsupported selectors can resolve the first pool by bought token.
 Hookr pool refusals ask by default under ask_hookr_refused; successful reads supply token symbols and decimals without replacing Toll simulation amounts.
-The toll_coin_findings setting defaults to silent; line adds only neutral attribution and an available public coin link.
+The toll_coin_findings setting defaults to silent; line permits neutral attribution, fixed Toll figures and an available public coin link.
+Failed or unknown started Hookr wallet checks use on_unchecked; Toll metadata takes precedence over Hookr metadata.
+Transaction cards name every fired rule below their answer, including rules summarized by +N more.
 Internal errors stop calls in every mode; the README explains Hermes directives and unattended behavior.
 
-A token address that is not a Robinhood Stock Token gets Toll's free `check_coin` read: fixed Figures lines only (launch venue and age, maker's launch count, wallets on Toll's flag list and their share, what the maker holds now). Verdict words and finding prose are never copied. A still-reading answer, a timeout, 429, 5xx or a used-up daily quota prints nothing; a whole answer is kept ten minutes per address.
-
+With toll_coin_findings: line, a token address that is not a Robinhood Stock Token gets Toll's free `check_coin` read: fixed Figures lines only (launch venue and age, maker's launch count, wallets on Toll's flag list and their share, what the maker holds now). Verdict words and finding prose are never copied. A still-reading answer, a timeout, 429, 5xx or a used-up daily quota prints nothing; a whole answer is kept ten minutes per address, maximum 512, independently of check_tx. Silent skips the free coin read. Stock Tokens never spend coin quota.
 
 ## 0.5.3
 

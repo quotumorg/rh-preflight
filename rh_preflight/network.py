@@ -48,6 +48,8 @@ class Network:
         swap = bool(re.search('swap|buy|sell|trade|liquidity|lp', tool_name, re.I))
         def lookup(name, target, **kwargs):
             start = time.monotonic()
+            if name == 'toll' and kwargs.get('kind', 'stock') == 'stock':
+                kwargs['coin_findings'] = settings.toll_coin_findings
             reading = self.clients[name].lookup(target, deadline=deadline, **kwargs)
             return replace(reading, elapsed=max(0.0, time.monotonic() - start))
 

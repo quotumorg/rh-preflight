@@ -67,7 +67,7 @@ def test_trade_metadata_keeps_toll_amount_not_independent_quote():
     intent, response = fixture()
     trade = capture('check-trade-0xdc36d5.json')['result']['structuredContent']
     card = project(local_card(intent), intent, response, hookr=trade)
-    assert 'simulated sender balance change: +45704.730444476128839330 CLEAR' in card.data['lines']
+    assert 'simulated sender balance change: +45704.730444476128839330 $CLEAR' in card.data['lines']
     assert '45650.58' not in card.render()  # Different timestamp and amount in the quote capture.
     assert 'quoted price impact' not in card.render()
     assert 'Under 0.01%' not in card.render()
@@ -261,20 +261,39 @@ def test_toll_and_hookr_trade_are_parallel(tmp_path):
 
 
 @pytest.mark.parametrize('failure', ['slow', 'error', 'unknown'])
-def test_hookr_failure_silent_toll_survives(tmp_path, failure):
-    app, intent = service(tmp_path, tx_timeout=.07)
+def test_hookr_failure_asks_and_toll_survives(tmp_path, failure, monkeypatch):
+    from concurrent.futures import Future
+    import rh_preflight.hooks as hooks
+    app, intent = service(tmp_path)
+    original_pool, original_result = hooks.Pool, hooks.budget_result
+    pending = Future()
+    deadlines = []
+    class ControlledPool(original_pool):
+        def submit(self, fn, *args, **kwargs):
+            if fn.__name__ == 'check_trade' and failure == 'slow':
+                return pending
+            return super().submit(fn, *args, **kwargs)
+    def result(future, deadline, fallback):
+        if future is pending:
+            deadlines.append(deadline)
+            return fallback  # Inject the wait's deadline outcome, without sleeping.
+        return original_result(future, deadline, fallback)
     def check(*args):
-        if failure == 'slow':
-            time.sleep(.12)
-        return None if failure != 'unknown' else {'status': 'unknown', 'reason': 'good verdict'}
+        if failure == 'error':
+            raise Unavailable()
+        return {'status': 'unknown', 'reason': 'good verdict'}
     app.network.clients['hookr'].check_trade = check
-    start = time.monotonic()
-    app.pre_tool_call('swap', intent['payload'])
-    assert time.monotonic() - start < .11
+    monkeypatch.setattr(hooks, 'Pool', ControlledPool)
+    monkeypatch.setattr(hooks, 'budget_result', result)
+    directive = app.pre_tool_call('swap', intent['payload'])
+    assert directive['action'] == 'approve'
     output = app.ledger.rows()[0]['cards'][0]['card']
     assert 'Toll: simulated at block' in output
+    assert 'Hookr: wallet pool rules could not be checked' in output
+    assert 'transaction could not be checked' in output
     assert 'rules allow' not in output and 'rules refuse' not in output
     assert 'good' not in output
+    assert bool(deadlines) == (failure == 'slow')
 
 
 def test_decoded_toll_hook_scanned_even_unknown_router_selector(tmp_path):
@@ -385,7 +404,7 @@ def test_hook_from_args_uses_mcp_when_catalog_cannot_be_read():
 def test_coin_findings_setting_reaches_service(tmp_path):
     app, intent = service(tmp_path, toll_coin_findings='line')
     app.pre_tool_call('swap', intent['payload'])
-    assert 'Toll lists findings for CLEAR' in app.ledger.rows()[0]['cards'][0]['card']
+    assert 'Toll lists findings for $CLEAR' in app.ledger.rows()[0]['cards'][0]['card']
 
 
 def test_hookr_transport_failure_does_not_suppress_toll(tmp_path):

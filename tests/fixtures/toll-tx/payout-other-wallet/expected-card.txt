@@ -1,4 +1,9 @@
 ask · your rule: payout to another wallet +4 more
+your rule: payout to another wallet
+your rule: simulation reverted
+your rule: transaction deadline passed
+your rule: sender short of ETH
+your rule: transaction could not be checked
 unsigned transaction to 0xc2bc9a3fe6c4ce8c2f7eb4655b0869b01d8c93c9 on chain 4663
 pays out to 0xdc36d51963d08862c525045ccfd39fae6a0c7f40, not the sending wallet
 Toll could not read all findings for $CLEAR

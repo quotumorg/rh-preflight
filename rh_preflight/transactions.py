@@ -343,10 +343,10 @@ def token_metadata(response, x):
         symbol = row.get('symbol', row.get('sym'))
         if (isinstance(symbol, str) and re.fullmatch(r'\$?[A-Za-z0-9._-]{1,24}', symbol)
                 and not WORDING.search(symbol)):
-            entry['symbol'] = symbol
+            entry.setdefault('symbol', symbol)
         decimals = row.get('decimals')
         if type(decimals) is int and 0 <= decimals <= 255:
-            entry['decimals'] = decimals
+            entry.setdefault('decimals', decimals)
 
     for container in (response, x):
         for row in container.get('coins') or []:

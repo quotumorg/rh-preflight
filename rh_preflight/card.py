@@ -95,6 +95,9 @@ class Card:
         if self.kind == "transaction":
             from .presentation import answer_line
             heading = [answer_line(d['decision'])] if 'decision' in d else []
+            rules = list(d['decision'].rules) if 'decision' in d else []
+            if len(rules) > 1 or (rules and rules[0] not in heading[0]):
+                heading.extend(rules)
             return "\n".join(heading + d['lines'])
         if self.kind == "network":
             from .presentation import answer_line, coverage

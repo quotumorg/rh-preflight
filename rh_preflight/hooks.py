@@ -151,9 +151,15 @@ class Service:
                            and intent['payload'] is not None else None for intent in intents]
             hookr = self.network.clients['hookr']
             hookr_on = settings.tx_check == 'on' and settings.sources.get('hookr', 'on') == 'on'
+            def check_trade(*args):
+                try:
+                    response = hookr.check_trade(*args)
+                    return response if time.monotonic() <= deadline else None
+                except Exception:
+                    return None
             specs = [decode_hookr(intent) for intent in intents]
-            trades = [pool.submit(hookr.check_trade, intent, deadline)
-                      if hookr_on and spec else None for intent, spec in zip(intents, specs)]
+            trades = [pool.submit(check_trade, intent, deadline)
+                      if hookr_on and spec and spec['raw'] is not None else None for intent, spec in zip(intents, specs)]
             explicit = {v.lower() for row in objects(args or {}) for k, v in row.items()
                         if str(k).lower().replace('_', '') in {'hook', 'hooks', 'hookaddress'}
                         and isinstance(v, str) and ADDRESS.fullmatch(v) and int(v, 16)}
@@ -183,10 +189,13 @@ class Service:
                         address = hook.get('address') if isinstance(hook, dict) else hook
                         if isinstance(address, str):
                             start_scan(address.lower())
-                    if trade is None and response:
-                        trade = pool.submit(hookr.check_trade, intent, deadline, response)
+                    if (trade is None and response and spec is None and intent.get('sender')
+                            and str((intent.get('payload') or {}).get('to', '')).lower() == ROUTER):
+                        trade = pool.submit(check_trade, intent, deadline, response)
                 trade_response = budget_result(trade, deadline - .015, None) if trade else None
                 composed = project(card, intent, response, kinds, trade_response, settings.toll_coin_findings)
+                trade_unchecked = trade is not None and (not isinstance(trade_response, dict)
+                    or trade_response.get('status') not in {'ok', 'refused'})
                 # Simulation can reveal approvals in calldata that local selector
                 # decoding did not cover. Establish those spenders' code too.
                 extra_codes = {approval['spender']: pool.submit(self.network.clients['chain'].lookup,
@@ -198,6 +207,9 @@ class Service:
                     kinds[spender] = {'code': 'contract with code', 'no_code': 'no code'}.get(reading.state if reading else None, 'not read')
                 if extra_codes:
                     composed = project(card, intent, response, kinds, trade_response, settings.toll_coin_findings)
+                if trade_unchecked:
+                    composed.data['unchecked'] = True
+                    composed.data['lines'].append('Hookr: wallet pool rules could not be checked')
                 for approval in composed.data['approvals']:
                     if approval['unlimited'] and approval['kind'] == 'contract with code':
                         registries = [pool.submit(self.network.clients[name].lookup, approval['spender'], deadline=builder_deadline)

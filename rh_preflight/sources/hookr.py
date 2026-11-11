@@ -176,8 +176,15 @@ class Client(Source):
         findings = [row for row in data.get('findings', []) if isinstance(row, dict)]
         extra = data.get('moreFindings', 0)
         extra = extra if type(extra) is int and extra >= 0 else 0
-        titles = [field(row.get('title')) for row in findings[:3]]
-        remaining = max(0, len(findings) - 3) + extra
+        # Stable finding ids project to our fixed facts; upstream titles can
+        # contain classifications just as headlines and bands do.
+        labels = {'inline-assembly': 'Inline assembly needs manual review',
+                  'unchecked': 'Unchecked arithmetic block',
+                  'delegatecall-pinned': 'Delegated execution to code fixed at construction',
+                  'time-dependence': 'Block time or height influences behavior',
+                  'assembly-call-discarded': "Assembly discards a call's success flag"}
+        titles = [labels[row['id']] for row in findings[:3] if row.get('id') in labels]
+        remaining = len(findings) - len(titles) + extra
         if remaining:
             titles.append('+' + str(remaining) + ' more')
         page = data.get('page')
