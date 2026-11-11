@@ -21,11 +21,14 @@ def evaluate(cards, settings, unattended=False, now=None):
             d = card.data
             for approval in d.get('approvals', []):
                 if approval['unlimited'] and approval['kind'] == 'no code':
-                    stops.append('your rule: unlimited approval to a spender with no code')
+                    stops.append('your rule: approval for all to a spender with no code' if approval.get('all_items')
+                                 else 'your rule: unlimited approval to a spender with no code')
                 elif approval['unlimited'] and not approval.get('known', False):
                     rules.append('your rule: unlimited approval to an unknown contract or unread spender')
             if d.get('approval_eoa'):
                 stops.append('your rule: unlimited approval to a spender with no code')
+            if d.get('approval_all_eoa'):
+                stops.append('your rule: approval for all to a spender with no code')
             if d.get('unbounded_approval'):
                 rules.append('your rule: unlimited approval to an unknown contract or unread spender')
             if d.get('delegation'):

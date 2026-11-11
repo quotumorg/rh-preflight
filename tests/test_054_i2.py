@@ -2,7 +2,6 @@
 from copy import deepcopy
 import json
 from pathlib import Path
-import threading
 import time
 
 import pytest
@@ -122,26 +121,30 @@ def test_tx_timeout_defaults_and_maximum():
 
 
 @pytest.mark.parametrize('delay,limit,simulated', [(14, 15, True), (26, 25, False)])
-def test_real_slow_toll_stub_and_parallel_builder_budget(tmp_path, delay, limit, simulated):
-    service = Service(settings=Settings(tx_timeout=limit), ledger=Ledger(tmp_path), presence=lambda: False)
-    started = threading.Event()
-    finished = threading.Event()
-    def builders(targets, *args, **kwargs):
-        assert started.wait(1)
-        time.sleep(4)
-        finished.set()
-        return [Card(target, 'identifier') for target in targets]
-    def simulation(*args):
-        started.set()
-        time.sleep(delay)
-        return {'x-toll': {'simulation': {'status': 'success', 'block': 10}}}
-    service._read_cards = builders
-    service.network.clients['toll'].check_tx = simulation
-    start = time.monotonic()
+def test_slow_toll_and_parallel_builder_budget_with_injected_clock(tmp_path, delay, limit, simulated):
+    # Scheduled completions model independent workers without sleeping 39 s.
+    ticks, submitted, waits = [0.0], [], []
+    class Executor:
+        def submit(self, fn, *args, **kwargs):
+            is_tx = fn.__name__ == '_tx_cards'
+            future = {'at': delay if is_tx else 4, 'tx': is_tx}
+            submitted.append(future)
+            return future
+    def wait(future, deadline, fallback):
+        waits.append(deadline)
+        ticks[0] = max(ticks[0], min(deadline, future['at']))
+        if future['at'] > deadline:
+            return fallback
+        if future['tx']:
+            intent = tx_intent(REQUEST)[0]
+            return [project(local_card(intent), intent,
+                {'x-toll': {'simulation': {'status': 'success', 'block': 10}}})]
+        return [Card(A, 'identifier')]
+    service = Service(settings=Settings(tx_timeout=limit), ledger=Ledger(tmp_path),
+                      presence=lambda: False, clock=lambda: ticks[0], executor=Executor(), wait=wait)
     directive = service.pre_tool_call('swap', REQUEST)
-    elapsed = time.monotonic() - start
-    assert finished.is_set()
-    assert elapsed < limit + .5
+    assert len(submitted) == 2 and waits == [4, limit]
+    assert ticks[0] == (14 if simulated else 25)
     output = service.ledger.rows()[0]['cards'][0]['card']
     assert ('Toll: simulated at block 10' in output) == simulated
     assert ('Toll: not simulated' in output) != simulated

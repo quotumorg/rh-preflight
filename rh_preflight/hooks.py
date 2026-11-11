@@ -4,7 +4,7 @@ import hashlib
 import json
 import threading
 import time
-from concurrent.futures import ThreadPoolExecutor, TimeoutError
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone
 
 from .extract import extract
@@ -27,7 +27,8 @@ CHECKS = ThreadPoolExecutor(max_workers=8, thread_name_prefix="rh-preflight")
 
 
 class Service:
-    def __init__(self, settings=None, client=None, ledger=None, context=None, presence=None, network=None):
+    def __init__(self, settings=None, client=None, ledger=None, context=None, presence=None, network=None,
+                 clock=None, executor=None, wait=None):
         self.settings = settings or Settings()
         self.client = client or Client(timeout=self.settings.timeout)
         origin = getattr(self.client, 'base_url', '')
@@ -38,6 +39,9 @@ class Service:
         self.presence = presence if presence is not None else lambda: unattended(context)
         self.pending = {}
         self.lock = threading.Lock()
+        self.clock = clock or time.monotonic
+        self.executor = executor or CHECKS
+        self.wait = wait or budget_result
 
     def _settings(self):
         return Settings.from_context(self.context) if self.context is not None else self.settings
@@ -53,7 +57,7 @@ class Service:
         try:
             settings = self._settings()
             # Leave a margin below Hermes's fail-closed 30-second hook limit.
-            started = time.monotonic()
+            started = self.clock()
             deadline = started + min(settings.timeout, 25.0)
             intents = tx_intents(args, settings.assume_chain)
             local = [local_card(intent) for intent in intents]
@@ -70,12 +74,8 @@ class Service:
                 def vaults():
                     return [target for target in candidates
                             if self.network.clients["sherwood"].lookup(target, deadline=deadline).state == "present"]
-                discovery = CHECKS.submit(vaults)
-                try:
-                    wanted = discovery.result(timeout=max(0, deadline - time.monotonic()))
-                except TimeoutError:
-                    discovery.cancel()
-                    wanted = candidates
+                discovery = self.executor.submit(vaults)
+                wanted = self.wait(discovery, deadline, candidates)
             if not wanted and not intents:
                 return None
             required = []
@@ -92,21 +92,14 @@ class Service:
                           and any(intent['payload'] is not None for intent in intents))
             tx_deadline = started + settings.tx_timeout - margin if tx_enabled else read_deadline
             hook_deadline = max(deadline, tx_deadline + margin)
-            reads = CHECKS.submit(self._read_cards, wanted, tool_name, args, settings, required=required, deadline=read_deadline) if wanted else None
-            txs = CHECKS.submit(self._tx_cards, intents, local, settings, tx_deadline, read_deadline) if intents else None
+            reads = self.executor.submit(self._read_cards, wanted, tool_name, args, settings, required=required, deadline=read_deadline) if wanted else None
+            txs = self.executor.submit(self._tx_cards, intents, local, settings, tx_deadline, read_deadline) if intents else None
             # Both start above; collecting builder reads first preserves their
             # shorter budget even when a custom adapter ignores its deadline.
-            try:
-                cards = reads.result(timeout=max(0, deadline - time.monotonic())) if reads else []
-            except TimeoutError:
-                reads.cancel()
-                cards = [Card(target, 'unreachable') for target in wanted]
-            try:
-                tx_cards = txs.result(timeout=max(0, hook_deadline - time.monotonic())) if txs else []
-            except TimeoutError:
-                txs.cancel()
-                tx_cards = [project(card, intent) if settings.tx_check == 'on' else card
-                            for card, intent in zip(local, intents)]
+            cards = self.wait(reads, deadline, [Card(target, 'unreachable') for target in wanted]) if reads else []
+            tx_cards = self.wait(txs, hook_deadline,
+                [project(card, intent) if settings.tx_check == 'on' else card
+                 for card, intent in zip(local, intents)]) if txs else []
             # Only a positive per-address registry answer establishes a known
             # spender. HEY builder presence alone does not establish that role.
             known = {card.target.lower() for card in cards if card.kind == 'network'

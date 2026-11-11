@@ -168,7 +168,7 @@ def test_wallet_request_projection(method, params):
 @pytest.mark.parametrize('slow', ['builder', 'toll'])
 @pytest.mark.parametrize('setting,expected', [('ask', 'approve'), ('stop', 'block'), ('note', None)])
 def test_budget_contains_slow_stub_and_on_unchecked(tmp_path, slow, setting, expected):
-    service = app(tmp_path, timeout=.04, tx_timeout=.04, on_unchecked=setting)
+    service = app(tmp_path, timeout=.04, tx_timeout=.04, on_unchecked=setting, ask_payout_other=False)
     def wait(*a, **kw):
         time.sleep(.15)
         return None
