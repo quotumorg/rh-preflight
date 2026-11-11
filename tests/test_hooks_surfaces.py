@@ -92,14 +92,14 @@ def test_all_human_response_choices(server, tmp_path, choice):
     assert app.ledger.rows()[0]["decision"] == choice
 
 
-def test_block_unattended_precedes_host_bypass(server, tmp_path):
+def test_detected_cron_blocks_by_default(server, tmp_path):
     app = service(server, tmp_path)
     app.presence = lambda: True
     directive = app.pre_tool_call("swap", {"chain": 4663, "token": ACTIVE})
     assert directive["action"] == "block" and "unattended actions are blocked" in directive["message"]
 
 
-def test_allow_unattended_returns_no_approval_directive(server, tmp_path):
+def test_allow_unattended_bypasses_detected_cron(server, tmp_path):
     app = service(server, tmp_path, allow_unattended=True)
     app.presence = lambda: True
     assert app.pre_tool_call("swap", {"chain": 4663, "token": QUIET}) is None

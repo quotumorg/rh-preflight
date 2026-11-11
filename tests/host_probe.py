@@ -1,5 +1,6 @@
 """Optional check against an installed Hermes runtime, using only synthetic calls."""
 
+import builtins
 import json
 import os
 from pathlib import Path
@@ -16,7 +17,6 @@ from rh_preflight.settings import Settings
 from demo.fake_hey import ACTIVE, QUIET, fake_server
 from hermes_cli.plugins import PluginContext, get_plugin_manager, resolve_pre_tool_block
 from hermes_cli.plugins_manifest import PluginManifest
-from tools.terminal_tool import set_approval_callback
 
 
 scenario = sys.argv[1]
@@ -30,7 +30,6 @@ with fake_server() as (origin, state):
     ctx.register_hook("pre_tool_call", app.pre_tool_call)
     if scenario == "transform":
         from model_tools import _CallIds, _apply_transform_tool_result_hook
-        from tools.terminal_tool import _error_json
 
         ctx.register_hook("transform_tool_result", app.transform_tool_result)
         ids = _CallIds(session_id="example-session", tool_call_id="example-call")
@@ -38,7 +37,7 @@ with fake_server() as (origin, state):
         label = "rh-preflight public network data (external source text):\n"
         originals = [json.dumps({"output": "synthetic command output\nλ", "exit_code": 0,
                                  "error": None, "extra": {"retained": True}}, ensure_ascii=False),
-                     _error_json("synthetic timeout", exit_code=124),
+                     json.dumps({"error": "synthetic timeout", "exit_code": 124}),
                      json.dumps({"output": "done", "exit_code": None, "rh_preflight": "tool data"}),
                      r'{"output":"\ud800","exit_code":0}',
                      '{"output":"done","large":1e400,"tiny":1e-400,"precise":0.123456789012345678901}']
@@ -67,11 +66,11 @@ with fake_server() as (origin, state):
     ctx.register_hook("post_approval_response", observe_response)
     prompts = []
 
-    def simulated_human(command, description, **kwargs):
+    def observe_request(description="", **kwargs):
         prompts.append(description)
-        return "deny"
 
-    set_approval_callback(simulated_human)
+    ctx.register_hook("pre_approval_request", observe_request)
+    builtins.input = lambda prompt="": "deny"
     tool, args = "swap", {"chainId": 4663, "token": QUIET}
     if scenario == "quickstart":
         command = "cast call 0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec 'symbol()(string)' --rpc-url https://rpc.mainnet.chain.robinhood.com"
@@ -79,7 +78,7 @@ with fake_server() as (origin, state):
         tool, args = "terminal", {"command": command}
     result = resolve_pre_tool_block(tool, args,
                                     session_id="example-session", tool_call_id="example-call")
-    assert result is not None
+    assert (result is None) == (scenario in {"yolo", "off", "cron", "single-query"})
     if scenario in {"interactive", "quickstart"}:
         from demo.gate_replay import simulated_approval_event
         assert len(events) == 1
@@ -109,8 +108,8 @@ with fake_server() as (origin, state):
         assert len(prompts) == 2 and "could not be reached" in prompts[-1]
     else:
         assert prompts == []
-        assert "unattended actions are blocked" in result
-        assert app.ledger.rows()[0]["disposition"] == "block"
+        assert result is None
+        assert app.ledger.rows()[0]["disposition"] == "ask"
     # Load the real router adapter as the dashboard does, in the temporary profile.
     from importlib.util import module_from_spec, spec_from_file_location
     api_spec = spec_from_file_location("example_rh-preflight_api", Path(__file__).resolve().parents[1] / "dashboard" / "plugin_api.py")

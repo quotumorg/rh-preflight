@@ -1,5 +1,7 @@
 ## 0.5.4
 
+- Drop private Hermes approval imports. Only public cron identity triggers the cron stop or allow_unattended exception. Other asks return Hermes approve directives; no-human decisions and YOLO bypass belong to Hermes, while hard stops remain unconditional.
+
 - Document the 0.5.3 upgrade command, preserved settings and ledger, new defaults and pinned-install behavior.
 
 - Bound detector work and route unreadable or malformed writes through on_unchecked; normalize content-read names consistently and document the detector contract in one table.

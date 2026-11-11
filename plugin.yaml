@@ -38,7 +38,7 @@ config_schema:
   allow_unattended:
     type: bool
     default: false
-    description: Permit detected calls to proceed without a person in unattended contexts
+    description: Permit detected cron calls in ask modes without a human request; non-cron asks use Hermes approval
   assume_chain:
     type: int
     description: Optional 4663 for tools without an explicit chain field

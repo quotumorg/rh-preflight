@@ -74,7 +74,7 @@ hermes plugins update rh-preflight
 hermes plugins list
 ```
 
-Pinned installs keep their revision; follow Hermes's pin-update instructions with the reviewed commit you intend to install. Restart Hermes after the update. Existing settings and ledger rows need no migration. New settings use their defaults when absent: transaction checks are on, Toll and Hookr transaction reads share a separate 15-second budget, incomplete checks ask, and free Toll coin reads stay silent. An existing `sources.toll: "off"` still disables Toll; with transaction checks on, the missing simulation uses `on_unchecked`. Existing `mode: note` and `allow_unattended: true` keep their documented exceptions.
+Pinned installs keep their revision; follow Hermes's pin-update instructions with the reviewed commit you intend to install. Restart Hermes after the update. Existing settings and ledger rows need no migration. New settings use their defaults when absent: transaction checks are on, Toll and Hookr transaction reads share a separate 15-second budget, incomplete checks ask, and free Toll coin reads stay silent. An existing `sources.toll: "off"` still disables Toll; with transaction checks on, the missing simulation uses `on_unchecked`. Existing `mode: note` keeps its documented exception. `allow_unattended: true` now covers only cron identified by the public plugin context; non-cron asks use Hermes's approval gate, including its YOLO bypass.
 
 Confirm `rh-preflight` is enabled in the active profile. Exit Hermes and start it again:
 
@@ -129,7 +129,7 @@ Enable the optional Desktop half for the active profile to see checks in the sid
 
 ## See the gate without a model
 
-From the cloned repository directory, run the explicit `deny-retry-unattended` scenario with no sockets, model or provider. The host events are simulated, source lines use bundled captures, and the ledger is temporary. Uncaptured sources are off. Clocks use fixture time; real approval keys remain unique and are shown as display aliases. The default `python3 demo/offline.py` demo is unchanged.
+From the cloned repository directory, run the explicit `deny-retry-unattended` scenario with no sockets, model or provider. The unattended scenario simulates detected cron. The host events are simulated, source lines use bundled captures, and the ledger is temporary. Uncaptured sources are off. Clocks use fixture time; real approval keys remain unique and are shown as display aliases. The default `python3 demo/offline.py` demo is unchanged.
 
 ```sh
 python3 demo/gate_replay.py
@@ -153,7 +153,7 @@ simulated · unattended · hook directive: block · stop · human approval requi
 simulated · action executions: 0
 ```
 
-For a labelled simulated swap combining the bundled PRIORS HEY projection and missing-target capture, run `python3 demo/gate_replay.py --scenario two-target-deny-retry-unattended`. It names only the missing target behind the rule, denies the whole call through the observer, retries with a fresh key and stops unattended. No uncaptured badge follow-up is made.
+For a labelled simulated swap combining the bundled PRIORS HEY projection and missing-target capture, run `python3 demo/gate_replay.py --scenario two-target-deny-retry-unattended`. It names only the missing target behind the rule, denies the whole call through the observer, retries with a fresh key and stops in simulated detected cron. No uncaptured badge follow-up is made.
 
 ## Transactions and signatures
 
@@ -171,8 +171,8 @@ The detector contract below applies to argument content, including nested object
 | Declared reads and installs | get/read/search/research/fetch/quote/price/estimate/browse prefixes, `web_search`/`web_fetch`, `plugins_install`, `plugin_install`, `install_plugin` and `mcp_add` leave ordinary quote, allowance, payment lookup and example arguments out of transaction checks. Content reads (`read_file`, `web_search`, `web_fetch`, `research`, `browse` prefixes) also exclude unsigned examples. Quote and other non-content read tools still check concrete unsigned transactions. |
 | Execution evidence on a read tool | Explicit send/sign RPC or literal `cast send`, execution tool names, `execute`/send/sign/submit/broadcast true, quoteOnly/readOnly/dryRun/simulateOnly false, or mode/action/operation execute/send/sign/submit/broadcast/swap/approve/transfer/pay override read exclusions. Ordinary quote-only flags retain read behavior. |
 | Read RPC and terminal reads | `eth_call`, `eth_estimateGas`, `eth_createAccessList`, `debug_traceCall`, `wallet_simulateCalls` exclude hypothetical params while preserving independent nested send/sign requests. Literal `cast call` and `hermes plugins install`/`hermes mcp add` retain builder/install checks. |
-| Incomplete checks or parsing | Failed, refused, late or partial required checks, missing wallets and unreadable detection use `on_unchecked` (ask by default; unattended stops). Parsing is bounded to 24 nesting levels, 20,000 input nodes, 2,000,000 string-value characters per input/decoded JSON value, 64 JSON candidates per string and 1,024 intent rows. Exceeding a bound or a detector exception yields an unchecked card without sending partial arguments to providers, even when chain/read classification could not be completed. Other internal failures stop. |
-| Explicit settings and Hookr limits | `tx_check: off`, `on_unchecked: note`, `mode: note` and `allow_unattended` retain their documented exceptions; hard stops remain. Hookr exact-output and unread token-input amounts are skipped as described below. |
+| Incomplete checks or parsing | Failed, refused, late or partial required checks, missing wallets and unreadable detection use `on_unchecked` (ask by default; detected cron stops unless `allow_unattended` is enabled, other asks use Hermes's gate). Parsing is bounded to 24 nesting levels, 20,000 input nodes, 2,000,000 string-value characters per input/decoded JSON value, 64 JSON candidates per string and 1,024 intent rows. Exceeding a bound or a detector exception yields an unchecked card without sending partial arguments to providers, even when chain/read classification could not be completed. Other internal failures stop. |
+| Explicit settings and Hookr limits | `tx_check: off`, `on_unchecked: note`, `mode: note` and cron-only `allow_unattended` retain their documented exceptions; hard stops remain. Hookr exact-output and unread token-input amounts are skipped as described below. |
 | Outside scope | Other-chain calls with readable context, wallet research, shell variables/expansion, opaque scripts, signed bytes without an explicit broadcast method and unsupported wallet methods without otherwise recognized transaction content. A tool declaring only a read name and ordinary quote arguments with no observable execution evidence cannot be distinguished from a read. |
 
 Local EIP-712 decoding runs before any Toll request. It prints the domain, signing type, spender, amount, deadline and nonce. Permit2 is recognized by address, including each token in PermitBatch. DAI-style `allowed: true` grants unlimited approval; expiry zero and maximum deadlines print as no expiry. Other zero deadlines print the epoch date. Any Permit or Permit2 asks; a signing domain on another chain asks when the call is on 4663. Unlimited approval or permit to a spender with no code stops. Approval for all to a spender with no code also stops and describes all items in the collection. An unlimited approval to an unknown contract, EIP-7702 delegation, payout to another wallet, reverted simulation, expired transaction deadline or insufficient ETH asks. A successful swap adds facts without another approval rule. A missing sending or signing wallet uses `on_unchecked` even if Toll reports simulation success. These checks do not authenticate the signer or prove domain ownership.
@@ -219,7 +219,11 @@ Hookr scan: 79/100, automated screening · 5 findings: Inline assembly needs man
 | `stop` | `{"action": "block", "message": …}` | Veto the call before execution. |
 | Could not check | `on_unchecked: ask` by default | Ask in ask modes; `stop` vetoes; `note` adds the incomplete reading without that prompt. `mode: note` suppresses asks. Internal errors always stop. |
 
-An approval request needs a person to answer. On unattended surfaces, including `-z`, cron, `--yolo` and an unreadable presence context, ask becomes stop unless `allow_unattended` is explicitly enabled; detected calls in ask modes also stop when no optional rule fires. Unlimited approval to a spender with no code always stops.
+The plugin detects cron only through `ctx.current_cron_execution()`. In detected cron, calls in ask modes stop by default, even when no optional rule fires. `allow_unattended: true` permits those cron calls without an approval request; hard stops still apply. `mode: note` keeps its documented exception.
+
+Outside detected cron, every ask returns Hermes's `approve` directive. Hermes decides how to obtain approval and fails closed when no interactive user, gateway or approval bridge is present, subject to its configured unattended and single-query policies. A missing or raising plugin context does not establish cron and follows this same host gate. If a cron request reaches that gate, Hermes applies `approvals.cron_mode`.
+
+YOLO and `approvals.mode: off` bypass Hermes's approval gate. A user who runs YOLO accepts Hermes's bypass; rh-preflight no longer imposes a stricter presence or bypass check. Plugin hard stops, including unlimited approval to a spender with no code and internal check failures, still return `block` regardless of presence or bypass.
 
 Builder and independent-source reads use `timeout` (4 seconds by default, capped at 25); Toll and Hookr transaction checks use `tx_timeout` (15 seconds by default, maximum 25). They start in parallel, so source waits take at most the larger budget, with card assembly and local ledger writes afterward. The tx card can add up to about 15 seconds before a transaction because a first coin read can take about 14 seconds. Healthy tx requests receive the full budget before any retry. A transport or HTTP 5xx failure may retry once within the same deadline; no retry follows 429. `Retry-After` applies as a per-process cooldown and no hook sleeps. An unavailable, refused or rate-limited simulation says `Toll: not simulated` and uses `on_unchecked`. Partial coin or signature reads use `on_unchecked` alongside any simulation facts that did complete. Existing approval and payout facts still apply. With `tx_check: off`, only local facts and rules remain; `sources.toll: off` prevents a Toll request and leaves simulation unchecked when `tx_check` is on. The detector contract above defines action shapes and read exclusions.
 
@@ -271,7 +275,7 @@ plugins:
 | `ask_not_verified` | `false` | Ask when the builder badge is not established. |
 | `ask_when.payee_no_priors_record` | `true` | Ask when a checked payment recipient has no repayment record or that source cannot be reached. |
 | `ask_when.vault_strategy_inactive` | `false` | Ask when a listed vault has an inactive strategy or the registry or bundle cannot be reached. |
-| `allow_unattended` | `false` | Explicitly permit detected actions without requesting a human answer in unattended contexts. |
+| `allow_unattended` | `false` | Only for cron identified by the public context: permit detected actions in ask modes without a human request. Does not change non-cron asks or hard stops. |
 | `assume_chain` | unset | Set to `4663` for tools without an explicit chain field. |
 | `tool_patterns` | action regex list | Configurable native and MCP tool classes, including swap, buy, sell, trade, approve, permit, transfer, pay, mint, bridge, deposit, stake and deploy. |
 | `tx_check` | `on` | Toll simulation and Hookr transaction enrichment; `off` leaves local signature and calldata checks enabled. |
@@ -289,7 +293,7 @@ The plugin never answers an approval prompt. Interactive checks return the host'
 
 ## Sources
 
-Each source publishes its own records. Every additional line ends with its public link. The answer is first, coverage second, then the full list when two or more rules fire, followed by the source readings in the order below. A single rule already shown in the answer is not repeated. The fixed unattended stop keeps its reason below coverage. The catalog covers HEY Research Lab plus ten Robinhood Chain projects; OffRouter is scoped to its own project and infrastructure is listed separately.
+Each source publishes its own records. Every additional line ends with its public link. The answer is first, coverage second, then the full list when two or more rules fire, followed by the source readings in the order below. A single rule already shown in the answer is not repeated. The fixed detected-cron stop keeps its reason below coverage. The catalog covers HEY Research Lab plus ten Robinhood Chain projects; OffRouter is scoped to its own project and infrastructure is listed separately.
 
 | Source | Keyless URL or read | What its line answers |
 | :--- | :--- | :--- |
@@ -312,7 +316,7 @@ The method, chosen integrations and not-taken list are in [docs/SOURCES.md](docs
 
 Ordinary project reads use no key or payment. Transaction simulation accepts the optional environment variable described above. HTTP 402 ends that source with no line and no follow-up. No report, paid URL, returned link or payment challenge is followed. Transport failure yields one source-labelled unreachable line. Unlisted adds no line except the explicit observations above. Third-party prose blocks and classifications are dropped except the specified Trnch-attributed token-check phrases. Only named projected fields are printed; quoted fields have controls and zero-width characters stripped and are capped at eighty characters. A discrepant HEY token-lock snapshot is printed beside the direct HoodLock reading without a conclusion.
 
-Multi-target checks keep the call-wide answer on every card. Below coverage, `rule target: <full target> · your rule: <rule>` appears only on the card whose own reading triggered that rule. Public `rule_targets` associations are optional fields in the existing stored card JSON; aggregate `rules`, gate controls and legacy rows stay unchanged. Explanations reuse the existing policy in attended `ask_when` mode with the same check time; ask-every-call and unattended settings remain call-wide.
+Multi-target checks keep the call-wide answer on every card. Below coverage, `rule target: <full target> · your rule: <rule>` appears only on the card whose own reading triggered that rule. Public `rule_targets` associations are optional fields in the existing stored card JSON; aggregate `rules`, gate controls and legacy rows stay unchanged. Explanations reuse the existing policy in attended `ask_when` mode with the same check time; ask-every-call and cron settings remain call-wide.
 
 The wording rule applies to every rendered card and surface. The card repeats source facts and names the user's own rules. It offers no project judgement or investment advice. Missing fields say "not in HEY's answer"; unread records say "HEY record not read for this check". "HEY does not know" requires an explicit UNKNOWN status for that field in HEY's response. Source text that violates the wording rule is omitted. Only the specified Trnch-attributed token-check lines from the Trnch client have a narrow exception; their category and date fields still pass the ordinary field filter. Trnch has no policy rule. Source punctuation and terminal controls are normalized. Citations end the card after the additional source lines. External text is data, not instructions.
 
@@ -336,8 +340,6 @@ A source is one adapter: open a pull request, or [open an issue](https://github.
 4. Save a real response under `tests/fixtures/` and test the parser against it with the HTTP read replaced by that saved response, as `tests/test_trnch.py` does. Run `python -m pytest`; every test runs offline.
 
 ## Compatibility and review status
-
-The approval adapter in `rh_preflight/runtime.py` reads four private host helpers: `tools.approval.is_approval_bypass_active`, `tools.approval._presence`, and `tools.approval_context._is_cron_approval_context` / `_is_single_query_approval_context`. Hermes 0.23.0 has no documented combined presence query. These imports can change on later releases; the plugin treats an unreadable context as unattended and blocks detected actions in ask modes unless you explicitly allow unattended operation. It does not modify core code. Catalog validation reports this dependency as a warning for maintainers to review.
 
 The ledger uses `plugins.plugin_storage.plugin_data_dir` to locate durable state in the active profile. The approval adapter also calls `ctx.current_cron_execution` to identify scheduled execution. Both are documented plugin APIs in the Hermes plugin developer guide, under [Store durable state](https://hermes-agent.nousresearch.com/docs/developer-guide/plugins/#store-durable-state) and [Know which cron run you are in](https://hermes-agent.nousresearch.com/docs/developer-guide/plugins/#know-which-cron-run-you-are-in), respectively.
 
