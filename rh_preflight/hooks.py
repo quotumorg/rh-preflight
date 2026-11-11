@@ -60,7 +60,7 @@ class Service:
             # Leave a margin below Hermes's fail-closed 30-second hook limit.
             started = self.clock()
             deadline = started + min(settings.timeout, 25.0)
-            intents = tx_intents(args, settings.assume_chain)
+            intents = tx_intents(args, settings.assume_chain, tool_name)
             local = [local_card(intent) for intent in intents]
             targets = extract(tool_name, args, settings)
             wanted = list(targets.addresses + targets.repos)

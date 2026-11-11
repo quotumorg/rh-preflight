@@ -1,5 +1,7 @@
 ## 0.5.4
 
+- Keep read-only quotes, allowance lookups, research examples and call/estimate RPC payloads out of transaction approval checks; preserve explicit sends/signatures and existing builder checks.
+
 Unsigned transactions and wallet requests on chain 4663 receive a Toll simulation card before builder cards, with sender balance changes and our approval rules.
 Local EIP-712 decoding identifies Permit, Permit2 and signing domains on another chain before any Toll request. Missing signing wallets use on_unchecked even if simulation succeeds.
 Swap, approval and payment argument shapes without calldata retain local facts and use on_unchecked instead of reporting a completed check.

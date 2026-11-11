@@ -142,9 +142,36 @@ def typed_payload(row):
     return isinstance(row, dict) and isinstance(row.get('domain'), dict) and isinstance(row.get('types'), dict) and isinstance(row.get('message'), dict) and isinstance(row.get('primaryType'), str)
 
 
-def tx_intents(args, assume_chain=None):
+def read_only_tool(tool_name):
+    """Recognize declared reads, without exempting combined execution tools."""
+    name = re.sub(r'([a-z0-9])([A-Z])', r'\1_\2', tool_name.rsplit('__', 1)[-1]).lower()
+    words = set(re.split(r'[^a-z0-9]+', name))
+    if words & {'execute', 'send', 'sign', 'approve', 'permit', 'transfer', 'pay', 'submit', 'broadcast'}:
+        return False
+    if words & {'and', 'then'} and words & {'swap', 'buy', 'sell', 'trade', 'mint', 'deposit', 'stake', 'bridge'}:
+        return False
+    return bool(re.match(r'^(?:get|read|search|research|fetch|quote|price|estimate|browse)(?:_|$)', name)
+                or name in {'web_search', 'web_fetch', 'plugins_install', 'plugin_install',
+                            'install_plugin', 'mcp_add'})
+
+
+def tx_intents(args, assume_chain=None, tool_name=None):
     """Project only unsigned transaction fields or the supported wallet request."""
     rows = list(objects(args))
+    # An explicit wallet send/sign method or literal cast send takes precedence
+    # over a read-like tool name. Unknown tool names retain content detection.
+    explicit_write = any(row.get('method') in {'eth_sendTransaction', 'eth_signTypedData_v4', 'personal_sign'}
+                         for row in rows)
+    if (tool_name is not None and read_only_tool(tool_name) and not explicit_write
+            and not any(cast_sends(args, assume_chain))):
+        return []
+    # Read-only RPC envelopes describe a hypothetical call, including its value
+    # and calldata. Do not reinterpret their children as an unsigned send.
+    read_rows = {id(child) for row in rows
+                 if row.get('method') in {'eth_call', 'eth_estimateGas', 'eth_createAccessList',
+                                          'debug_traceCall', 'wallet_simulateCalls'}
+                 for child in objects(row)}
+    rows = [row for row in rows if id(row) not in read_rows]
     # JSON-RPC tools commonly expose method/params directly, without rpc.
     rows += [{'rpc': row} for row in rows if row.get('method') in
              {'eth_sendTransaction', 'eth_signTypedData_v4', 'personal_sign'}]
