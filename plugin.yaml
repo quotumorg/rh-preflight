@@ -1,0 +1,61 @@
+name: rh-preflight
+version: 0.5.2
+requires_hermes: ">=0.23.0"
+description: "rh-preflight by quotum with HEY Research Lab. Reads builder records and ten Robinhood Chain projects; rh-preflight applies your approval rules before Hermes acts on chain 4663."
+author: quotum, HEY Research Lab
+license: MIT
+provides_tools:
+  - builder_card
+provides_hooks:
+  - pre_tool_call
+  - transform_tool_result
+  - post_approval_response
+config_schema:
+  mode:
+    type: str
+    default: ask_when
+    description: ask, ask_when or note
+  quiet_days:
+    type: int
+    default: 30
+    description: Ask after this many measured days without a meaningful ship
+  ask_quiet:
+    type: bool
+    default: true
+    description: Enable the no meaningful ship rule
+  ask_unmeasured:
+    type: bool
+    default: true
+    description: Ask when activity is not measured
+  ask_no_record:
+    type: bool
+    default: true
+    description: Ask when HEY has no record
+  ask_not_verified:
+    type: bool
+    default: false
+    description: Ask when HEY does not record a Verified Builder badge
+  allow_unattended:
+    type: bool
+    default: false
+    description: Permit detected calls to proceed without a person in unattended contexts
+  assume_chain:
+    type: int
+    description: Optional 4663 for tools without an explicit chain field
+  tool_patterns:
+    type: list
+    default:
+      - swap|buy|sell|trade|approve|permit|transfer|pay|mint|bridge|deposit|stake|deploy|x402|liquidity|add_lp|remove_lp
+    description: Case-insensitive regular expressions matched against tool names
+  timeout:
+    type: float
+    default: 4.0
+    description: Shared source-read deadline per check in seconds; restart Hermes after changing this setting
+  sources:
+    type: dict
+    default: {}
+    description: Source names mapped to on or off; omitted entries are on
+  ask_when:
+    type: dict
+    default: {}
+    description: payee_no_priors_record defaults to true; vault_strategy_inactive defaults to false; stock_no_hey_record defaults to false (ask for no HEY record even when Toll confirms an official Robinhood Stock Token)

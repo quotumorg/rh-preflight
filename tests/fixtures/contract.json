@@ -1,0 +1,35 @@
+{
+  "chainId": 4663,
+  "address": "0x4444444444444444444444444444444444444444",
+  "name": "HarborRegistry",
+  "associatedProject": {
+    "slug": "harbor-kit",
+    "name": "Harbor Kit",
+    "url": "https://heyresearch.xyz/project/harbor-kit"
+  },
+  "role": "followup",
+  "watched": true,
+  "creation": {
+    "tx": "0xabababababababababababababababababababababababababababababababab",
+    "at": "2026-10-23T18:00:00Z",
+    "block": 12345,
+    "precision": "EXACT",
+    "evidenceId": "ship:example-contract"
+  },
+  "verifiedSource": {
+    "state": "MEASURED",
+    "verified": true,
+    "compiler": "0.8.24",
+    "contractName": "HarborRegistry",
+    "checkedAt": "2026-10-24T10:00:00Z",
+    "authorship": {"kind": "UNCONFIRMED", "reason": "verification_method_not_read"},
+    "sourcify": {"state": "NOT_READ"}
+  },
+  "proxy": {"state": "MEASURED", "status": "NOT_PROXY", "history": []},
+  "interface": {"state": "MEASURED", "functionCount": 3, "eventCount": 1, "changes": []},
+  "activity": {"state": "MEASURED", "daysMeasured": 1, "calls7d": 1, "events7d": 2},
+  "freshness": {"sourceCheckedAt": "2026-10-24T10:00:00Z", "activityObservedAt": "2026-11-04T22:00:00Z"},
+  "evidence": ["ship:example-contract"],
+  "url": "https://heyresearch.xyz/api/contracts/4663/0x4444444444444444444444444444444444444444",
+  "disclaimer": "Public activity HEY recorded."
+}

@@ -1,0 +1,32 @@
+{
+  "label": "Synthetic Trnch schema examples for unbundled outcomes; not live observations",
+  "responses": [
+    {
+      "token": "0xedbf91223639800bcd5756815caf908df3b890be",
+      "chainId": 4663,
+      "status": "kept_out",
+      "category": "WASH_TRADING",
+      "rugged": false,
+      "dumped": false,
+      "seenAt": "2026-10-14T11:50:25.981Z"
+    },
+    {
+      "token": "0xedbf91223639800bcd5756815caf908df3b890be",
+      "chainId": 4663,
+      "status": "seen",
+      "category": null,
+      "rugged": true,
+      "dumped": false,
+      "seenAt": "2026-10-14T11:50:25.981Z"
+    },
+    {
+      "token": "0xedbf91223639800bcd5756815caf908df3b890be",
+      "chainId": 4663,
+      "status": "seen",
+      "category": null,
+      "rugged": false,
+      "dumped": true,
+      "seenAt": "2026-10-14T11:50:25.981Z"
+    }
+  ]
+}

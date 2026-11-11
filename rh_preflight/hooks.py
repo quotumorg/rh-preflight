@@ -1,0 +1,172 @@
+"""Hermes hook handlers and their local service state."""
+
+import hashlib
+import json
+import threading
+import time
+from concurrent.futures import ThreadPoolExecutor
+from datetime import datetime, timezone
+
+from .extract import extract
+from .hey import Client
+from .ledger import Ledger
+from .policy import evaluate
+from .explanations import target_rules
+from .presentation import present
+from .runtime import unattended
+from .settings import Settings
+from .network import Network, identifiers, POOL, MODULES
+from .extract import chain_context, addresses
+from .card import Card, text, plain
+
+
+class Service:
+    def __init__(self, settings=None, client=None, ledger=None, context=None, presence=None, network=None):
+        self.settings = settings or Settings()
+        self.client = client or Client(timeout=self.settings.timeout)
+        origin = getattr(self.client, 'base_url', '')
+        origins = {name: origin for name in MODULES} if origin.startswith('http://') else None
+        self.network = network or Network(timeout=self.settings.timeout, origins=origins)
+        self.ledger = ledger or Ledger()
+        self.context = context
+        self.presence = presence if presence is not None else lambda: unattended(context)
+        self.pending = {}
+        self.lock = threading.Lock()
+
+    def _settings(self):
+        return Settings.from_context(self.context) if self.context is not None else self.settings
+
+    @staticmethod
+    def _key(tool_name, args, kw):
+        # The fallback is ephemeral and never enters the ledger.
+        call_id = kw.get("tool_call_id") or hashlib.sha256(
+            json.dumps(args, sort_keys=True, default=str).encode()).hexdigest()
+        return (kw.get("session_id", ""), kw.get("task_id", ""), call_id, tool_name)
+
+    def pre_tool_call(self, tool_name, args, **kwargs):
+        try:
+            settings = self._settings()
+            deadline = time.monotonic() + settings.timeout
+            targets = extract(tool_name, args, settings)
+            wanted = list(targets.addresses + targets.repos)
+            payees, agents, pools = identifiers(args)
+            if chain_context(args, settings.assume_chain):
+                wanted = list(dict.fromkeys(wanted + payees))[:5]
+                if not wanted and (agents or pools):
+                    wanted = ["agent #" + agents[0] if agents else pools[0]]
+            if not wanted and chain_context(args, settings.assume_chain) and settings.sources.get("sherwood", "on") == "on":
+                # The registry is a public list. Only a known vault causes a bundle or core lookup.
+                wanted = [target for target in addresses(args)
+                          if self.network.clients["sherwood"].lookup(target, deadline=deadline).state == "present"]
+            if not wanted:
+                return None
+            required = []
+            if settings.ask_unmeasured or settings.ask_quiet:
+                required.append("activity_measured")
+            if settings.ask_quiet:
+                required.append("meaningful_ships_30d")
+            if settings.ask_not_verified:
+                required.append("verified_builder")
+            cards = self._read_cards(wanted, tool_name, args, settings, required=required, deadline=deadline)
+            checked_at = datetime.now(timezone.utc)
+            decision = evaluate(cards, settings, unattended=self.presence(), now=checked_at)
+            associations = target_rules(cards, settings, checked_at) if len(cards) > 1 else [None]
+            cards = [present(card, decision, rule_targets=rules)
+                     for card, rules in zip(cards, associations)]
+            message = "\n\n".join(c.render() for c in cards)
+            check_id = self.ledger.add(kwargs.get("session_id") or kwargs.get("task_id", ""),
+                                       tool_name, cards, decision.rules, settings.mode, decision.action)
+            with self.lock:
+                self.pending[self._key(tool_name, args, kwargs)] = message
+                while len(self.pending) > 512:
+                    self.pending.pop(next(iter(self.pending)))
+            if decision.action == "ask":
+                # Hermes calls this directive 'approve'; it REQUESTS a human decision.
+                # A unique key prevents a previous session/always answer bypassing a new check.
+                return {"action": "approve", "message": message, "rule_key": f"rh-preflight:{check_id}"}
+            if decision.action == "block":
+                return {"action": "block", "message": message}
+            return None
+        except Exception:
+            # Hermes skips hooks that raise. Keep failures explicit at our boundary.
+            try:
+                note_only = self._settings().mode == "note"
+            except Exception:
+                note_only = False
+            message = (("note" if note_only else "stop") + " · rh-preflight could not complete this check\n"
+                       "coverage unavailable for this check\n"
+                       "rh-preflight could not complete this check")
+            if note_only:
+                with self.lock:
+                    self.pending[self._key(tool_name, args, kwargs)] = message
+                return None
+            return {"action": "block", "message": message}
+
+    def transform_tool_result(self, tool_name, args, result, **kwargs):
+        with self.lock:
+            message = self.pending.pop(self._key(tool_name, args, kwargs), None)
+        if message is None:
+            return None
+        return str(result) + "\n\nrh-preflight public network data (external source text):\n" + message
+
+    def post_approval_response(self, pattern_key="", pattern_keys=None, choice="", **kwargs):
+        for key in set([pattern_key] + list(pattern_keys or [])):
+            prefix = "plugin_rule:rh-preflight:"
+            if isinstance(key, str) and key.startswith(prefix):
+                check_id = key[len(prefix):]
+                if len(check_id) == 32 and all(c in "0123456789abcdef" for c in check_id):
+                    self.ledger.decide(check_id, choice)
+
+    def _read_cards(self, targets, tool_name, args, settings, project=None, required=None, deadline=None, all_sources=False):
+        deadline = deadline if deadline is not None else time.monotonic() + settings.timeout
+        placeholders = [Card(target, "identifier") for target in targets]
+        def core(target):
+            start = time.monotonic()
+            if target.startswith("agent #") or POOL.fullmatch(target):
+                return Card(target, "identifier"), 0.0, False
+            options = {"project": project} if project else {}
+            if required is not None:
+                options["required"] = required
+            if isinstance(self.client, Client):
+                options["deadline"] = deadline
+            card = self.client.lookup(target, **options)
+            if isinstance(self.client, Client) and settings.sources.get("hoodlock", "on") == "on":
+                card = self.client.attach_locks(card, deadline)
+            return card, max(0.0, time.monotonic() - start), True
+        with ThreadPoolExecutor(max_workers=len(targets) + 1) as pool:
+            cores = [pool.submit(core, target) for target in targets]
+            neighbours = pool.submit(self.network.enrich, placeholders, tool_name, args, settings,
+                                     all_sources=all_sources, deadline=deadline)
+            cards = [future.result() for future in cores]
+            early = neighbours.result()
+        result = []
+        for (base, elapsed, asked), prepared in zip(cards, early):
+            if not addresses(base.target) and base.kind == "agent":
+                enriched = self.network.enrich([base], tool_name, args, settings,
+                                               all_sources=all_sources, deadline=deadline)[0]
+                result.append(Card(base.target, "network", {**enriched.data,
+                    "hey_elapsed": elapsed, "hey_asked": asked}))
+            else:
+                if self.network.is_offrouter(base) and settings.sources.get('offrouter', 'on') == 'on':
+                    from dataclasses import replace
+                    start = time.monotonic()
+                    own = self.network.clients['offrouter'].lookup(base.target, deadline=deadline)
+                    own = replace(own, elapsed=max(0.0, time.monotonic() - start))
+                    prepared = Card(base.target, 'network', {**prepared.data, 'sources': prepared.data['sources'] + [own]})
+                citation = text(plain(base.data['payload'].get('citation'))) if base.kind == 'agent' and base.data['payload'].get('citation') else None
+                result.append(Card(base.target, "network", {**prepared.data, "base": base, "sources": self.network.annotate(base, prepared.data['sources']),
+                    "citation": citation, "hey_elapsed": elapsed, "hey_asked": asked,
+                    "offrouter": self.network.is_offrouter(base)}))
+        return result
+
+    def card(self, target, project=None):
+        settings = self._settings()
+        card = self._read_cards([project or target], "read", {}, settings, project=project, all_sources=True)[0]
+        return present(card, evaluate([card], settings, unattended=False), read_only=True)
+
+    def doctor(self):
+        core = self.client.probe()
+        return {**core, "sources": {"hey": {**core, "cache": self.client.stats()},
+                                    **self.network.doctor(self._settings())},
+                "cache": self.client.stats(), "mode": self._settings().mode,
+                "last_checks": self.ledger.rows(5)}
