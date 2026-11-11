@@ -4,6 +4,8 @@ rh-preflight by [quotum](https://quotum.org) with [HEY Research Lab](https://hey
 
 ![rh-preflight](docs/banner.png)
 
+[![tests](https://github.com/quotumorg/rh-preflight/actions/workflows/tests.yml/badge.svg)](https://github.com/quotumorg/rh-preflight/actions/workflows/tests.yml)
+
 rh-preflight reads public project records and applies your approval rules before Hermes acts on Robinhood Chain.
 
 HEY Research Lab, co-author, supplies the builder record with links to what HEY read; rh-preflight makes the go / ask / stop decision under your rules; ten other Robinhood Chain projects each add a line where they apply. Applicable reads run concurrently under one deadline; the coverage line shows who answered, did not apply or stayed silent. OffRouter joins for its own project; RPC, DexScreener and GeckoTerminal are separate infrastructure reads. The [source table](docs/SOURCES.md#chosen-sources-hey-research-lab-plus-ten-robinhood-chain-projects) and [bundled captures](tests/fixtures/captures/README.md) document that scope.
