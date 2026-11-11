@@ -21,10 +21,5 @@ jobs:
           python-version: ${{ matrix.python }}
       - run: python -m pip install pytest
       - name: offline tests
-        run: |
-          sudo iptables -A OUTPUT -o lo -j ACCEPT
-          sudo iptables -A OUTPUT -m state --state ESTABLISHED,RELATED -j ACCEPT
-          sudo iptables -A OUTPUT -j REJECT
-          sudo ip6tables -A OUTPUT -o lo -j ACCEPT
-          sudo ip6tables -A OUTPUT -j REJECT
-          python -m pytest
+        # pytest runs in its own network namespace with loopback only; the runner keeps its network.
+        run: sudo unshare --net -- sh -c "ip link set lo up && exec setpriv --reuid=$(id -u) --regid=$(id -g) --init-groups env PATH=$PATH HOME=$HOME python -m pytest"
