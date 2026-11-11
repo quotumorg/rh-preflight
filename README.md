@@ -224,6 +224,15 @@ Every source uses bounded stdlib HTTP reads with redirects declined and response
 
 Addresses, agent ids, project identifiers and repository names you act on are sent to the hosts listed in the table, according to each row. Nothing else from tool arguments is sent. The hosts receive ordinary HTTP connection metadata. RPC is limited to the listed read-only methods. No signature, payment, trade quote, external write, subprocess or background service is performed by the plugin. No credentials are read or stored. Desktop polls its local history endpoint every fifteen seconds while mounted; that poll does not query public sources. The local SQLite ledger stores time, session, tool name, target identifiers, rendered cards, digests, evidence ids, your triggered rules, mode, disposition and a human response when available. It stores no other tool arguments. Data lives in the active profile's plugin data directory. The chip still reads `checked N · asked M today` and counts tool calls in UTC.
 
+## Add a source
+
+A source is one adapter: open a pull request, or [open an issue](https://github.com/quotumorg/rh-preflight/issues/new?template=new-source.md) with your keyless endpoint and we wire it up. A source must be keyless, free and read-only, and its line repeats your own published facts with a link back to you.
+
+1. Add `rh_preflight/sources/<name>.py` with a `Client(Source)` class. Set `origin`, `label`, `page` and `probe_path`, and implement `fetch(target, deadline)`: read with `self.read(path, deadline)` and return `Reading(label, "present", line)` or `Reading(label, "missing", line)`. End the line with a public link. `Source.lookup` already turns timeouts, rate limits, refusals and HTTP 402 into labelled readings. `rh_preflight/sources/priors.py` is a complete example in 33 lines.
+2. Register the module in `MODULES` and its label in `ORDER` in `rh_preflight/network.py`, schedule its read for the right targets in `Network.enrich`, and add its name to `known_sources` in `rh_preflight/settings.py` so users can switch it off.
+3. Add a row to the [Sources](#sources) table and to `docs/SOURCES.md`.
+4. Save a real response under `tests/fixtures/` and test the parser against it with the HTTP read replaced by that saved response, as `tests/test_trnch.py` does. Run `python -m pytest`; every test runs offline.
+
 ## Compatibility and review status
 
 The approval adapter in `rh_preflight/runtime.py` reads four private host helpers: `tools.approval.is_approval_bypass_active`, `tools.approval._presence`, and `tools.approval_context._is_cron_approval_context` / `_is_single_query_approval_context`. Hermes 0.23.0 has no documented combined presence query. These imports can change on later releases; the plugin treats an unreadable context as unattended and blocks detected actions in ask modes unless you explicitly allow unattended operation. It does not modify core code. Catalog validation reports this dependency as a warning for maintainers to review.
