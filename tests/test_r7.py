@@ -217,7 +217,8 @@ def test_toll_agent_capture_path_and_shared_deadline():
     assert 'Toll: card loads; MCP did not answer; x402 answered HTTP 402. payTo matches registered agentWallet' in output
     assert output.count('Toll:') == 1
     assert all(deadline <= end for _, deadline, _ in calls)
-    mcp = next(payload for path, _, payload in calls if path == '/mcp')
+    # a token address is also read with check_coin (not a Stock Token); the agent read is its own call
+    mcp = next(payload for path, _, payload in calls if path == '/mcp' and payload['params']['name'] == 'check_agent')
     assert mcp['params'] == {'name': 'check_agent', 'arguments': {'id': 7622}}
     assert 'utm_' not in output
 

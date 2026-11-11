@@ -55,7 +55,7 @@ def test_non_stock_token_reads_coin_figures():
     assert reading.state == 'present'
     assert [p for p, _ in calls] == ['/api/markets/stock/' + COIN, '/mcp']
     assert calls[1][1]['params'] == {'name': 'check_coin', 'arguments': {'address': COIN}}
-    line = reading.text
+    line = reading.line
     assert line.startswith('Toll: ')
     assert 'launched on Pons 37 days ago' in line
     assert 'maker has 1 launch' in line
@@ -66,7 +66,7 @@ def test_non_stock_token_reads_coin_figures():
 
 def test_coin_line_never_carries_a_verdict_or_finding_prose():
     toll, _ = client(WHOLE)
-    line = toll.lookup(COIN, time.monotonic() + 5).text.lower()
+    line = toll.lookup(COIN, time.monotonic() + 5).line.lower()
     for word in ('careful', 'clear', 'against', 'verdict', 'findings', 'first launch from this dev', 'utm_source'):
         assert word not in line
 
@@ -74,7 +74,7 @@ def test_coin_line_never_carries_a_verdict_or_finding_prose():
 def test_still_reading_is_unlisted_not_a_fact():
     toll, _ = client(READING)
     reading = toll.lookup(COIN, time.monotonic() + 5)
-    assert reading.state == 'unlisted' and reading.text == ''
+    assert reading.state == 'unlisted' and reading.line == ''
 
 
 def test_ticker_that_is_not_a_stock_token_stays_unlisted_without_a_coin_read():
