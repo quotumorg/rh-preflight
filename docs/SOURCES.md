@@ -15,7 +15,7 @@ Not probed: 1358 projects with no website in HEY (token-only listings); 3558 rea
 | 3 | Hookr.fun | what the pool's hook does | in plugin |
 | 4 | Sherwood | the vault's strategy and proposals | in plugin |
 | 5 | Agent Wormhole | was the token's metadata scanned for agent injection | in plugin |
-| 6 | Toll (free MCP) | ERC-8004 agent card/payTo facts; official Stock Token registry and price vs Chainlink | in plugin |
+| 6 | Toll (project reads) | ERC-8004 agent card/payTo facts; official Stock Token registry and price vs Chainlink | in plugin |
 | 7 | Sentinelhood | contract, ERC-20, pons deployer and how many launches | in plugin |
 | 8 | Borro | Stock Token lending fees before BORRO drip, yearly short borrow fees and short desk price (stocks only) | in plugin |
 | 9 | HoodLock | how much supply is locked, until when, how much already withdrawn (their token Locker and Vesting contracts over RPC, ABI verified on Sourcify; HEY cites it); LP locks in HoodLock's Liquidity Locker and other lockers not read | in plugin |
@@ -23,6 +23,14 @@ Not probed: 1358 projects with no website in HEY (token-only listings); 3558 rea
 | 11 | OffRouter | its own x402 mode, chain-specific payTo and model count | in plugin |
 
 OffRouter is read only for its own project. DexScreener, GeckoTerminal and raw RPC are infrastructure and do not count as ecosystem projects. Selection labels describe the saved survey, not present availability.
+
+## Transaction simulation
+
+| Source | Endpoint | What is sent | When |
+| :--- | :--- | :--- | :--- |
+| Toll check_tx | `POST https://t0ll.xyz/api/tx/check` | Only the detected unsigned transaction `{chainId, from, to, data, value}` or supported wallet request `{rpc:{method,params}}`, including typed data or personal-sign content. An optional environment key is an HTTP header only. | Chain 4663 transaction/signing content in `pre_tool_call`, after local decode, when `tx_check: on` and Toll is enabled. No raw signed transaction, payment follow-up or result cache. |
+
+Cards project warning codes and severity, decoded fields and simulation facts. Remote action classifications, scanner classifications, report prose and warning messages are discarded. Credit links only to [Toll's public page](https://t0ll.xyz). The access model and optional partner header are pending confirmation; 429 ends the attempt and respects Retry-After as a process cooldown.
 
 ## Coverage
 

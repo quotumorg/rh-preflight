@@ -1,3 +1,12 @@
+## 0.5.4
+
+Unsigned transactions and wallet requests on chain 4663 receive a Toll simulation card before builder cards, with sender balance changes and our approval rules.
+Local EIP-712 decoding identifies Permit, Permit2 and signing domains on another chain before any Toll request.
+Unlimited approvals to spenders with no code stop the call, including unattended calls.
+Transaction simulation defaults to on; payout prompts and incomplete-check handling have explicit settings.
+One call budget covers every source, with one transport retry when time remains and no retry during a rate-limit cooldown.
+Internal errors stop calls in every mode; the README explains Hermes directives and unattended behavior.
+
 ## 0.5.3
 
 Cards added to JSON tool results keep the result valid JSON, so Hermes Desktop still shows the command output.

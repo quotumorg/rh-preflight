@@ -12,11 +12,11 @@ HEY Research Lab, co-author, supplies the builder record with links to what HEY 
 
 The plugin runs at the pre-tool hook, requests a human answer when your rules require it, and records each check in a local ledger. A prompt or skill alone cannot enforce that gate. Source records describe what each project published; you decide what to do.
 
-Not this: rh-preflight is not a safety oracle and does not call a token good or bad. It never signs, pays, revokes or sends a transaction, and holds no keys.
+Not this: rh-preflight is not a safety oracle and does not call a token good or bad. It never signs, pays, revokes or sends a transaction, and holds no wallet keys.
 
 ### Security and footprint
 
-- Sends: the addresses, agent ids, project names or repository names you act on, to the source hosts in [Sources](#sources), plus read-only RPC, DexScreener and GeckoTerminal reads. Nothing else from tool arguments.
+- Sends: the addresses, agent ids, project names or repository names you act on, to the source hosts in [Sources](#sources), plus read-only RPC, DexScreener and GeckoTerminal reads. Detected unsigned transactions or wallet signing requests also go to Toll when transaction simulation is on.
 - Stores: one local SQLite ledger of checks in the active profile's `plugin-data/rh-preflight/` directory. No credentials.
 - Runs: bounded HTTP reads inside the hook's deadline. No subprocess, background service, signature, payment or external write.
 - Installs: the Python core uses the standard library; nothing extra is downloaded.
@@ -146,6 +146,46 @@ simulated · action executions: 0
 
 For a labelled simulated swap combining the bundled PRIORS HEY projection and missing-target capture, run `python3 demo/gate_replay.py --scenario two-target-deny-retry-unattended`. It names only the missing target behind the rule, denies the whole call through the observer, retries with a fresh key and stops unattended. No uncaptured badge follow-up is made.
 
+## Transactions and signatures
+
+The hook recognizes unsigned `{to, data, value, from, chainId}` objects and wallet requests by their argument content, including nested JSON and literal command-line JSON. Chain 4663 comes from explicit context, a recognized RPC URL or `assume_chain`. `eth_sendTransaction`, `eth_signTypedData_v4` and `personal_sign` wallet requests are supported. Raw signed transactions and shell expansion are outside this detector.
+
+Local EIP-712 decoding runs before any Toll request. It prints the domain, signing type, spender, amount, deadline and nonce. Permit2 is recognized by address. Any Permit or Permit2 asks; a signing domain on another chain asks when the call is on 4663. Unlimited approval or permit to a spender with no code stops. An unlimited approval to an unknown contract, payout to another wallet, reverted simulation, expired transaction deadline or insufficient ETH asks. A successful swap adds facts without another approval rule. These checks do not authenticate the signer or prove domain ownership.
+
+Saved Toll responses, rendered by our parser. The first is a fresh unsigned swap, never sent. The second is a constructed payout case, never sent. Simulation blocks describe the replay, not an executed transaction:
+
+```text
+go · no rule of yours fired
+unsigned transaction to 0xc2bc9a3fe6c4ce8c2f7eb4655b0869b01d8c93c9 on chain 4663
+Toll: simulated at block 111933448
+simulated sender balance change: -0.000480569378599765 ETH
+simulated sender balance change: +45704730444476128839330 0x41b57f6273b5a78cf9125ce6800f415738e0bba0 base units
+Toll · https://t0ll.xyz
+```
+
+```text
+ask · your rule: payout to another wallet +3 more
+unsigned transaction to 0xc2bc9a3fe6c4ce8c2f7eb4655b0869b01d8c93c9 on chain 4663
+pays out to 0xdc36d51963d08862c525045ccfd39fae6a0c7f40, not the sending wallet
+sender short of ETH for this transaction
+simulation reverted
+transaction deadline passed
+Toll · https://t0ll.xyz
+```
+
+| Our outcome | Hermes directive | Effect |
+| :--- | :--- | :--- |
+| `go` or `note` | none | Continue; append the card to the result. |
+| `ask` | `{"action": "approve", "message": …, "rule_key": …}` | Request a fresh human decision. |
+| `stop` | `{"action": "block", "message": …}` | Veto the call before execution. |
+| Could not check | `on_unchecked: ask` by default | Ask; `stop` vetoes; `note` adds the incomplete reading without that prompt. Internal errors always stop. |
+
+On unattended surfaces, including `-z`, cron, `--yolo` and an unreadable presence context, detected calls in ask modes stop unless `allow_unattended` is explicitly enabled. An unlimited approval to a spender with no code always stops. AEGIS documents that its WARN escalation may be auto-approved on those surfaces; our unattended stop returns the veto directly.
+
+One deadline covers builder reads, independent sources and Toll. It uses `timeout` (4 seconds by default), caps the hook budget at 25 seconds, and reserves a small portion for card assembly. A transport or HTTP 5xx failure may retry once if time remains; no retry follows 429. `Retry-After` applies as a per-process cooldown and no hook sleeps. An unavailable, refused, partial or rate-limited simulation says `Toll: not simulated` and uses `on_unchecked`. Existing approval and payout facts still apply. With `tx_check: off`, only local facts and rules remain; `sources.toll: off` also prevents a Toll request. Swap arguments without calldata get local recipient facts only. A standalone typed-data object without a wallet RPC envelope stays local because the signer is not known.
+
+Transaction simulation is supplied by [Toll](https://t0ll.xyz). The optional `TOLL_API_KEY` environment variable is read only for this route; it never enters the card or ledger. Keyless access and the partner header still need confirmation from Toll. The plugin stores projected facts, not raw calldata, typed messages, remote reports or signatures. No returned API or payment link is followed.
+
 ## Settings
 
 Settings live under `plugins.entries.rh-preflight.settings`. Policy and source toggles are read for every check. Restart Hermes after changing the timeout. `sources` is a mapping from `priors`, `sherwood`, `hookr`, `wormhole`, `toll`, `dexscreener`, `geckoterminal`, `chain`, `offrouter`, `sentinelhood`, `hoodlock`, `trnch` and `borro` to `on` or `off`. All entries default to `on`. The core builder source stays enabled.
@@ -167,7 +207,7 @@ plugins:
 
 | Setting | Default | Meaning |
 | :--- | :--- | :--- |
-| `mode` | `ask_when` | `ask` requests approval for every detected action; `ask_when` uses your enabled rules; `note` appends the card and proceeds. |
+| `mode` | `ask_when` | `ask` requests approval for every detected action; `ask_when` uses your enabled rules; `note` appends the card and proceeds except for explicit stops and internal errors. |
 | `quiet_days` | `30` | Measured interval without a meaningful ship. |
 | `ask_quiet` | `true` | Enable the quiet interval rule. |
 | `ask_unmeasured` | `true` | Ask when builder activity is not measured. |
@@ -179,9 +219,13 @@ plugins:
 | `allow_unattended` | `false` | Explicitly permit detected actions without requesting a human answer in unattended contexts. |
 | `assume_chain` | unset | Set to `4663` for tools without an explicit chain field. |
 | `tool_patterns` | action regex list | Configurable native and MCP tool classes, including swap, buy, sell, trade, approve, permit, transfer, pay, mint, bridge, deposit, stake and deploy. |
-| `timeout` | `4.0` | Shared source-read deadline per check in seconds; concurrent reads and their prerequisites use the remaining time. |
+| `tx_check` | `on` | Toll transaction simulation; `off` leaves local signature and calldata checks enabled. |
+| `toll_key_header` | `x-api-key` | Header for the optional environment key; this default awaits Toll confirmation. |
+| `ask_payout_other` | `true` | Ask when transaction proceeds go to another wallet. |
+| `on_unchecked` | `ask` | An incomplete transaction, builder read or enabled dependent source rule asks, stops or adds a note. Internal errors always stop. |
+| `timeout` | `4.0` | Shared call budget in seconds, capped at 25 to leave room below Hermes's 30-second hook limit. |
 
-The existing builder rules remain flat settings for compatibility. Payment, vault and Stock Token rules live in the `ask_when` mapping. Source failures do not block in `note`. In ask modes, an additional source's failure requests approval only when its dependent rule is enabled. An unavailable builder source requests approval in ask modes. A failed local check or ledger write blocks in ask modes.
+The existing builder rules remain flat settings for compatibility. Payment, vault and Stock Token rules live in the `ask_when` mapping. An additional source's failure uses `on_unchecked` when its dependent rule is enabled. `note` mode suppresses approval prompts; explicit stops for unlimited approval to a spender with no code, `on_unchecked: stop` and internal errors still apply. A failed local check or ledger write always stops.
 
 Cron, single-query, yolo, approvals-off and contexts without an approval surface block detected actions in ask modes unless `allow_unattended` is explicitly enabled, including when no optional rule fires. The plugin never answers an approval prompt. Interactive checks return the host's `approve` directive to request human approval. Each check has a fresh approval key. Human answers are recorded only when the host emits an approval response event.
 
@@ -208,7 +252,7 @@ Each source publishes its own records. Every additional line ends with its publi
 
 The method, chosen integrations and not-taken list are in [docs/SOURCES.md](docs/SOURCES.md). Reserves amlil, HoodRugCheck, Marlowe and HookKit overlap existing questions or exceed the time budget. Key-only, paid-only, other-chain and own-product-only interfaces were excluded. The explorer is a citation only.
 
-No source uses a key or payment. HTTP 402 ends that source with no line and no follow-up. No report, paid URL, returned link or payment challenge is followed. Transport failure yields one source-labelled unreachable line. Unlisted adds no line except the explicit observations above. Third-party prose blocks and classifications are dropped except the specified Trnch-attributed token-check phrases. Only named projected fields are printed; quoted fields have controls and zero-width characters stripped and are capped at eighty characters. A discrepant HEY token-lock snapshot is printed beside the direct HoodLock reading without a conclusion.
+Ordinary project reads use no key or payment. Transaction simulation accepts the optional environment variable described above. HTTP 402 ends that source with no line and no follow-up. No report, paid URL, returned link or payment challenge is followed. Transport failure yields one source-labelled unreachable line. Unlisted adds no line except the explicit observations above. Third-party prose blocks and classifications are dropped except the specified Trnch-attributed token-check phrases. Only named projected fields are printed; quoted fields have controls and zero-width characters stripped and are capped at eighty characters. A discrepant HEY token-lock snapshot is printed beside the direct HoodLock reading without a conclusion.
 
 Multi-target checks keep the call-wide answer on every card. Below coverage, `rule target: <full target> · your rule: <rule>` appears only on the card whose own reading triggered that rule. Public `rule_targets` associations are optional fields in the existing stored card JSON; aggregate `rules`, gate controls and legacy rows stay unchanged. Explanations reuse the existing policy in attended `ask_when` mode with the same check time; ask-every-call and unattended settings remain call-wide.
 
@@ -216,13 +260,13 @@ The wording rule applies to every rendered card and surface. The card repeats so
 
 Use `builder_card` with an `address`, `repo_url` or `project`. A project name or slug can accompany an address or repository URL to clarify the request. Use `/rh-preflight <address|repository-url|project>` or `hermes rh-preflight card <target>` for the same network card. For an exact slug, use `hermes rh-preflight card --project <slug>`; the positional target is optional. `hermes rh-preflight log` reads local history. `hermes rh-preflight doctor` reports source reachability, latency, cache statistics, mode and the last five checks. These reads do not execute contract actions.
 
-Detection covers up to five addresses in nested arguments on configured action tools, plus named payment recipients, ERC-8004 agent ids and 32-byte pool ids with chain context. Explicit conflicting or unreadable chain fields prevent the chain assumption. Recognized RPC URL strings establish chain context without calling an RPC. Terminal detection handles literal `cast send`, `cast call`, `hermes plugins install` and `hermes mcp add`. It does not expand shell variables or inspect scripts. Only chain 4663 is supported. Wallet research is outside this release. Market lines describe the named source and its recorded time.
+Detection covers up to five addresses in nested arguments on configured action tools, plus named payment recipients, ERC-8004 agent ids and 32-byte pool ids with chain context. Explicit conflicting or unreadable chain fields prevent the chain assumption. Recognized RPC URL strings establish chain context without calling an RPC. Terminal detection handles literal `cast send`, `cast call`, `hermes plugins install` and `hermes mcp add`. It does not expand shell variables or inspect scripts. Transaction and signature detection also runs by content on unrecognized tool names. Only chain 4663 is supported. Wallet research is outside this release. Market lines describe the named source and its recorded time.
 
 HEY agent reads send exactly one selector: `project` for an explicit slug, `q` for a free name or ticker, or `address` for a contract. When an explicit project slug is not found, one follow-up `q=<same value>` request may resolve it; the card explains the resolution. Repository reads search `/api/projects?q=<owner>` first, then the repository basename only if no exact registered match was found. Candidates prefer owner-repository, owner and repository slugs. At most eight dossiers are read in total, reserving up to four for the owner search. Incomplete searches print the search count, checked count and search link as a HEY answer. Repository research always requires exact equality with a registered repository URL in a builder dossier. Similar names are never accepted. GitHub case, trailing slash and `.git` are normalized. Credentials, query strings, fragments and tree paths are rejected. Ambiguous or closest project matches are repeated without choosing a candidate. An unresolved contract uses one HEY line, retaining its asOf when supplied. The older builder and contract reads are retained for service failures and missing gate fields. JSON HTTP 4xx answers are printed as HEY responses; transport failures, timeouts and HTTP 5xx use the unreachable wording. Contract creation and source publication remain separate from builder ships.
 
-Every source uses bounded stdlib HTTP reads with redirects declined and responses limited to two megabytes. Each source has a separate cooldown and honors `Retry-After` as seconds or an HTTP date. No hook sleeps during a cooldown. Existing records are cached for ten minutes; vault and hook lists, Agent Wormhole, Toll, DexScreener, GeckoTerminal, chain RPC, OffRouter, Sentinelhood, HoodLock and Borro use sixty seconds. Trnch bypasses the shared cache for every requested token, with no prefetch, listing reads or stored dataset; only its card text enters the existing ledger. Its doctor entry has no reachability probe because no token was requested. Successful chain-id verification is retained once per process and origin. New-source cache keys include the JSON-RPC body, so distinct tools and calls cannot share answers. Pool discovery is indexed in memory per list window. Hookr requires the JSON catalog, integration and pool schemas; when these cannot be read, a successful HTML response from `/hooks` is reported as a page without readable hook listings, rather than an outage. The HTML page does not establish deployed-hook or pool ownership. Requests have bounded concurrency and caches hold at most 512 entries per source. Failures are not cached as missing records. Lists warm lazily during the foreground check, with no background worker. HEY and independent source reads start together; RPC and independent registries start in parallel. RPC code/no-code is shared with Wormhole and DexScreener; the raw RPC line is hidden when Sentinelhood answers. Borro starts after Toll confirms official Stock Token membership. HoodLock batches lock ids, totalSupply, vesting ids and block, then at most twenty lock details at the returned block. Large lock sets say first 20 of N. Vesting schedules are counted from the complete index; their allocations are not included in the locked-supply percentage. Toll agent and hook reads wait only for their own registry prerequisite. Token-dependent reads after name resolution, including OffRouter repository resolution, use the remaining hook time. Requests send `User-Agent: rh-preflight/<version> (+https://github.com/quotumorg/rh-preflight)`. Only requests whose hostname is exactly `heyresearch.xyz` carry `x-hey-integration: quotum-hermes/<version>`, read from the package version. Other source requests and loopback fixtures never carry it. The plugin currently makes no HEY MCP or A2A calls; any such request through the same transport receives the same host-scoped header.
+Every source uses bounded stdlib HTTP reads with redirects declined and responses limited to two megabytes. Each source has a separate cooldown and honors `Retry-After` as seconds or an HTTP date. No hook sleeps during a cooldown. Existing records are cached for ten minutes; vault and hook lists, Agent Wormhole, Toll project reads, DexScreener, GeckoTerminal, chain RPC, OffRouter, Sentinelhood, HoodLock and Borro use sixty seconds. Transaction simulations are never cached. Trnch bypasses the shared cache for every requested token, with no prefetch, listing reads or stored dataset; only its card text enters the existing ledger. Its doctor entry has no reachability probe because no token was requested. Successful chain-id verification is retained once per process and origin. New-source cache keys include the JSON-RPC body, so distinct tools and calls cannot share answers. Pool discovery is indexed in memory per list window. Hookr requires the JSON catalog, integration and pool schemas; when these cannot be read, a successful HTML response from `/hooks` is reported as a page without readable hook listings, rather than an outage. The HTML page does not establish deployed-hook or pool ownership. Requests have bounded concurrency and caches hold at most 512 entries per source. Failures are not cached as missing records. Lists warm lazily during the foreground check, with no background worker. HEY and independent source reads start together; RPC and independent registries start in parallel. RPC code/no-code is shared with Wormhole and DexScreener; the raw RPC line is hidden when Sentinelhood answers. Borro starts after Toll confirms official Stock Token membership. HoodLock batches lock ids, totalSupply, vesting ids and block, then at most twenty lock details at the returned block. Large lock sets say first 20 of N. Vesting schedules are counted from the complete index; their allocations are not included in the locked-supply percentage. Toll agent and hook reads wait only for their own registry prerequisite. Token-dependent reads after name resolution, including OffRouter repository resolution, use the remaining hook time. Requests send `User-Agent: rh-preflight/<version> (+https://github.com/quotumorg/rh-preflight)`. Only requests whose hostname is exactly `heyresearch.xyz` carry `x-hey-integration: quotum-hermes/<version>`, read from the package version. Other source requests and loopback fixtures never carry it. The plugin currently makes no HEY MCP or A2A calls; any such request through the same transport receives the same host-scoped header.
 
-Addresses, agent ids, project identifiers and repository names you act on are sent to the hosts listed in the table, according to each row. Nothing else from tool arguments is sent. The hosts receive ordinary HTTP connection metadata. RPC is limited to the listed read-only methods. No signature, payment, trade quote, external write, subprocess or background service is performed by the plugin. No credentials are read or stored. Desktop polls its local history endpoint every fifteen seconds while mounted; that poll does not query public sources. The local SQLite ledger stores time, session, tool name, target identifiers, rendered cards, digests, evidence ids, your triggered rules, mode, disposition and a human response when available. It stores no other tool arguments. Data lives in the active profile's plugin data directory. The chip still reads `checked N · asked M today` and counts tool calls in UTC.
+Addresses, agent ids, project identifiers and repository names you act on are sent to the hosts listed in the table, according to each row. When enabled, Toll also receives the detected unsigned transaction or supported wallet signing request. The hosts receive ordinary HTTP connection metadata. RPC is limited to the listed read-only methods. No signature, payment, trade quote, external write, subprocess or background service is performed by the plugin. Only the optional transaction-simulation environment variable is read; no credentials are stored. Desktop polls its local history endpoint every fifteen seconds while mounted; that poll does not query public sources. The local SQLite ledger stores time, session, tool name, target identifiers, rendered cards, digests, evidence ids, your triggered rules, mode, disposition and a human response when available. It stores no other tool arguments. Data lives in the active profile's plugin data directory. The chip still reads `checked N · asked M today` and counts tool calls in UTC.
 
 ## Add a source
 
@@ -241,7 +285,7 @@ The ledger uses `plugins.plugin_storage.plugin_data_dir` to locate durable state
 
 HEY Research Lab plus ten Robinhood Chain project integrations are implemented and covered by offline tests. The historical survey totals in `docs/SOURCES.md` are author-reported and the complete survey dataset is not bundled. Saved responses verify parsing, not present source availability. Detection is limited to the tools and literal arguments described above; this is not a universal transaction interceptor. Full Desktop rendering still needs visual verification in a running host.
 
-Package and manifest version are `0.5.3`, with `requires_hermes: ">=0.23.0"`. A catalog submission must repeat that floor and version, declare `builder_card` and the three hooks from `plugin.yaml`, and pin both code and banner URL to the final reviewed forty-character commit SHA. There is no catalog entry in this repository yet. Public repository access, joint review, the catalog PR, demo video and entry form remain release steps.
+Package and manifest version are `0.5.4`, with `requires_hermes: ">=0.23.0"`. A catalog submission must repeat that floor and version, declare `builder_card` and the three hooks from `plugin.yaml`, and pin both code and banner URL to the final reviewed forty-character commit SHA. There is no catalog entry in this repository yet. Public repository access, joint review, the catalog PR, demo video and entry form remain release steps.
 
 ## Offline checks
 
