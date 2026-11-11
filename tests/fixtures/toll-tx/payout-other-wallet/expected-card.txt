@@ -1,5 +1,4 @@
 ask · your rule: payout to another wallet +4 more
-your rule: payout to another wallet
 your rule: simulation reverted
 your rule: transaction deadline passed
 your rule: sender short of ETH

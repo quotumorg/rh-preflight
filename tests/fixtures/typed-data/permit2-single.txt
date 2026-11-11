@@ -1,5 +1,4 @@
 ask · your rule: Permit or Permit2 signature requires approval +1 more
-your rule: Permit or Permit2 signature requires approval
 your rule: transaction could not be checked
 signing wallet not recorded; sender effects could not be checked
 EIP-712 domain Permit2, chainId 4663, verifyingContract 0x000000000022d473030f116ddee9f6b43ac78ba3; primaryType PermitSingle; Permit2

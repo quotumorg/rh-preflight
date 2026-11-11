@@ -1,5 +1,4 @@
 stop · your rule: unlimited approval to a spender with no code
-your rule: unlimited approval to a spender with no code
 your rule: Permit or Permit2 signature requires approval
 your rule: transaction could not be checked
 signing wallet not recorded; sender effects could not be checked

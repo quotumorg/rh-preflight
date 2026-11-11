@@ -22,7 +22,7 @@ HookrRouter exact-input trades decode PoolKey and poolId locally and check the s
 Hookr pool refusals ask by default under ask_hookr_refused; successful reads supply token symbols and decimals without replacing Toll simulation amounts.
 The toll_coin_findings setting defaults to silent; line permits neutral attribution, fixed Toll figures and an available public coin link.
 Failed or unknown started Hookr wallet checks use on_unchecked; Toll metadata takes precedence over Hookr metadata.
-Transaction cards name every fired rule below their answer, including rules summarized by +N more.
+Transaction cards name every fired rule once, in the answer or below it, including rules summarized by +N more.
 Internal errors stop calls in every mode; the README explains Hermes directives and unattended behavior.
 
 With toll_coin_findings: line, a token address that is not a Robinhood Stock Token gets Toll's free `check_coin` read: fixed Figures lines only (launch venue and age, maker's launch count, wallets on Toll's flag list and their share, what the maker holds now). Verdict words and finding prose are never copied. A still-reading answer, a timeout, 429, 5xx or a used-up daily quota prints nothing; a whole answer is kept ten minutes per address, maximum 512, independently of check_tx. Silent skips the free coin read. Stock Tokens never spend coin quota.

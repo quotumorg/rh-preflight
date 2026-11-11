@@ -108,7 +108,7 @@ def test_payout_all_rules_named_and_partial_read_is_tx_coverage(tmp_path):
     assert 'Toll lists findings' not in row['card']
     assert 'Toll could not read all findings for $CLEAR' in row['card']
     for rule in row['rules']:
-        assert rule in row['card'].splitlines()[1:]
+        assert row['card'].count(rule) == 1
 
 
 def test_hookr_titles_cannot_relay_classifications(tmp_path):

@@ -159,7 +159,7 @@ The detector contract below applies to argument content, including nested object
 | Raw broadcast | Explicit `eth_sendRawTransaction` uses `on_unchecked`; signed bytes are not decoded, sent to Toll or retained. |
 | Standalone EIP-712 | A `domain`/`types`/`primaryType`/`message` object stays local and uses `on_unchecked` because the signer is unknown. Permit and domain rules still apply. |
 | Unencoded actions | With a quantity in `amount`, `amountIn`, `amountOut`, `value` or `allowance`: tokenIn/tokenOut keys identify swaps, a spender address identifies approvals, and a recipient/payTo/payee/to address identifies payments. These shapes use `on_unchecked` and retain local approval and payout facts. A tool name or address alone supplies builder research only. |
-| Declared reads and installs | get/read/search/research/fetch/quote/price/estimate/browse prefixes, web search/fetch and plugin-install/MCP-add tools leave ordinary quote, allowance, payment lookup and example arguments out of transaction checks. Content reads (`read_file`, `web_search`, `web_fetch`, `research`, `browse` prefixes) also exclude unsigned examples. Quote and other non-content read tools still check concrete unsigned transactions. |
+| Declared reads and installs | get/read/search/research/fetch/quote/price/estimate/browse prefixes, `web_search`/`web_fetch`, `plugins_install`, `plugin_install`, `install_plugin` and `mcp_add` leave ordinary quote, allowance, payment lookup and example arguments out of transaction checks. Content reads (`read_file`, `web_search`, `web_fetch`, `research`, `browse` prefixes) also exclude unsigned examples. Quote and other non-content read tools still check concrete unsigned transactions. |
 | Execution evidence on a read tool | Explicit send/sign RPC or literal `cast send`, execution tool names, `execute`/send/sign/submit/broadcast true, quoteOnly/readOnly/dryRun/simulateOnly false, or mode/action/operation execute/send/sign/submit/broadcast/swap/approve/transfer/pay override read exclusions. Ordinary quote-only flags retain read behavior. |
 | Read RPC and terminal reads | `eth_call`, `eth_estimateGas`, `eth_createAccessList`, `debug_traceCall`, `wallet_simulateCalls` exclude hypothetical params while preserving independent nested send/sign requests. Literal `cast call` and `hermes plugins install`/`hermes mcp add` retain builder/install checks. |
 | Incomplete checks or parsing | Failed, refused, late or partial required checks, missing wallets and unreadable detection use `on_unchecked` (ask by default; unattended stops). Parsing is bounded to 24 nesting levels, 20,000 input nodes, 2,000,000 string-value characters per input/decoded JSON value, 64 JSON candidates per string and 1,024 intent rows. Exceeding a bound or a detector exception yields an unchecked card without sending partial arguments to providers, even when chain/read classification could not be completed. Other internal failures stop. |
@@ -185,7 +185,6 @@ Hookr scan: 79/100, automated screening · 5 findings: Inline assembly needs man
 
 ```text
 ask · your rule: Hookr pool rules refuse this wallet +5 more
-your rule: Hookr pool rules refuse this wallet
 your rule: payout to another wallet
 your rule: simulation reverted
 your rule: transaction deadline passed

@@ -1,5 +1,4 @@
 ask · your rule: simulation reverted +3 more
-your rule: simulation reverted
 your rule: transaction deadline passed
 your rule: sender short of ETH
 your rule: transaction could not be checked
