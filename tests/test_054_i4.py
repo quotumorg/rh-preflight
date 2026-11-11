@@ -70,7 +70,7 @@ def test_codeless_unlimited_approval_still_blocks(ctx, allow, tmp_path, monkeypa
     assert 'unlimited approval to a spender with no code' in directive['message']
 
 
-def test_repository_has_no_host_tools_imports():
+def test_repository_has_no_private_host_imports():
     root = Path(__file__).resolve().parents[1]
     for path in root.rglob('*.py'):
         if '.git' in path.parts:
@@ -79,3 +79,8 @@ def test_repository_has_no_host_tools_imports():
             names = ([node.module or ''] if isinstance(node, ast.ImportFrom) else
                      [alias.name for alias in node.names] if isinstance(node, ast.Import) else [])
             assert all(name.split('.')[0] != 'tools' for name in names), (path, node.lineno)
+
+            if isinstance(node, ast.ImportFrom) and (node.module or '').split('.')[0] in {
+                    'hermes_cli', 'model_tools', 'plugins'}:
+                assert all(not alias.name.startswith('_') for alias in node.names), (path, node.lineno)
+            assert all(not name.startswith(('hermes_cli._', 'plugins._')) for name in names), (path, node.lineno)

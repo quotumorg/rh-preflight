@@ -29,10 +29,15 @@ with fake_server() as (origin, state):
                   presence=lambda: unattended(ctx))
     ctx.register_hook("pre_tool_call", app.pre_tool_call)
     if scenario == "transform":
-        from model_tools import _CallIds, _apply_transform_tool_result_hook
+        from hermes_cli.lifecycle import invoke_hook
 
         ctx.register_hook("transform_tool_result", app.transform_tool_result)
-        ids = _CallIds(session_id="example-session", tool_call_id="example-call")
+        ids = {"session_id": "example-session", "tool_call_id": "example-call"}
+
+        def transform(original):
+            results = invoke_hook("transform_tool_result", tool_name="terminal", args=args,
+                                  result=original, duration_ms=0, **ids)
+            return next((result for result in results if isinstance(result, str)), original)
         args = {"command": f"cast call {ACTIVE} 'symbol()(string)' --rpc-url https://rpc.mainnet.chain.robinhood.com"}
         label = "rh-preflight public network data (external source text):\n"
         originals = [json.dumps({"output": "synthetic command output\nλ", "exit_code": 0,
@@ -42,9 +47,9 @@ with fake_server() as (origin, state):
                      r'{"output":"\ud800","exit_code":0}',
                      '{"output":"done","large":1e400,"tiny":1e-400,"precise":0.123456789012345678901}']
         for original in originals:
-            assert resolve_pre_tool_block("terminal", args, **ids.hook_kwargs()) is None
-            pending = app.pending[app._key("terminal", args, ids.hook_kwargs())]
-            transformed = _apply_transform_tool_result_hook("terminal", args, original, 0, ids)
+            assert resolve_pre_tool_block("terminal", args, **ids) is None
+            pending = app.pending[app._key("terminal", args, ids)]
+            transformed = transform(original)
             closing = original.rindex("}")
             assert transformed[:closing] == original[:closing]
             transformed.encode("utf-8")
@@ -55,7 +60,7 @@ with fake_server() as (origin, state):
             assert len(after) == len(before) + 1
             assert list(after.values())[-1] == label + pending
             assert "go · no rule of yours fired" in list(after.values())[-1]
-            assert _apply_transform_tool_result_hook("terminal", args, transformed, 0, ids) == transformed
+            assert transform(transformed) == transformed
         assert len(app.ledger.rows()) == len(originals)
         print("Hermes transform dispatch confirmed; no actions executed")
         sys.exit(0)
