@@ -1,5 +1,7 @@
 ## 0.5.4
 
+- Preserve execution flags, structured quote-tool transactions and nested writes across read exclusions; explicit raw broadcasts use on_unchecked without retaining signed bytes.
+
 - Keep read-only quotes, allowance lookups, research examples and call/estimate RPC payloads out of transaction approval checks; preserve explicit sends/signatures and existing builder checks.
 
 Unsigned transactions and wallet requests on chain 4663 receive a Toll simulation card before builder cards, with sender balance changes and our approval rules.
