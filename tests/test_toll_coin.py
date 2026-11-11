@@ -59,7 +59,7 @@ def test_non_stock_token_reads_coin_figures():
     assert line.startswith('Toll: ')
     assert 'launched on Pons 37 days ago' in line
     assert 'maker has 1 launch' in line
-    assert '8 flagged wallets bought 5.9%' in line
+    assert "8 wallets on Toll's flag list bought 5.9%" in line
     assert 'maker holds 1.5%' in line
     assert line.endswith('https://t0ll.xyz/check/' + COIN)
 
@@ -88,3 +88,49 @@ def test_coin_answer_for_another_token_is_not_used():
     other = WHOLE.replace('Token: ' + COIN, 'Token: 0x' + '1' * 40)
     toll, _ = client(other)
     assert toll.lookup(COIN, time.monotonic() + 5).state == 'unlisted'
+
+
+def failing(error):
+    toll, calls = Toll(), []
+
+    def read(path, deadline, payload=None):
+        calls.append(path)
+        if path.startswith('/api/markets/stock/'):
+            return 404, {}
+        raise error
+    toll._read = read
+    return toll, calls
+
+
+def test_coin_timeout_429_or_5xx_stays_silent_not_unreachable():
+    # quotum review 1: an unanswered coin read is silent, like a 404 or still reading
+    from rh_preflight.hey import RateLimited, TemporaryUnavailable, Unavailable
+    for error in (Unavailable(), TemporaryUnavailable(), RateLimited(60)):
+        toll, _ = failing(error)
+        reading = toll.lookup(COIN, time.monotonic() + 5)
+        assert reading.state == 'unlisted' and reading.line == '', type(error).__name__
+
+
+def test_quota_used_up_answer_is_silent():
+    used = ("new coins for today are used (10 free). coins people already checked stay free. "
+            "more: a Toll key from a wallet holding $TOLL (t0ll.xyz/toll#keys, sent as Authorization: Bearer <key>), "
+            "or pay per check with x402 at t0ll.xyz/api/x402.")
+    toll, _ = client(used)
+    reading = toll.lookup(COIN, time.monotonic() + 5)
+    assert reading.state == 'unlisted' and reading.line == ''
+
+
+def test_whole_coin_answer_is_cached_per_address():
+    # quotum review 2: repeats inside the process do not spend the free daily quota
+    toll, calls = client(WHOLE)
+    first = toll.lookup(COIN, time.monotonic() + 5)
+    second = toll.lookup(COIN.upper().replace('0X', '0x'), time.monotonic() + 5)
+    assert first.line == second.line and first.state == 'present'
+    assert [p for p, _ in calls].count('/mcp') == 1
+
+
+def test_still_reading_is_not_cached():
+    toll, calls = client(READING)
+    toll.lookup(COIN, time.monotonic() + 5)
+    toll.lookup(COIN, time.monotonic() + 5)
+    assert [p for p, _ in calls].count('/mcp') == 2

@@ -1,13 +1,16 @@
-"""Only Toll's free agent, hook and stock reads; fixed fact projections."""
+"""Only Toll's free agent, hook, stock and coin reads; fixed fact projections."""
 import json
 import re
 from urllib.parse import quote
 from .common import plural, Absent, Keyless, Reading, field, money
 from ..card import link
 from ..extract import ADDRESS
+from ..hey import Unavailable
 
 TOOLS = {'agent': ('check_agent', 'id'), 'hook': ('check_hook', 'address'), 'stock': ('stock_token', 'id')}
 NUMBER = r'[0-9]+(?:\.[0-9]+)?'
+# a whole check_coin answer is kept this long per address, so repeats do not spend the caller's free daily quota
+COIN_TTL = 600
 
 
 class Client(Keyless):
@@ -87,9 +90,19 @@ class Client(Keyless):
                        stock_ticker=ticker if official else None)
 
     def coin(self, target, deadline):
+        key = target.lower()
+        with self.lock:
+            kept = getattr(self, '_coins', {}).get(key)
+            if kept and self.clock() - kept[0] < COIN_TTL:
+                return kept[1]
         payload = {'jsonrpc': '2.0', 'id': 1, 'method': 'tools/call',
-                   'params': {'name': 'check_coin', 'arguments': {'address': target}}}
-        result = self.read('/mcp', deadline, payload=payload)['result']
+                   'params': {'name': 'check_coin', 'arguments': {'address': key}}}
+        try:
+            # ttl=0: only a whole answer is kept (below); a still-reading one is asked again next time
+            result = self.read('/mcp', deadline, ttl=0, payload=payload)['result']
+        except (Unavailable, KeyError, TypeError, ValueError):
+            # a timeout, 429, 5xx or unreadable answer is silent, like a 404 or still reading
+            return Reading(self.label, 'unlisted', '')
         if result.get('isError'):
             return Reading(self.label, 'unlisted', '')
         blocks = result['content']
@@ -112,13 +125,20 @@ class Client(Keyless):
             match = re.fullmatch(r'- Flagged wallets: ([0-9,]+), bought (' + NUMBER + r')%', line)
             if match:
                 count = match[1].replace(',', '')
-                facts.append(f'{count} flagged {plural(count, "wallet")} bought {match[2]}%')
+                facts.append(f"{count} {plural(count, 'wallet')} on Toll's flag list bought {match[2]}%")
             match = re.fullmatch(r'- Maker holds now: (' + NUMBER + r')% of supply.*', line)
             if match:
                 facts.append(f'maker holds {match[1]}%')
-        page = self.page + '/check/' + target.lower()
-        return Reading(self.label, 'present' if facts else 'unlisted',
-                       f'{self.label}: ' + '; '.join(facts[:4]) + ' · ' + page if facts else '')
+        page = self.page + '/check/' + key
+        reading = Reading(self.label, 'present' if facts else 'unlisted',
+                          f'{self.label}: ' + '; '.join(facts[:4]) + ' · ' + page if facts else '')
+        if facts:
+            with self.lock:
+                coins = self.__dict__.setdefault('_coins', {})
+                coins[key] = (self.clock(), reading)
+                while len(coins) > 512:
+                    coins.pop(next(iter(coins)))
+        return reading
 
     def public_page(self, candidate):
         # Never relay paid API URLs from a response, even as a citation.
