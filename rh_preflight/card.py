@@ -92,6 +92,10 @@ class Card:
 
     def render(self):
         d = self.data
+        if self.kind == "transaction":
+            from .presentation import answer_line
+            heading = [answer_line(d['decision'])] if 'decision' in d else []
+            return "\n".join(heading + d['lines'])
         if self.kind == "network":
             from .presentation import answer_line, coverage
             from .policy import evaluate
@@ -104,7 +108,7 @@ class Card:
                 heading.extend(rule for rule in decision.rules if rule not in heading[0] and
                                (rule.startswith('your setting:') or
                                 rule == 'your rule: ask before every detected action'))
-            elif len(decision.rules) > 1 or (decision.rules and decision.rules[0] not in heading[0]):
+            elif len(decision.rules) > 1 or (decision.rules and (decision.action == "block" or decision.rules[0] not in heading[0])):
                 heading.extend(decision.rules)
             base = d["base"].render().splitlines()
             citation = d.get("citation")
@@ -192,6 +196,8 @@ class Card:
     def public(self):
         rendered = self.render()
         extra = {}
+        if self.kind == 'transaction':
+            extra = {'answer': rendered.splitlines()[0], 'rules': list(self.data['decision'].rules), 'sources': []}
         if self.kind == 'network':
             from .presentation import source_data
             from .policy import evaluate

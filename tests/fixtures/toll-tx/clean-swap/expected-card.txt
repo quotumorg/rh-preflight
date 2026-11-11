@@ -1,0 +1,6 @@
+go · no rule of yours fired
+unsigned transaction to 0xc2bc9a3fe6c4ce8c2f7eb4655b0869b01d8c93c9 on chain 4663
+Toll: simulated at block 111933448
+simulated sender balance change: -0.000480569378599765 ETH
+simulated sender balance change: +45704730444476128839330 0x41b57f6273b5a78cf9125ce6800f415738e0bba0 base units
+Toll · https://t0ll.xyz

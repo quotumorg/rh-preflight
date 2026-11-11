@@ -1,0 +1,2 @@
+go · no rule of yours fired
+EIP-712 domain Synthetic SignIn, chainId 4663, verifyingContract 0xcccccccccccccccccccccccccccccccccccccccc; primaryType SignIn

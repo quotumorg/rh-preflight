@@ -23,6 +23,10 @@ class Settings:
     allow_unattended: bool = False
     assume_chain: int | None = None
     tool_patterns: list[str] = field(default_factory=lambda: DEFAULT_PATTERNS.copy())
+    tx_check: str = "on"
+    toll_key_header: str = "x-api-key"
+    ask_payout_other: bool = True
+    on_unchecked: str = "ask"
     timeout: float = 4.0
     sources: dict = field(default_factory=dict)
     ask_when: dict = field(default_factory=dict)
@@ -38,6 +42,12 @@ class Settings:
         for name, setting in self.ask_when.items():
             if name not in {"payee_no_priors_record", "vault_strategy_inactive", "stock_no_hey_record"} or type(setting) is not bool:
                 raise ValueError("ask_when must map rule names to booleans")
+        if not isinstance(self.toll_key_header, str) or not re.fullmatch(r'[A-Za-z][A-Za-z0-9-]{0,63}', self.toll_key_header) or self.toll_key_header.lower() in {'host', 'content-length', 'content-type', 'connection', 'user-agent', 'accept', 'x-hey-integration'}:
+            raise ValueError("toll_key_header must be an authentication header name")
+        if self.tx_check not in {"on", "off"}:
+            raise ValueError("tx_check must be on or off")
+        if self.on_unchecked not in {"ask", "stop", "note"}:
+            raise ValueError("on_unchecked must be ask, stop or note")
         if self.mode not in {"ask", "ask_when", "note"}:
             raise ValueError("mode must be ask, ask_when or note")
         if type(self.quiet_days) is not int or self.quiet_days < 1:
@@ -45,7 +55,7 @@ class Settings:
         if self.assume_chain not in {None, 4663}:
             raise ValueError("assume_chain must be 4663 or null")
         for name in ("ask_quiet", "ask_unmeasured", "ask_no_record",
-                     "ask_not_verified", "allow_unattended"):
+                     "ask_not_verified", "allow_unattended", "ask_payout_other"):
             if type(getattr(self, name)) is not bool:
                 raise ValueError(f"{name} must be a boolean")
         if isinstance(self.timeout, bool) or not isinstance(self.timeout, (float, int)):

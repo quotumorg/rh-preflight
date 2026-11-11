@@ -1,0 +1,2 @@
+ask · your rule: signing domain chain differs from 4663
+EIP-712 domain Synthetic SignIn, chainId 1, verifyingContract 0xcccccccccccccccccccccccccccccccccccccccc; primaryType SignIn

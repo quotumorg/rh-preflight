@@ -101,7 +101,7 @@ def test_first_answer_on_every_surface(tmp_path, capsys, outcome, label, rule_co
     if outcome in {'ask', 'note'} and len(rules) > 1:
         assert public['answer'].endswith('your rule: no ship in 30 days +1 more')
     if outcome == 'block':
-        assert public['answer'].endswith('stop · human approval required, unattended')
+        assert 'stop · ' in public['answer']
 
 
 @pytest.mark.parametrize('mode,target,away,label', [
@@ -279,7 +279,7 @@ def test_desktop_uses_answer_first_then_coverage_then_human():
 
 
 def test_version_and_public_source_notes():
-    assert __version__ == '0.5.3'
+    assert __version__ == '0.5.4'
     readme = (ROOT / 'README.md').read_text()
     assert readme.startswith('# rh-preflight\n\nrh-preflight by [quotum](https://quotum.org) with [HEY Research Lab](https://heyresearch.xyz).\n\n![rh-preflight](docs/banner.png)')
     assert '../CATALOG' not in readme and 'rh-preflight/0.4' not in readme

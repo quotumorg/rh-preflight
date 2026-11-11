@@ -123,7 +123,7 @@ def test_failed_slug_resolution_preserves_original_answer(server, followup):
     output = Client(server[0]).lookup('hookr', project='hookr').render()
     assert original['answer']['text'] in output
     assert 'HEY resolved' not in output
-    assert len(requests(server)) == 2
+    assert len(requests(server)) == (3 if followup == 'timeout' else 2)
 
 
 @pytest.mark.parametrize('catalog', [b'<html><body>No registry</body></html>', b'{"changed": true}', b'invalid-json'])

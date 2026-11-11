@@ -95,7 +95,21 @@ class Client:
             if size > 2_000_000:
                 raise Unavailable()
 
+    def request_headers(self, path):
+        return {}
+
     def _read(self, path, deadline, payload=None):
+        # Reserve time for one retry of transport/5xx failures. A rate limit,
+        # refusal or malformed response never causes a second request.
+        first_end = min(deadline, self.clock() + 2.0)
+        try:
+            return self._read_once(path, first_end, payload)
+        except TemporaryUnavailable:
+            if deadline - self.clock() <= 0.01:
+                raise
+            return self._read_once(path, deadline, payload)
+
+    def _read_once(self, path, deadline, payload=None):
         remaining = deadline - self.clock()
         if remaining <= 0 or not self.slots.acquire(timeout=max(0, remaining)):
             raise Unavailable()
@@ -113,6 +127,8 @@ class Client:
             })
             if urlsplit(request.full_url).hostname == "heyresearch.xyz":
                 request.add_header("x-hey-integration", f"quotum-hermes/{__version__}")
+            for name, value in self.request_headers(path).items():
+                request.add_header(name, value)
             if payload is not None:
                 request.data = json.dumps(payload).encode()
                 request.add_header("Content-Type", "application/json")

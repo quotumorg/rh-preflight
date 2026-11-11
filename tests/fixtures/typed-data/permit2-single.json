@@ -1,0 +1,69 @@
+{
+  "note": "Synthetic offline test payload, never signed or sent.",
+  "payload": {
+    "types": {
+      "EIP712Domain": [
+        {
+          "name": "name",
+          "type": "string"
+        },
+        {
+          "name": "chainId",
+          "type": "uint256"
+        },
+        {
+          "name": "verifyingContract",
+          "type": "address"
+        }
+      ],
+      "PermitSingle": [
+        {
+          "name": "details",
+          "type": "PermitDetails"
+        },
+        {
+          "name": "spender",
+          "type": "address"
+        },
+        {
+          "name": "sigDeadline",
+          "type": "uint256"
+        }
+      ],
+      "PermitDetails": [
+        {
+          "name": "token",
+          "type": "address"
+        },
+        {
+          "name": "amount",
+          "type": "uint160"
+        },
+        {
+          "name": "expiration",
+          "type": "uint48"
+        },
+        {
+          "name": "nonce",
+          "type": "uint48"
+        }
+      ]
+    },
+    "domain": {
+      "name": "Permit2",
+      "chainId": 4663,
+      "verifyingContract": "0x000000000022d473030f116ddee9f6b43ac78ba3"
+    },
+    "primaryType": "PermitSingle",
+    "message": {
+      "details": {
+        "token": "0xcccccccccccccccccccccccccccccccccccccccc",
+        "amount": "1000",
+        "expiration": 1893456000,
+        "nonce": 7
+      },
+      "spender": "0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "sigDeadline": 1893456000
+    }
+  }
+}

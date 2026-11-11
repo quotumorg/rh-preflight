@@ -1,5 +1,5 @@
 name: rh-preflight
-version: 0.5.3
+version: 0.5.4
 requires_hermes: ">=0.23.0"
 description: "rh-preflight by quotum with HEY Research Lab. Reads builder records and ten Robinhood Chain projects; rh-preflight applies your approval rules before Hermes acts on chain 4663."
 author: quotum, HEY Research Lab
@@ -47,10 +47,26 @@ config_schema:
     default:
       - swap|buy|sell|trade|approve|permit|transfer|pay|mint|bridge|deposit|stake|deploy|x402|liquidity|add_lp|remove_lp
     description: Case-insensitive regular expressions matched against tool names
+  tx_check:
+    type: str
+    default: "on"
+    description: on or off; Toll transaction simulation, local signature checks stay enabled
+  toll_key_header:
+    type: str
+    default: x-api-key
+    description: Optional Toll environment-key header; the default awaits provider confirmation
+  ask_payout_other:
+    type: bool
+    default: true
+    description: Ask when transaction proceeds go to another wallet
+  on_unchecked:
+    type: str
+    default: ask
+    description: ask, stop or note when an applicable check cannot complete
   timeout:
     type: float
     default: 4.0
-    description: Shared source-read deadline per check in seconds; restart Hermes after changing this setting
+    description: Shared call budget in seconds, capped at 25 below the Hermes 30-second limit; restart after changing
   sources:
     type: dict
     default: {}

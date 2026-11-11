@@ -1,5 +1,7 @@
-"""Only Toll's free agent, hook and stock reads; fixed fact projections."""
+"""Toll project reads and optional unsigned transaction simulation."""
 import json
+import os
+import threading
 import re
 from urllib.parse import quote
 from .common import plural, Keyless, Reading, field, money
@@ -16,6 +18,32 @@ class Client(Keyless):
     page = origin
     probe_path = '/mcp'
     accept = 'application/json, text/event-stream'
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.tx_headers = threading.local()
+
+    def request_headers(self, path):
+        # The one access-model assumption: an optional partner key uses this
+        # header, only on the exact production host and check route.
+        from urllib.parse import urlsplit
+        key = os.environ.get('TOLL_API_KEY')
+        if key and path == '/api/tx/check' and urlsplit(self.base_url).hostname == 't0ll.xyz':
+            return {getattr(self.tx_headers, 'key_header', 'x-api-key'): key}
+        return {}
+
+    def check_tx(self, payload, deadline, key_header="x-api-key"):
+        from ..hey import Unavailable
+        self.tx_headers.key_header = key_header
+        try:
+            status, data = self._read('/api/tx/check', deadline, payload)
+            if status == 200 and isinstance(data.get('x-toll'), dict):
+                return data
+        except Unavailable:
+            pass
+        finally:
+            del self.tx_headers.key_header
+        return None
 
     def _decode(self, raw):
         # Streamable HTTP may answer with JSON or a single SSE JSON-RPC event.

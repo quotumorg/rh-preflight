@@ -1,0 +1,6 @@
+ask · your rule: simulation reverted +2 more
+unsigned transaction to 0xc2bc9a3fe6c4ce8c2f7eb4655b0869b01d8c93c9 on chain 4663
+sender short of ETH for this transaction
+simulation reverted
+transaction deadline passed
+Toll · https://t0ll.xyz

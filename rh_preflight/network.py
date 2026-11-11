@@ -7,6 +7,7 @@ from .card import Card, plain, text, link
 from .extract import ADDRESS, walk
 from .sources import priors, sherwood, hookr, chain, wormhole, toll, dexscreener, geckoterminal, offrouter, sentinelhood, trnch, borro, hoodlock
 from .sources.common import field, Reading
+from .budget import Pool as BudgetPool, result as budget_result
 
 MODULES = {"priors": priors, "sherwood": sherwood, "hookr": hookr, "chain": chain, "wormhole": wormhole,
            "toll": toll, "dexscreener": dexscreener, "geckoterminal": geckoterminal, "offrouter": offrouter, "sentinelhood": sentinelhood, "hoodlock": hoodlock,
@@ -69,7 +70,7 @@ class Network:
             reads.extend(('sherwood', target, {}) for target in targets)
         if enabled('hookr') and (swap or all_sources):
             reads.extend(('hookr', target, {}) for target in dict.fromkeys(pools + targets))
-        with ThreadPoolExecutor(max_workers=max(8, len(reads) + len(targets) * 9 + 4)) as pool:
+        with BudgetPool(max_workers=max(8, len(reads) + len(targets) * 9 + 4)) as pool:
             # RPC starts first. Independent registries run while RPC establishes
             # contract presence; only its dependent reads await that result.
             chains = {target: pool.submit(lookup, 'chain', target)
@@ -141,12 +142,15 @@ class Network:
                             return [('toll', target, lookup('toll', hook, kind='hook'))]
                         return []
                     extra.extend(pool.submit(hook_read, target) for target in dict.fromkeys(pools + targets))
-            results = [('chain', target, future.result()) for target, future in chains.items()]
-            results += [(name, target, future.result()) for name, target, future in futures]
             for future in primes.values():
-                future.result()
+                budget_result(future, deadline - .005, None)
+            def completed(name, target, future):
+                fallback = self.clients[name].unavailable(target)
+                return budget_result(future, deadline - .005, fallback)
+            results = [('chain', target, completed('chain', target, future)) for target, future in chains.items()]
+            results += [(name, target, completed(name, target, future)) for name, target, future in futures]
             for future in extra:
-                results.extend(future.result())
+                results.extend(budget_result(future, deadline, []))
         if not cards:
             return []
         composed = []

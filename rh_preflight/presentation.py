@@ -11,7 +11,8 @@ SILENT = {'unreachable': 'unreachable', 'refused': 'refused',
 
 def answer_line(decision, read_only=False):
     if decision.action == 'block':
-        answer = 'stop · human approval required, unattended'
+        answer = ('stop · human approval required, unattended' if any('unattended actions' in r for r in decision.rules)
+                  else 'stop · ' + (decision.rules[0] if decision.rules else 'check could not complete'))
     else:
         label = {'pass': 'go', 'ask': 'ask', 'note': 'note'}[decision.action]
         detail = decision.rules[0] if decision.rules else 'no rule of yours fired'
@@ -98,6 +99,8 @@ def coverage(card):
 
 def present(card, decision, read_only=False, rule_targets=None):
     from .card import Card
+    if card.kind == 'transaction':
+        return Card(card.target, card.kind, {**card.data, 'decision': decision})
     if card.kind != 'network':
         card = Card(card.target, 'network', {'base': card, 'sources': []})
     extra = {'rule_targets': rule_targets} if rule_targets is not None else {}

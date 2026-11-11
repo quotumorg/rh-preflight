@@ -46,7 +46,7 @@ def test_no_rpc_or_eoa_inference(server):
     card = Client(server[0]).lookup(MISSING)
     assert "HEY has no record of this address" in card.render()
     assert "EOA" not in card.render()
-    assert len(server[1]["requests"]) == 3
+    assert len(server[1]["requests"]) == 4
 
 
 def test_activity_belongs_to_project_when_token_mismatch(server):
@@ -70,11 +70,11 @@ def test_cache_ttl_and_header(server):
     first = client.lookup(ACTIVE)
     first.data["hey_project_name"] = "mutated locally"
     assert client.lookup(ACTIVE).data["hey_project_name"] == "Harbor Kit"
-    assert len(server[1]["requests"]) == 2
+    assert len(server[1]["requests"]) == 3
     assert not any(k.lower() == "x-hey-integration" for k in server[1]["requests"][0][1])
     ticks[0] = 600
     client.lookup(ACTIVE)
-    assert len(server[1]["requests"]) == 4
+    assert len(server[1]["requests"]) == 6
     assert client.stats()["hits"] == 1
 
 
@@ -82,7 +82,7 @@ def test_concurrent_same_target_only_fetches_once(server):
     client = Client(server[0])
     with ThreadPoolExecutor(max_workers=8) as pool:
         assert all(c.kind == "token" for c in pool.map(client.lookup, [ACTIVE] * 12))
-    assert len(server[1]["requests"]) == 2
+    assert len(server[1]["requests"]) == 3
 
 
 @pytest.mark.parametrize("target", [ERROR, SLOW])
@@ -101,7 +101,7 @@ def test_retry_after_cooldown(server, http_date):
     client = Client(server[0], clock=lambda: ticks[0])
     assert client.lookup(LIMITED).kind == "unreachable"
     assert client.lookup(ACTIVE).kind == "unreachable"
-    assert len(server[1]["requests"]) == 2
+    assert len(server[1]["requests"]) == 3
     ticks[0] = 40
     assert client.lookup(ACTIVE).kind == "token"
 
@@ -161,14 +161,14 @@ def test_redirect_is_not_followed(server):
     server[1]["overrides"][f"/api/v1/builder?chain=4663&token={ACTIVE}"] = (
         302, {}, {"Location": "https://example.org/not-requested"})
     assert Client(server[0]).lookup(ACTIVE).kind == "unreachable"
-    assert len(server[1]["requests"]) == 2
+    assert len(server[1]["requests"]) == 3
 
 
 def test_other_bad_request_does_not_become_missing(server):
     server[1]["overrides"][f"/api/v1/builder?chain=4663&token={ACTIVE}"] = (
         400, {"error": "bad_request", "message": "Invalid parameter"}, {})
     assert Client(server[0]).lookup(ACTIVE).kind == "unreachable"
-    assert len(server[1]["requests"]) == 2
+    assert len(server[1]["requests"]) == 3
 
 
 def test_repo_project_uses_snapshot_meaningful_ship_and_change(server):

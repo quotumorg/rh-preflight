@@ -124,3 +124,57 @@ def extract(tool_name, args, settings):
             action = bool(re.search(r"\bcast\s+(?:send|call)\b", command))
     found = addresses(args) if action and chain_context(args, settings.assume_chain, command) else []
     return Targets(tuple(found), tuple(repos))
+
+
+def objects(value, depth=0):
+    """Find structured content, including JSON embedded in literal shell text."""
+    if depth > 24:
+        return
+    if isinstance(value, dict):
+        yield value
+        for item in value.values():
+            yield from objects(item, depth + 1)
+    elif isinstance(value, (list, tuple)):
+        for item in value:
+            yield from objects(item, depth + 1)
+    elif isinstance(value, str):
+        for parsed in json_values(value):
+            yield from objects(parsed, depth + 1)
+
+
+def json_values(value):
+    import json
+    if len(value) > 1_000_000:
+        return
+    decoder = json.JSONDecoder()
+    position = 0
+    while position < len(value):
+        start = re.search(r'[\[{]', value[position:])
+        if not start:
+            break
+        position += start.start()
+        try:
+            parsed, consumed = decoder.raw_decode(value[position:])
+        except ValueError:
+            position += 1
+            continue
+        yield parsed
+        position += consumed
+    # A double-quoted shell argument carries escaped JSON quotation marks.
+    # shlex removes only literal shell quoting; it never expands or executes.
+    if '\\"' in value:
+        try:
+            for token in shlex.split(value):
+                try:
+                    parsed = json.loads(token)
+                except ValueError:
+                    continue
+                if isinstance(parsed, (dict, list)):
+                    yield parsed
+        except ValueError:
+            pass
+
+
+def tx_intent(args, assume_chain=None):
+    from .transactions import tx_intents
+    return tx_intents(args, assume_chain)

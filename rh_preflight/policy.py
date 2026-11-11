@@ -15,7 +15,27 @@ class Decision:
 def evaluate(cards, settings, unattended=False, now=None):
     now = now or datetime.now(timezone.utc)
     rules = []
+    stops = []
     for card in cards:
+        if card.kind == 'transaction':
+            d = card.data
+            for approval in d.get('approvals', []):
+                if approval['unlimited'] and approval['kind'] == 'no code':
+                    stops.append('your rule: unlimited approval to a spender with no code')
+                elif approval['unlimited'] and not approval.get('known', False):
+                    rules.append('your rule: unlimited approval to an unknown contract or unread spender')
+            if d.get('permit'):
+                rules.append('your rule: Permit or Permit2 signature requires approval')
+            if d.get('wrong_chain'):
+                rules.append('your rule: signing domain chain differs from 4663')
+            if d.get('payout_other') and settings.ask_payout_other:
+                rules.append('your rule: payout to another wallet')
+            for fact, rule in [('reverted', 'simulation reverted'), ('expired', 'transaction deadline passed'), ('short_eth', 'sender short of ETH')]:
+                if d.get(fact):
+                    rules.append('your rule: ' + rule)
+            if d.get('unchecked'):
+                incomplete(rules, stops, settings)
+            continue
         official_stock = False
         if card.kind == "network":
             for reading in card.data.get("sources", []):
@@ -26,19 +46,18 @@ def evaluate(cards, settings, unattended=False, now=None):
                     if reading.state == "missing":
                         rules.append("your rule: payee has no " + PAY_LABEL + " record")
                     elif reading.state in {"unreachable", "refused", "rate_limited", "payment_required"}:
-                        rules.append("your rule: payee record could not be read")
+                        incomplete(rules, stops, settings, "payee record could not be read")
                 if reading.source == VAULT_LABEL and settings.ask_when.get("vault_strategy_inactive", False):
                     if reading.inactive:
                         rules.append("your rule: vault strategy inactive")
                     elif reading.state in {"unreachable", "refused", "rate_limited", "payment_required"}:
-                        rules.append("your rule: vault strategy could not be read")
+                        incomplete(rules, stops, settings, "vault strategy could not be read")
             card = card.data["base"]
         ask_no_record = settings.ask_no_record and (
             not official_stock or settings.ask_when.get("stock_no_hey_record", False))
         d = card.data
         if card.kind == "unreachable":
-            rules.append("your rule: HEY record could not be read" if d.get("read_error")
-                         else "your rule: ask when HEY could not be reached")
+            incomplete(rules, stops, settings, "HEY record could not be read" if d.get("read_error") else "ask when HEY could not be reached")
             continue
         if card.kind == "agent" and (d.get("payload") or {}).get("status") == "not_found":
             if ask_no_record:
@@ -67,6 +86,8 @@ def evaluate(cards, settings, unattended=False, now=None):
                 quiet = type(count) is int and count == 0 and settings.quiet_days <= 30
             if quiet:
                 rules.append(f"your rule: no ship in {settings.quiet_days} days")
+    if stops:
+        return Decision("block", tuple(dict.fromkeys(stops + rules)))
     rules = list(dict.fromkeys(rules))
     if settings.mode == "note":
         return Decision("note", tuple(rules))
@@ -78,3 +99,10 @@ def evaluate(cards, settings, unattended=False, now=None):
             return Decision("block", tuple(rules))
         return Decision("pass", tuple(rules + ["your setting: allow_unattended is enabled"]))
     return Decision("ask" if rules else "pass", tuple(rules))
+
+
+def incomplete(rules, stops, settings, detail='transaction could not be checked'):
+    if settings.on_unchecked == 'stop':
+        stops.append('your rule: ' + detail)
+    elif settings.on_unchecked == 'ask':
+        rules.append('your rule: ' + detail)

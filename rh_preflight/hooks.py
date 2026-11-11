@@ -4,7 +4,7 @@ import hashlib
 import json
 import threading
 import time
-from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import ThreadPoolExecutor, TimeoutError
 from datetime import datetime, timezone
 
 from .extract import extract
@@ -18,6 +18,12 @@ from .settings import Settings
 from .network import Network, identifiers, POOL, MODULES
 from .extract import chain_context, addresses
 from .card import Card, text, plain
+from .transactions import tx_intents, local_card, project
+from .budget import Pool, result as budget_result
+
+
+# A bounded dispatcher also contains a custom source that ignores its deadline.
+CHECKS = ThreadPoolExecutor(max_workers=8, thread_name_prefix="rh-preflight")
 
 
 class Service:
@@ -46,7 +52,10 @@ class Service:
     def pre_tool_call(self, tool_name, args, **kwargs):
         try:
             settings = self._settings()
-            deadline = time.monotonic() + settings.timeout
+            # Leave a margin below Hermes's fail-closed 30-second hook limit.
+            deadline = time.monotonic() + min(settings.timeout, 25.0)
+            intents = tx_intents(args, settings.assume_chain)
+            local = [local_card(intent) for intent in intents]
             targets = extract(tool_name, args, settings)
             wanted = list(targets.addresses + targets.repos)
             payees, agents, pools = identifiers(args)
@@ -54,11 +63,19 @@ class Service:
                 wanted = list(dict.fromkeys(wanted + payees))[:5]
                 if not wanted and (agents or pools):
                     wanted = ["agent #" + agents[0] if agents else pools[0]]
-            if not wanted and chain_context(args, settings.assume_chain) and settings.sources.get("sherwood", "on") == "on":
+            if not wanted and not intents and chain_context(args, settings.assume_chain) and settings.sources.get("sherwood", "on") == "on":
                 # The registry is a public list. Only a known vault causes a bundle or core lookup.
-                wanted = [target for target in addresses(args)
-                          if self.network.clients["sherwood"].lookup(target, deadline=deadline).state == "present"]
-            if not wanted:
+                candidates = addresses(args)
+                def vaults():
+                    return [target for target in candidates
+                            if self.network.clients["sherwood"].lookup(target, deadline=deadline).state == "present"]
+                discovery = CHECKS.submit(vaults)
+                try:
+                    wanted = discovery.result(timeout=max(0, deadline - time.monotonic()))
+                except TimeoutError:
+                    discovery.cancel()
+                    wanted = candidates
+            if not wanted and not intents:
                 return None
             required = []
             if settings.ask_unmeasured or settings.ask_quiet:
@@ -67,7 +84,30 @@ class Service:
                 required.append("meaningful_ships_30d")
             if settings.ask_not_verified:
                 required.append("verified_builder")
-            cards = self._read_cards(wanted, tool_name, args, settings, required=required, deadline=deadline)
+            # Local signature decoding above always precedes any Toll request.
+            read_deadline = deadline - min(.02, settings.timeout * .1)
+            reads = CHECKS.submit(self._read_cards, wanted, tool_name, args, settings, required=required, deadline=read_deadline) if wanted else None
+            txs = CHECKS.submit(self._tx_cards, intents, local, settings, read_deadline) if intents else None
+            try:
+                tx_cards = txs.result(timeout=max(0, deadline - time.monotonic())) if txs else []
+            except TimeoutError:
+                txs.cancel()
+                tx_cards = [project(card, intent) if settings.tx_check == 'on' else card
+                            for card, intent in zip(local, intents)]
+            try:
+                cards = reads.result(timeout=max(0, deadline - time.monotonic())) if reads else []
+            except TimeoutError:
+                reads.cancel()
+                cards = [Card(target, 'unreachable') for target in wanted]
+            # Only a positive per-address registry answer establishes a known
+            # spender. HEY builder presence alone does not establish that role.
+            known = {card.target.lower() for card in cards if card.kind == 'network'
+                     and any(r.source in {'Priors', 'Hookr'} and r.state == 'present'
+                             for r in card.data.get('sources', []))}
+            for tx_card in tx_cards:
+                for approval in tx_card.data['approvals']:
+                    approval['known'] = approval.get('known', False) or approval['spender'] in known
+            cards = tx_cards + cards
             checked_at = datetime.now(timezone.utc)
             decision = evaluate(cards, settings, unattended=self.presence(), now=checked_at)
             associations = target_rules(cards, settings, checked_at) if len(cards) > 1 else [None]
@@ -89,18 +129,52 @@ class Service:
             return None
         except Exception:
             # Hermes skips hooks that raise. Keep failures explicit at our boundary.
-            try:
-                note_only = self._settings().mode == "note"
-            except Exception:
-                note_only = False
-            message = (("note" if note_only else "stop") + " · rh-preflight could not complete this check\n"
+            message = ("stop · rh-preflight could not complete this check\n"
                        "coverage unavailable for this check\n"
                        "rh-preflight could not complete this check")
-            if note_only:
-                with self.lock:
-                    self.pending[self._key(tool_name, args, kwargs)] = message
-                return None
             return {"action": "block", "message": message}
+
+    def _tx_cards(self, intents, local, settings, deadline):
+        cards = []
+        with Pool(max_workers=16) as pool:
+            # Simulation and code reads share the call deadline and start together.
+            simulations = [pool.submit(self.network.clients['toll'].check_tx, intent['payload'], deadline, settings.toll_key_header)
+                           if settings.tx_check == 'on' and settings.sources.get('toll', 'on') == 'on'
+                           and intent['payload'] is not None else None for intent in intents]
+            codes = {approval['spender']: pool.submit(self.network.clients['chain'].lookup,
+                     approval['spender'], deadline=deadline)
+                     for card in local for approval in card.data['approvals']
+                     if settings.sources.get('chain', 'on') == 'on'}
+            for intent, card, simulation in zip(intents, local, simulations):
+                kinds = {}
+                for approval in card.data['approvals']:
+                    spender = approval['spender']
+                    reading = budget_result(codes[spender], deadline - .005, None) if spender in codes else None
+                    kinds[spender] = {'code': 'contract with code', 'no_code': 'no code'}.get(reading.state if reading else None, 'not read')
+                response = budget_result(simulation, deadline - .005, None) if simulation else None
+                composed = project(card, intent, response, kinds)
+                # Simulation can reveal approvals in calldata that local selector
+                # decoding did not cover. Establish those spenders' code too.
+                extra_codes = {approval['spender']: pool.submit(self.network.clients['chain'].lookup,
+                               approval['spender'], deadline=deadline)
+                               for approval in composed.data['approvals']
+                               if approval['spender'] not in kinds and settings.sources.get('chain', 'on') == 'on'}
+                for spender, future in extra_codes.items():
+                    reading = budget_result(future, deadline - .005, None)
+                    kinds[spender] = {'code': 'contract with code', 'no_code': 'no code'}.get(reading.state if reading else None, 'not read')
+                if extra_codes:
+                    composed = project(card, intent, response, kinds)
+                for approval in composed.data['approvals']:
+                    if approval['unlimited'] and approval['kind'] == 'contract with code':
+                        registries = [pool.submit(self.network.clients[name].lookup, approval['spender'], deadline=deadline)
+                                      for name in ('priors', 'hookr') if settings.sources.get(name, 'on') == 'on']
+                        readings = [budget_result(future, deadline - .005, None) for future in registries]
+                        approval['known'] = any(reading is not None and reading.state == 'present' for reading in readings)
+                if settings.tx_check == 'off':
+                    composed = Card(composed.target, composed.kind, {**composed.data,
+                        'unchecked': False, 'lines': [line for line in composed.data['lines'] if not line.startswith('Toll')] + ['transaction simulation switched off']})
+                cards.append(composed)
+        return cards
 
     def transform_tool_result(self, tool_name, args, result, **kwargs):
         try:
@@ -142,6 +216,8 @@ class Service:
                     self.ledger.decide(check_id, choice)
 
     def _read_cards(self, targets, tool_name, args, settings, project=None, required=None, deadline=None, all_sources=False):
+        if not targets:
+            return []
         deadline = deadline if deadline is not None else time.monotonic() + settings.timeout
         placeholders = [Card(target, "identifier") for target in targets]
         def core(target):
@@ -157,12 +233,13 @@ class Service:
             if isinstance(self.client, Client) and settings.sources.get("hoodlock", "on") == "on":
                 card = self.client.attach_locks(card, deadline)
             return card, max(0.0, time.monotonic() - start), True
-        with ThreadPoolExecutor(max_workers=len(targets) + 1) as pool:
+        with Pool(max_workers=len(targets) + 1) as pool:
             cores = [pool.submit(core, target) for target in targets]
             neighbours = pool.submit(self.network.enrich, placeholders, tool_name, args, settings,
                                      all_sources=all_sources, deadline=deadline)
-            cards = [future.result() for future in cores]
-            early = neighbours.result()
+            cards = [budget_result(future, deadline, (Card(target, 'unreachable'), 0.0, True))
+                     for target, future in zip(targets, cores)]
+            early = budget_result(neighbours, deadline, [Card(target, 'network', {'base': Card(target, 'unreachable'), 'sources': []}) for target in targets])
         result = []
         for (base, elapsed, asked), prepared in zip(cards, early):
             if not addresses(base.target) and base.kind == "agent":

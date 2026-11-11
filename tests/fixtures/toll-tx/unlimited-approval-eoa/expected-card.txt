@@ -1,0 +1,5 @@
+stop · your rule: unlimited approval to a spender with no code
+unsigned transaction to 0x5fc5360d0400a0fd4f2af552add042d716f1d168 on chain 4663
+approves unlimited 0x5fc5360d0400a0fd4f2af552add042d716f1d168 to 0x9a3f1c2e5b7d8a4c6e0f1b2d3c4e5f6a7b8c9d0e; spender no code
+Toll: simulated at block 111932342
+Toll · https://t0ll.xyz

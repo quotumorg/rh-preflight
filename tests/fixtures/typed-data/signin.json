@@ -1,0 +1,41 @@
+{
+  "note": "Synthetic offline test payload, never signed or sent.",
+  "payload": {
+    "types": {
+      "EIP712Domain": [
+        {
+          "name": "name",
+          "type": "string"
+        },
+        {
+          "name": "chainId",
+          "type": "uint256"
+        },
+        {
+          "name": "verifyingContract",
+          "type": "address"
+        }
+      ],
+      "SignIn": [
+        {
+          "name": "wallet",
+          "type": "address"
+        },
+        {
+          "name": "nonce",
+          "type": "string"
+        }
+      ]
+    },
+    "domain": {
+      "name": "Synthetic SignIn",
+      "chainId": 4663,
+      "verifyingContract": "0xcccccccccccccccccccccccccccccccccccccccc"
+    },
+    "primaryType": "SignIn",
+    "message": {
+      "wallet": "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "nonce": "synthetic-054"
+    }
+  }
+}

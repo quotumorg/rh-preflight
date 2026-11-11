@@ -1,0 +1,4 @@
+stop · your rule: unlimited approval to a spender with no code
+EIP-712 domain Synthetic USDG, chainId 4663, verifyingContract 0xcccccccccccccccccccccccccccccccccccccccc; primaryType Permit
+signs a Permit for 0xcccccccccccccccccccccccccccccccccccccccc: spender 0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb, amount unlimited, deadline 2030-01-01T00:00:00Z, nonce 0
+approves unlimited 0xcccccccccccccccccccccccccccccccccccccccc to 0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb; spender no code
