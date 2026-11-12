@@ -83,7 +83,7 @@ def annotate(cards, args, settings):
         return cards
     stocks = {card.target.lower(): reading for card in cards if card.kind == 'network'
               for reading in card.data.get('sources', [])
-              if reading.source == 'Toll' and reading.state == 'present' and reading.stock_ticker}
+              if reading.source == 'Toll' and reading.stock_address == card.target.lower()}
     if not stocks:
         return cards
     swaps = [(i, card.data['swap_sides']) for i, card in enumerate(cards)

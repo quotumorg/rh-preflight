@@ -22,6 +22,7 @@ class Reading:
     token_lock: bool | None = None
     elapsed: float = 0.0
     asked: bool = True
+    stock_address: str | None = None
     stock_price_usd: int | float | str | None = None
     stock_price_as_of: str | None = None
 

@@ -247,8 +247,8 @@ def test_missing_price_container_retains_membership(tmp_path, key):
         del data['prices']['chain']
     service, _ = app(tmp_path, stocks={A: data}, ask_no_record=True)
     directive, row, printed = run(service, args())
-    # B has no HEY record; A keeps its independently confirmed membership.
-    assert 'official Robinhood Stock Token NVDA' in printed
+    # Incomplete prices retain the old source state and existing HEY asks.
+    assert 'Toll could not be reached' in printed
     assert 'swap value not read: Toll chain price' in printed
     assert all(RULE not in rule for rule in row['rules'])
     assert directive['action'] == 'approve'
