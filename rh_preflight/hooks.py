@@ -120,7 +120,7 @@ class Service:
             for tx_card in tx_cards:
                 for approval in tx_card.data['approvals']:
                     approval['known'] = approval.get('known', False) or approval['spender'] in known
-            cards = annotate_stock_swap(tx_cards + cards, check_args, settings)
+            cards = annotate_stock_swap(tx_cards + cards, check_args, settings, tool_name)
             checked_at = datetime.now(timezone.utc)
             decision = evaluate(cards, settings, unattended=self.presence(), now=checked_at)
             associations = target_rules(cards, settings, checked_at) if len(cards) > 1 else [None]

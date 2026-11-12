@@ -1,0 +1,21 @@
+{
+  "description": "Constructed offline agent buy request, not a captured or executed trade. NVDA identity and chain price reuse the saved Toll market response; decimals match the saved Hookr pool currency metadata. The bought amount is the request's explicit base-unit amount. No quote, balance delta or multiplier supplies the amount.",
+  "tool": "agent_swap",
+  "settings": {
+    "mode": "ask_when",
+    "ask_when": {"stock_swap_above_usd": 250},
+    "ask_no_record": false,
+    "on_unchecked": "note"
+  },
+  "arguments": {
+    "chainId": 4663,
+    "tokenIn": "0x5fc5360d0400a0fd4f2af552add042d716f1d168",
+    "tokenOut": {
+      "address": "0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec",
+      "decimals": 18
+    },
+    "amountOutRaw": "1700000000000000000"
+  },
+  "expected_ask": "ask · your rule: Stock Token swap above $250.00",
+  "expected_value": "swap value $300.57 (amount × Toll chain price read 2026-11-09T18:08:17.266Z)"
+}

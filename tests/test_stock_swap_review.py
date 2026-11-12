@@ -159,7 +159,7 @@ def test_wrapped_token_is_never_valued_at_underlying_price(official):
         assert not card.data.get(RULE) and not any('swap value' in line for line in card.data['lines'])
     else:
         assert not card.data.get(RULE)
-        assert 'swap value not read: amount' in card.data['lines']
+        assert 'swap value not read: amount, decimals' in card.data['lines']
 
 
 def hookr_request(signed_amount=-3000000):

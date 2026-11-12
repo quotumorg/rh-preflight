@@ -4,10 +4,10 @@ from dataclasses import replace
 from datetime import datetime
 from decimal import Decimal, InvalidOperation, localcontext
 
-from .extract import objects, chain_context, _chain
+from .extract import chain_context
 from .hookr_swap import decode
 from .sources.common import field, money
-from .transactions import addr, integer
+from .transactions import addr, integer, intent_rows, read_only_tool, execution_requested, WRITE_RPC
 
 RULE = 'stock_swap_above_usd'
 PREFIX = 'your rule: Stock Token swap above $'
@@ -45,10 +45,13 @@ def argument_sides(row):
         if 'amount' + side + 'Raw' in row:
             candidates.append(row['amount' + side + 'Raw'])
         decimals = [token[k] for k in ('decimals',) if k in token]
+        nested = token.get('token')
+        if isinstance(nested, dict) and 'decimals' in nested:
+            decimals.append(nested['decimals'])
         decimals += [row[k] for k in ('decimals' + side, 'token' + side + 'Decimals') if k in row]
         token.update(address=token_address(token), direction=direction,
                      raw=None if conflicting_identity(token) else raw_amount(candidates),
-                     decimals=known_decimals(decimals))
+                     decimals=known_decimals(decimals), _decimal_values=decimals)
         sides.append(token)
     return sides
 
@@ -98,11 +101,15 @@ def transaction_sides(intent, response, hookr, metadata):
         rows += [hookr.get(direction) for direction in ('pays', 'gets')]
     for token in sides:
         address = token['address']
-        values = []
+        values = list(token.pop('_decimal_values', []))
         def collect(row):
             if not isinstance(row, dict):
                 return
             nested = row.get('token')
+            if conflicting_identity(row):
+                if address in {addr(row.get('address')), token_address({'token': nested})}:
+                    values.append('conflicting identity')
+                return
             if isinstance(nested, dict):
                 collect(nested)
             if token_address(row) == address and 'decimals' in row:
@@ -138,7 +145,7 @@ def price_time(value):
         return None
 
 
-def annotate(cards, args, settings):
+def annotate(cards, args, settings, tool_name=None):
     threshold = settings.ask_when.get(RULE)
     if threshold is None or settings.sources.get('toll', 'on') == 'off':
         return cards
@@ -149,13 +156,19 @@ def annotate(cards, args, settings):
         return cards
     swaps = [(i, card.data['swap_sides']) for i, card in enumerate(cards)
              if card.data.get('swap_sides')]
-    if not swaps and not any(card.kind == 'transaction' for card in cards):
-        swaps = [(next(i for i, c in enumerate(cards) if c.kind == 'network'), sides)
-                 for row in objects(args)
-                 if ('chainId' not in row or _chain(row['chainId']) == 4663)
-                 and chain_context(args, settings.assume_chain)
-                 and not any(key in row for key in ('data', 'input', 'calldata'))
-                 if (sides := argument_sides(row))]
+    if chain_context(args, settings.assume_chain):
+        # Reuse the detector's simulation and read-only exclusions. Raw-only
+        # action arguments have no transaction card, even in a mixed batch.
+        rows = list(intent_rows(args))
+        readonly = (tool_name is not None and read_only_tool(tool_name)
+                    and not execution_requested(rows)
+                    and not any(row.get('method') in WRITE_RPC for row in rows))
+        if not readonly:
+            index = next(i for i, card in enumerate(cards) if card.kind == 'network')
+            swaps += [(index, sides) for row in rows
+                      if not any(key in row for key in ('data', 'input', 'calldata'))
+                      and not any(row.get(key) is not None for key in ('amount', 'amountIn', 'amountOut', 'value', 'allowance'))
+                      if (sides := argument_sides(row))]
     result = list(cards)
     for index, sides in swaps:
         values, missing = [], []
