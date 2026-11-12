@@ -59,7 +59,9 @@ def fake_server():
 
         def do_GET(self):
             state["requests"].append((self.path, dict(self.headers)))
-            time.sleep(state.get("delays", {}).get(self.path.split("?", 1)[0], 0))
+            gate = state.get("response_gates", {}).get(self.path.split("?", 1)[0])
+            if gate:
+                gate()
             url = urlsplit(self.path)
             query = parse_qs(url.query)
             code, body, headers = 200, {}, {}

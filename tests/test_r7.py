@@ -135,8 +135,9 @@ def test_gecko_429_retry_after_and_deadline(server):
 
 @pytest.mark.parametrize('first', ['prefetch', 'lookup'])
 @pytest.mark.parametrize('failed', [False, True])
-def test_hookr_snapshot_is_order_independent(first, failed):
-    client = hookr.Client()
+def test_hookr_snapshot_is_order_independent(first, failed, monkeypatch):
+    monkeypatch.setattr(time, 'monotonic', lambda: 100.0)
+    client = hookr.Client(clock=lambda: 100.0)
     entered, release = threading.Event(), threading.Event()
     calls = []
     answers = {'/api/hooks/catalog': captured('hookr-hooks-catalog.json'),
@@ -146,7 +147,7 @@ def test_hookr_snapshot_is_order_independent(first, failed):
         calls.append(path)
         if path == client.probe_path:
             entered.set()
-            assert release.wait(1)
+            assert release.wait(10)
         if failed:
             raise Unavailable()
         return 200, answers[path]
@@ -156,10 +157,10 @@ def test_hookr_snapshot_is_order_independent(first, failed):
         snapshot = pool.submit(client.prefetch, end) if first == 'prefetch' else None
         def lookup():
             entered.set()
-            assert release.wait(1)
+            assert release.wait(10)
             return [client.lookup(t, deadline=end, index_result=snapshot.result()) for t in (POOL, PRIORS)]
         pending = pool.submit(lookup)
-        assert entered.wait(1)
+        assert entered.wait(10)
         if snapshot is None:
             snapshot = pool.submit(client.prefetch, end)
         release.set()
@@ -171,9 +172,11 @@ def test_hookr_snapshot_is_order_independent(first, failed):
 
 @pytest.mark.parametrize('failed', [False, True])
 @pytest.mark.parametrize('pool_first', [False, True])
-def test_network_hookr_pools_targets_one_index_one_line(failed, pool_first):
+def test_network_hookr_pools_targets_one_index_one_line(failed, pool_first, monkeypatch):
+    monkeypatch.setattr(time, 'monotonic', lambda: 100.0)
     network = Network(timeout=1)
     hooks = network.clients['hookr']
+    hooks.clock = lambda: 100.0
     calls = []
     def read(path, deadline, payload=None):
         calls.append(path)
@@ -190,7 +193,7 @@ def test_network_hookr_pools_targets_one_index_one_line(failed, pool_first):
             if (len(target) == 66) == pool_first:
                 arrived.set()
             else:
-                assert arrived.wait(1)
+                assert arrived.wait(10)
         return original(target, **kw)
     hooks.lookup = ordered
     settings = Settings(sources={name: 'on' if name == 'hookr' else 'off' for name in MODULES})

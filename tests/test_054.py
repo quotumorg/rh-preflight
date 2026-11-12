@@ -167,23 +167,20 @@ def test_wallet_request_projection(method, params):
 
 @pytest.mark.parametrize('slow', ['builder', 'toll'])
 @pytest.mark.parametrize('setting,expected', [('ask', 'approve'), ('stop', 'block'), ('note', None)])
-def test_budget_contains_slow_stub_and_on_unchecked(tmp_path, slow, setting, expected):
+def test_budget_contains_slow_stub_and_on_unchecked(tmp_path, slow, setting, expected, blocked):
     service = app(tmp_path, timeout=.04, tx_timeout=.04, on_unchecked=setting, ask_payout_other=False)
-    def wait(*a, **kw):
-        time.sleep(.15)
-        return None
-    if slow == 'builder':
-        service._read_cards = wait
-        args = {'chainId': 4663, 'token': A}
-        tool = 'swap'
-    else:
-        service.network.clients['toll'].check_tx = wait
-        args = {'chainId': 4663, 'to': A, 'data': '0x', 'from': B, 'value': '1'}
-        tool = 'unknown'
-    start = time.monotonic()
-    directive = service.pre_tool_call(tool, args)
-    assert time.monotonic() - start < .12
-    assert (directive['action'] if directive else None) == expected
+    with blocked() as (wait, entered, returned):
+        if slow == 'builder':
+            service._read_cards = wait
+            args = {'chainId': 4663, 'token': A}
+            tool = 'swap'
+        else:
+            service.network.clients['toll'].check_tx = wait
+            args = {'chainId': 4663, 'to': A, 'data': '0x', 'from': B, 'value': '1'}
+            tool = 'unknown'
+        directive = service.pre_tool_call(tool, args)
+        assert not returned.is_set()
+        assert (directive['action'] if directive else None) == expected
 
 
 def test_internal_error_stays_fail_closed_even_note(tmp_path):
@@ -303,15 +300,15 @@ def test_key_header_validation(header):
         Settings(toll_key_header=header)
 
 
-def test_slow_simulation_preserves_local_code_less_stop(tmp_path):
+def test_slow_simulation_preserves_local_code_less_stop(tmp_path, blocked):
     service = app(tmp_path, timeout=.04, tx_timeout=.04)
     args = json.loads((FIXTURES / 'unlimited-approval-eoa' / 'request.json').read_text())
-    def slow(*args):
-        time.sleep(.15)
-    service.network.clients['toll'].check_tx = slow
-    directive = service.pre_tool_call('unknown', args)
-    assert directive['action'] == 'block'
-    assert 'spender no code' in directive['message'] and 'Toll: not simulated' in directive['message']
+    with blocked() as (slow, _, returned):
+        service.network.clients['toll'].check_tx = slow
+        directive = service.pre_tool_call('unknown', args)
+        assert not returned.is_set()
+        assert directive['action'] == 'block'
+        assert 'spender no code' in directive['message'] and 'Toll: not simulated' in directive['message']
 
 
 def test_registry_contract_and_tx_above_builder_cards(tmp_path):

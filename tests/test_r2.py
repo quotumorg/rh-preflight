@@ -1,7 +1,6 @@
 """Regressions derived from the live run, using invented local records only."""
 from copy import deepcopy
 from urllib.parse import urlencode
-import time
 
 import pytest
 
@@ -89,22 +88,19 @@ def test_badge_from_tokenless_project_record(network, record, expected):
     assert not any('/api/v1/builder?' in p for p, _ in network[1]['requests'])
 
 
-def test_slow_source_does_not_starve_other_sources_or_hey(network, tmp_path):
+def test_slow_source_does_not_starve_other_sources_or_hey(network, tmp_path, blocked):
     origin, state = network
-    state['delays'] = {'/api/check': .7, '/api/agent/builder_status': .2,
-                       '/api/hooks/catalog': .06, '/api/hooks/integrations': .06,
-                       '/api/discover/pools': .06}
-    service = Service(settings=Settings(timeout=.35, mode='note'), client=Client(origin, timeout=.35), ledger=Ledger(tmp_path))
-    start = time.monotonic()
-    args = {'chainId': 4663, 'payTo': ACTIVE, 'poolId': POOL, 'vault': VAULT}
-    assert service.pre_tool_call('swap_pay_deposit', args) is None
-    elapsed = time.monotonic() - start
-    output = service.transform_tool_result('swap_pay_deposit', args, 'done')
-    assert elapsed <= .65
-    assert 'Priors could not be reached' in output
-    assert 'Harbor Kit' in output and 'HEY could not be reached' not in output
-    assert 'Hookr: pool' in output
-    assert 'Sherwood: vault Pebble Pool' in output
+    service = Service(settings=Settings(timeout=4, mode='note'), client=Client(origin, timeout=4), ledger=Ledger(tmp_path))
+    with blocked() as (gate, entered, returned):
+        state['response_gates'] = {'/api/check': gate}
+        args = {'chainId': 4663, 'payTo': ACTIVE, 'poolId': POOL, 'vault': VAULT}
+        assert service.pre_tool_call('swap_pay_deposit', args) is None
+        output = service.transform_tool_result('swap_pay_deposit', args, 'done')
+        assert entered.is_set() and not returned.is_set()
+        assert 'Priors could not be reached' in output
+        assert 'Harbor Kit' in output and 'HEY could not be reached' not in output
+        assert 'Hookr: pool' in output
+        assert 'Sherwood: vault Pebble Pool' in output
 
 
 def test_lazy_lists_warmed_once_and_second_target_uses_cache(network, tmp_path):
@@ -115,9 +111,7 @@ def test_lazy_lists_warmed_once_and_second_target_uses_cache(network, tmp_path):
     lists = ['/api/v1/vaults', '/api/hooks/catalog', '/api/hooks/integrations', '/api/discover/pools']
     assert all(sum(path == p for p, _ in state['requests']) == 1 for path in lists)
     # An unrelated address also uses the same indexed list cache.
-    start = time.monotonic()
     service.card(UNKNOWN)
-    assert time.monotonic() - start < .3
     assert all(sum(path == p for p, _ in state['requests']) == 1 for path in lists)
 
 
@@ -173,13 +167,23 @@ def test_hey_http_answer_is_not_a_transport_outage(network, code, body, expected
     assert 'could not be reached' not in output
 
 
-def test_drip_response_cannot_extend_source_deadline(network):
-    network[1]['chunk_delays'] = {'/api/check': .04}
-    network[1]['overrides']['/api/check?address=' + ACTIVE] = (200, {'agents': [], 'padding': 'a' * 200}, {})
-    start = time.monotonic()
-    result = priors.Client(network[0], timeout=.12).lookup(ACTIVE)
-    assert result.state == 'unreachable'
-    assert time.monotonic() - start < .3
+def test_drip_response_cannot_extend_source_deadline():
+    from types import SimpleNamespace
+    from rh_preflight.hey import TemporaryUnavailable
+    now, socket_timeouts, reads = [0.0], [], []
+    class Drip:
+        fp = SimpleNamespace(raw=SimpleNamespace(_sock=SimpleNamespace(settimeout=socket_timeouts.append)))
+        def isclosed(self):
+            return False
+        def read1(self, size):
+            reads.append(size)
+            now[0] += .04
+            return b'12345678'
+    client = priors.Client(clock=lambda: now[0])
+    with pytest.raises(TemporaryUnavailable):
+        client._body(Drip(), .12)
+    assert len(reads) == 3
+    assert socket_timeouts == pytest.approx([.12, .08, .04])
 
 
 @pytest.mark.parametrize('enabled', [False, True])
@@ -200,8 +204,8 @@ def test_source_cache_lock_wait_respects_deadline(network):
     stripe = client.stripes[hash(path) % len(client.stripes)]
     stripe.acquire()
     try:
-        start = time.monotonic()
         assert client.lookup(ACTIVE).state == 'unreachable'
-        assert time.monotonic() - start < .2
+        assert stripe.locked()
+        assert network[1]['requests'] == []
     finally:
         stripe.release()

@@ -2,7 +2,6 @@
 from copy import deepcopy
 import json
 from pathlib import Path
-import time
 
 import pytest
 
@@ -154,20 +153,15 @@ def test_slow_toll_and_parallel_builder_budget_with_injected_clock(tmp_path, del
 
 
 @pytest.mark.parametrize('unchecked,action', [('ask', 'approve'), ('stop', 'block'), ('note', None)])
-def test_short_tx_timeout_policy_and_slow_builder_do_not_add_budgets(tmp_path, unchecked, action):
+def test_short_tx_timeout_policy_and_slow_builder_do_not_add_budgets(tmp_path, unchecked, action, scheduled_service):
     settings = Settings(timeout=.12, tx_timeout=.04, on_unchecked=unchecked)
     service = Service(settings=settings, ledger=Ledger(tmp_path), presence=lambda: False)
-    def builders(targets, *args, **kwargs):
-        time.sleep(.09)
-        return [Card(target, 'identifier') for target in targets]
-    def simulation(*args):
-        time.sleep(.07)  # After the tx budget, before builder completion.
-        return {'x-toll': {'simulation': {'status': 'success', 'block': 10}}}
-    service._read_cards = builders
-    service.network.clients['toll'].check_tx = simulation
-    start = time.monotonic()
+    ticks, submitted, waits = scheduled_service(service, REQUEST, builder_at=.09, tx_at=.07)
     directive = service.pre_tool_call('swap', REQUEST)
-    assert time.monotonic() - start < .15
+    assert len(submitted) == 2 and waits == [.12, .12]
+    assert ticks[0] == .09
+    # The dispatcher may collect later, but simulation owns the original budget.
+    assert submitted[1]['args'][3] == pytest.approx(.036)
     assert (directive['action'] if directive else None) == action
     assert 'Toll: not simulated' in service.ledger.rows()[0]['cards'][0]['card']
 
@@ -220,18 +214,14 @@ def test_readme_outputs_are_all_generated_from_code():
     assert actual == list(readme_outputs())
 
 
-def test_builder_budget_stays_short_while_toll_finishes(tmp_path):
+def test_builder_budget_stays_short_while_toll_finishes(tmp_path, scheduled_service):
     service = Service(settings=Settings(timeout=.04, tx_timeout=.12),
                       ledger=Ledger(tmp_path), presence=lambda: False)
-    def builders(targets, *args, **kwargs):
-        time.sleep(.07)
-        return [Card(target, 'identifier') for target in targets]
-    def simulation(*args):
-        time.sleep(.09)
-        return {'x-toll': {'simulation': {'status': 'success', 'block': 10}}}
-    service._read_cards = builders
-    service.network.clients['toll'].check_tx = simulation
+    ticks, submitted, waits = scheduled_service(service, REQUEST, builder_at=.07, tx_at=.09)
     directive = service.pre_tool_call('swap', REQUEST)
+    assert len(submitted) == 2 and waits == pytest.approx([.04, .12])
+    assert ticks[0] == .09
+    assert submitted[0]['args'][0]  # Builder work was submitted alongside tx work.
     assert directive['action'] == 'approve'
     assert 'Toll: simulated at block 10' in directive['message']
     assert 'ask when HEY could not be reached' in directive['message']

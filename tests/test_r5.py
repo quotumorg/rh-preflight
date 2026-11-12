@@ -27,7 +27,7 @@ NEW = [wormhole, toll, dexscreener, geckoterminal, chain, offrouter]
 
 @contextmanager
 def local_http():
-    state = {'requests': [], 'mode': 'present', 'delay': 0, 'chain_id': '0x1237'}
+    state = {'requests': [], 'mode': 'present', 'release': threading.Event(), 'chain_id': '0x1237'}
     class Handler(BaseHTTPRequestHandler):
         def log_message(self, *args):
             pass
@@ -40,7 +40,8 @@ def local_http():
 
         def answer(self, payload):
             state['requests'].append((self.path, dict(self.headers), payload))
-            time.sleep(state['delay'])
+            if state['mode'] == 'timeout':
+                state['release'].wait()
             code, body = 200, {}
             if state['mode'] == '402':
                 code, body = 402, b'payment required, not JSON'
@@ -94,6 +95,7 @@ def local_http():
     try:
         yield origin, state
     finally:
+        state['release'].set()
         server.shutdown()
         server.server_close()
         thread.join()
@@ -115,8 +117,6 @@ def target(module):
 def test_each_new_source_present_absent_malformed_payment_timeout(http, module, mode):
     origin, state = http
     state['mode'] = mode
-    if mode == 'timeout':
-        state['delay'] = .12
     client = module.Client(origin, timeout=.04 if mode == 'timeout' else 1)
     reading = client.lookup(target(module))
     if mode == '402':
@@ -155,7 +155,7 @@ def test_all_capture_lines():
 @pytest.mark.parametrize('mode', ['present', 'absent', 'malformed', '402', 'timeout'])
 def test_toll_mcp_free_tools(http, kind, ident, expected, mode):
     origin, state = http
-    state.update(mode=mode, sse=True, delay=.12 if mode == 'timeout' else 0)
+    state.update(mode=mode, sse=True)
     result = toll.Client(origin, timeout=.04 if mode == 'timeout' else 1).lookup(ident, kind=kind)
     assert (expected in result.line) if mode == 'present' else (result.line == '' if mode in ('absent', '402') else 'could not be reached' in result.line)
     for path, headers, payload in state['requests']:
@@ -268,22 +268,23 @@ def test_name_difference_labels_both_without_judgement():
     assert 'name A, symbol B, HEY project name C' in Network.annotate(base, [row])[0].line
 
 
-def test_toll_prerequisite_does_not_wait_for_unrelated_source(monkeypatch):
-    net = Network(timeout=.25)
+def test_toll_prerequisite_does_not_wait_for_unrelated_source(monkeypatch, blocked):
+    net = Network(timeout=4)
     hit = threading.Event()
-    for name, client in net.clients.items():
-        monkeypatch.setattr(client, 'prefetch', lambda deadline: None)
-        def lookup(target, deadline=None, source=name, **kw):
-            if source == 'geckoterminal':
-                assert hit.wait(.2), 'Toll was starved by an unrelated source'
-            if source == 'priors':
-                return Reading('Priors', 'present', '', agent_ids=('7622',))
-            if source == 'toll' and kw.get('kind') == 'agent':
-                hit.set()
-            return Reading(source, 'unlisted', '')
-        monkeypatch.setattr(client, 'lookup', lookup)
-    net.enrich([Card(TOKEN, 'identifier')], 'read', {}, Settings(), all_sources=True, deadline=time.monotonic() + .25)
-    assert hit.is_set()
+    with blocked() as (gate, entered, returned):
+        for name, client in net.clients.items():
+            monkeypatch.setattr(client, 'prefetch', lambda deadline: None)
+            def lookup(target, deadline=None, source=name, **kw):
+                if source == 'geckoterminal':
+                    gate()
+                if source == 'priors':
+                    return Reading('Priors', 'present', '', agent_ids=('7622',))
+                if source == 'toll' and kw.get('kind') == 'agent':
+                    hit.set()
+                return Reading(source, 'unlisted', '')
+            monkeypatch.setattr(client, 'lookup', lookup)
+        net.enrich([Card(TOKEN, 'identifier')], 'read', {}, Settings(), all_sources=True)
+        assert hit.is_set() and entered.is_set() and not returned.is_set()
 
 
 @pytest.mark.parametrize('module', [chain, dexscreener, geckoterminal, wormhole, toll])

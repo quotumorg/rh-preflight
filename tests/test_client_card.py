@@ -86,11 +86,15 @@ def test_concurrent_same_target_only_fetches_once(server):
 
 
 @pytest.mark.parametrize("target", [ERROR, SLOW])
-def test_failures_are_unreachable_and_not_cached(server, target):
+def test_failures_are_unreachable_and_not_cached(server, target, blocked):
     client = Client(server[0], timeout=0.04)
-    assert client.lookup(target).kind == "unreachable"
-    assert "could not be reached" in client.lookup(target).render()
-    assert client.stats()["entries"] == 0
+    with blocked() as (gate, _, returned):
+        if target == SLOW:
+            server[1]['response_gates'] = {'/api/v1/builder': gate}
+        assert client.lookup(target).kind == "unreachable"
+        assert "could not be reached" in client.lookup(target).render()
+        assert client.stats()["entries"] == 0
+        assert not returned.is_set()
 
 
 @pytest.mark.parametrize("http_date", [False, True])

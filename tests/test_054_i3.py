@@ -238,20 +238,22 @@ def test_uncheckable_trade_skips(change):
     assert client.check_trade(intent, time.monotonic() + 1) is None
 
 
-def test_toll_and_hookr_trade_are_parallel(tmp_path):
+def test_toll_and_hookr_trade_are_parallel(tmp_path, monkeypatch):
+    monkeypatch.setattr(time, 'monotonic', lambda: 100.0)
     app, intent = service(tmp_path)
     toll_started, hookr_started = threading.Event(), threading.Event()
     response = fixture()[1]
     client = app.network.clients['hookr']
+    client.clock = lambda: 100.0
     original = client._read_once
     def toll(*args):
         toll_started.set()
-        assert hookr_started.wait(.5)
+        assert hookr_started.wait(10)
         return response
     def hookr(*args):
         if args[2]['params']['name'] == 'hookr_check_trade':
             hookr_started.set()
-            assert toll_started.wait(.5)
+            assert toll_started.wait(10)
         return original(*args)
     app.network.clients['toll'].check_tx = toll
     client._read_once = hookr
@@ -347,7 +349,7 @@ def test_capture_wording_and_replay_outputs():
         assert not any(word in output for word in ('review-signals', 'good', 'capReasons', 'headline'))
 
 
-def test_http_rate_limit_no_retry_or_sleep_and_cached_hook_still_works():
+def test_http_rate_limit_no_retry_or_sleep_and_cached_hook_still_works(monkeypatch):
     from io import BytesIO
     from urllib.error import HTTPError
     client = replay_client()
@@ -360,9 +362,8 @@ def test_http_rate_limit_no_retry_or_sleep_and_cached_hook_still_works():
             raise HTTPError(request.full_url, 429, 'rate limit', {'Retry-After': '60'}, BytesIO(b'{}'))
     client.opener = Opener()
     client._read_once = Client._read_once.__get__(client)
-    start = time.monotonic()
+    monkeypatch.setattr(time, 'sleep', lambda *a: pytest.fail('rate limit must not sleep'))
     assert client.screen(A, 20).line == 'Hookr scan: ' + client.scan_link(A)
-    assert time.monotonic() - start < .1
     assert len(calls) == 1 and client.cooldown == 70
     assert '79/100' in client.screen(HOOK, 20).line
     assert len(calls) == 1
