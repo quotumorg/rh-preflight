@@ -3,6 +3,7 @@
 from collections import OrderedDict
 from concurrent.futures import ThreadPoolExecutor
 from copy import deepcopy
+from dataclasses import replace
 from datetime import datetime, timezone
 from email.utils import parsedate_to_datetime
 import json
@@ -228,7 +229,7 @@ class Client:
                 if cached and self.clock() - cached[0] < self.ttl:
                     self.hits += 1
                     self.cache.move_to_end(key)
-                    return deepcopy(cached[1])
+                    return replace(deepcopy(cached[1]), cached_read_at=cached[0], cache_clock=self.clock)
                 self.misses += 1
             deadline = deadline if deadline is not None else self.clock() + self.timeout
             try:
@@ -280,7 +281,7 @@ class Client:
                         self.cache.popitem(last=False)
             except (Unavailable, ValueError, TypeError):
                 return card
-        return Card(card.target, card.kind, {**card.data, 'locks': locks})
+        return replace(card, data={**card.data, 'locks': locks})
 
     def many(self, targets):
         if not targets:

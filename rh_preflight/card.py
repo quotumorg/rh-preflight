@@ -1,6 +1,7 @@
 """Small, factual views of the fields HEY publishes."""
 
 from dataclasses import dataclass, field
+from typing import Callable
 import hashlib
 import re
 from urllib.parse import urlsplit, urlunsplit, parse_qsl, urlencode
@@ -77,6 +78,8 @@ class Card:
     target: str
     kind: str
     data: dict = field(default_factory=dict)
+    cached_read_at: float | None = field(default=None, repr=False, compare=False)
+    cache_clock: Callable[[], float] | None = field(default=None, repr=False, compare=False)
 
     @property
     def evidence_ids(self):
@@ -91,6 +94,22 @@ class Card:
         return list(dict.fromkeys(ids))
 
     def render(self):
+        rendered = self._render()
+        if self.cached_read_at is None or self.cache_clock is None:
+            return rendered
+        minutes = max(0, int((self.cache_clock() - self.cached_read_at) // 60))
+        age = f"{minutes} min ago" if minutes else "under 1 min ago"
+        label = f"HEY record read {age} (cached)"
+        lines = rendered.splitlines()
+        for index, line in enumerate(lines):
+            if 'asOf:' in line or line.startswith('Freshness'):
+                lines[index] += ' · ' + label
+                break
+        else:
+            lines.append(label)
+        return "\n".join(lines)
+
+    def _render(self):
         d = self.data
         if self.kind == "transaction":
             from .presentation import answer_line
@@ -210,7 +229,7 @@ class Card:
             if 'rule_targets' in self.data:
                 extra['rule_targets'] = self.data['rule_targets']
         return {**extra, "target": self.target, "kind": self.kind, "card": rendered,
-                "digest": self.digest, "evidence_ids": self.evidence_ids}
+                "digest": hashlib.sha256(rendered.encode()).hexdigest(), "evidence_ids": self.evidence_ids}
 
 
 def token_card(target, payload):

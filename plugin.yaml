@@ -79,7 +79,7 @@ config_schema:
     type: float
     default: 4.0
     description: Builder and independent-source budget in seconds, capped at 25 below the Hermes 30-second limit; restart after changing
-  hey_cache_ttl:
+  hey_cache_seconds:
     type: float
     default: 600
     description: HEY record cache seconds, maximum 86400; 0 disables; invalid values use 600; restart after changing

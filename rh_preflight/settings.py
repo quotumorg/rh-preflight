@@ -31,16 +31,16 @@ class Settings:
     on_unchecked: str = "ask"
     tx_timeout: float = 15.0
     timeout: float = 4.0
-    hey_cache_ttl: float = 600
+    hey_cache_seconds: float = 600
     sources: dict = field(default_factory=dict)
     ask_when: dict = field(default_factory=dict)
 
     def __post_init__(self):
-        ttl = self.hey_cache_ttl
+        ttl = self.hey_cache_seconds
         if (isinstance(ttl, bool) or not isinstance(ttl, (int, float))
                 or ttl < 0 or (isinstance(ttl, float) and not math.isfinite(ttl))):
             ttl = 600
-        object.__setattr__(self, "hey_cache_ttl", min(ttl, 86400))
+        object.__setattr__(self, "hey_cache_seconds", min(ttl, 86400))
         known_sources = {"priors", "sherwood", "hookr", "chain", "wormhole", "toll", "dexscreener", "geckoterminal", "offrouter", "sentinelhood", "borro", "hoodlock", "trnch"}
         # Ignore retired or unknown source keys in existing user configs.
         object.__setattr__(self, "sources", {name: setting for name, setting in self.sources.items()

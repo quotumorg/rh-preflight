@@ -1,6 +1,6 @@
 ## Unreleased
 
-Make the HEY record cache configurable with hey_cache_ttl in seconds, default 600; 0 disables caching.
+Make the HEY record cache configurable with hey_cache_seconds in seconds, default 600; 0 disables caching. Label cached HEY reads with their age on cards.
 
 ## 0.5.4
 

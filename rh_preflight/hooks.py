@@ -31,7 +31,7 @@ class Service:
     def __init__(self, settings=None, client=None, ledger=None, context=None, presence=None, network=None,
                  clock=None, executor=None, wait=None):
         self.settings = settings or Settings()
-        self.client = client or Client(timeout=self.settings.timeout, ttl=self.settings.hey_cache_ttl)
+        self.client = client or Client(timeout=self.settings.timeout, ttl=self.settings.hey_cache_seconds)
         origin = getattr(self.client, 'base_url', '')
         origins = {name: origin for name in MODULES} if origin.startswith('http://') else None
         self.network = network or Network(timeout=self.settings.timeout, origins=origins)
@@ -337,5 +337,5 @@ class Service:
         return {**core, "sources": {"hey": {**core, "cache": self.client.stats()},
                                     **self.network.doctor(self._settings())},
                 "cache": self.client.stats(), "mode": self._settings().mode,
-                "hey_cache_ttl": self.client.ttl,
+                "hey_cache_seconds": self.client.ttl,
                 "last_checks": self.ledger.rows(5)}
