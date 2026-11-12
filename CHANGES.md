@@ -1,3 +1,9 @@
+## 0.5.6
+
+Ask before Stock Token swaps above your stock_swap_above_usd threshold, off by default, using amounts and Toll chain prices already read for the call.
+Print the computed swap value and price read time; missing amount, decimals or price adds a not-read line without firing the rule.
+Keep note mode, cron handling and hard stops unchanged; record stock_swap_above_usd with your triggered rules.
+
 ## 0.5.5
 
 Make the HEY record cache configurable with hey_cache_seconds in seconds, default 600; 0 disables caching. Label cached HEY reads with their age on cards.

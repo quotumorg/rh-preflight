@@ -262,6 +262,7 @@ plugins:
         ask_no_record: true
         ask_when:
           stock_no_hey_record: true
+          stock_swap_above_usd: 250
         sources:
           borro: "off"
 ```
@@ -274,6 +275,7 @@ plugins:
 | `ask_unmeasured` | `true` | Ask when builder activity is not measured. |
 | `ask_no_record` | `true` | Ask when the builder source has no record. |
 | `ask_when.stock_no_hey_record` | `false` | Ask for no HEY record even when Toll confirms an official Robinhood Stock Token. Without confirmation in time, the no-record rule still applies; the HEY line always prints. |
+| `ask_when.stock_swap_above_usd` | unset | Ask when either side of a swap is an official Stock Token and its value is strictly above this positive finite USD threshold; `null` disables it. If both sides are Stock Tokens, use the larger value. |
 | `ask_not_verified` | `false` | Ask when the builder badge is not established. |
 | `ask_when.payee_no_priors_record` | `true` | Ask when a checked payment recipient has no repayment record or that source cannot be reached. |
 | `ask_when.vault_strategy_inactive` | `false` | Ask when a listed vault has an inactive strategy or the registry or bundle cannot be reached. |
@@ -290,7 +292,9 @@ plugins:
 | `hey_cache_seconds` | `600` | HEY record cache in seconds, maximum 86400; `0` disables reads and writes to this cache. Negative, non-numeric and non-finite values use 600. |
 | `tx_timeout` | `15.0` | Toll and Hookr tx-check budget in seconds, maximum 25; runs in parallel with builder reads. |
 
-Only declared top-level settings are read. Unknown source names are ignored for existing configurations; unknown `ask_when` rules and invalid values are rejected, except `hey_cache_seconds`, which falls back as described above. The existing builder rules remain flat settings for compatibility. Payment, vault and Stock Token rules live in the `ask_when` mapping. An additional source's failure uses `on_unchecked` when its dependent rule is enabled. `note` mode suppresses approval prompts; explicit stops for unlimited approval to a spender with no code, `on_unchecked: stop` and internal errors still apply. A failed local check or ledger write always stops.
+The Stock Token swap threshold uses token amounts and decimals already available for this call multiplied by Toll's `prices.chain.usd`, not the Chainlink reference; it makes no new reads, and missing amount, decimals or chain price prints `swap value not read: <what was missing>` without firing this rule. Triggered thresholds are recorded as `stock_swap_above_usd` with your triggered rules in the ledger.
+
+Only declared top-level settings are read. Unknown source names are ignored for existing configurations; unknown `ask_when` rules and invalid values are rejected, except `hey_cache_seconds`, which falls back as described above. The existing builder rules remain flat settings for compatibility. Payment, vault and Stock Token rules live in the `ask_when` mapping. An additional source's failure uses `on_unchecked` when its dependent rule is enabled, except the swap threshold's not-read case described above. `note` mode suppresses approval prompts; explicit stops for unlimited approval to a spender with no code, `on_unchecked: stop` and internal errors still apply. A failed local check or ledger write always stops.
 
 The plugin never answers an approval prompt. Interactive checks return the host's `approve` directive to request human approval. Each check has a fresh approval key. Human answers are recorded only when the host emits an approval response event.
 
@@ -348,7 +352,7 @@ The ledger uses `plugins.plugin_storage.plugin_data_dir` to locate durable state
 
 HEY Research Lab plus ten Robinhood Chain project integrations are implemented and covered by offline tests. The historical survey totals in `docs/SOURCES.md` are author-reported and the complete survey dataset is not bundled. Saved responses verify parsing, not present source availability. Detection is limited to the tools and literal arguments described above; this is not a universal transaction interceptor. Full Desktop rendering still needs visual verification in a running host.
 
-Package and manifest version are `0.5.5`, with `requires_hermes: ">=0.23.0"`. A catalog submission must repeat that floor and version, declare `builder_card` and the three hooks from `plugin.yaml`, and pin both code and banner URL to the final reviewed forty-character commit SHA. There is no catalog entry in this repository yet. Public repository access, joint review, the catalog PR, demo video and entry form remain release steps.
+Package and manifest version are `0.5.6`, with `requires_hermes: ">=0.23.0"`. A catalog submission must repeat that floor and version, declare `builder_card` and the three hooks from `plugin.yaml`, and pin both code and banner URL to the final reviewed forty-character commit SHA. There is no catalog entry in this repository yet. Public repository access, joint review, the catalog PR, demo video and entry form remain release steps.
 
 ## Offline checks
 

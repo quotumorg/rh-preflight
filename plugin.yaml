@@ -1,5 +1,5 @@
 name: rh-preflight
-version: 0.5.5
+version: 0.5.6
 requires_hermes: ">=0.23.0"
 description: "rh-preflight by quotum with HEY Research Lab. Reads builder records and ten Robinhood Chain projects; rh-preflight applies your approval rules before Hermes acts on chain 4663."
 author: quotum, HEY Research Lab
@@ -90,4 +90,4 @@ config_schema:
   ask_when:
     type: dict
     default: {}
-    description: payee_no_priors_record defaults to true; vault_strategy_inactive defaults to false; stock_no_hey_record defaults to false (ask for no HEY record even when Toll confirms an official Robinhood Stock Token)
+    description: payee_no_priors_record defaults to true; vault_strategy_inactive defaults to false; stock_no_hey_record defaults to false (ask for no HEY record even when Toll confirms an official Robinhood Stock Token); stock_swap_above_usd is a positive finite USD threshold or null (off)
