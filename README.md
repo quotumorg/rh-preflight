@@ -4,6 +4,8 @@ rh-preflight by [quotum](https://quotum.org) with [HEY Research Lab](https://hey
 
 ![rh-preflight](docs/banner.png)
 
+no keys required · never signs or pays · read-only RPC and API reads · runs without a wallet
+
 [![tests](https://github.com/quotumorg/rh-preflight/actions/workflows/tests.yml/badge.svg)](https://github.com/quotumorg/rh-preflight/actions/workflows/tests.yml)
 
 rh-preflight reads public project records and applies your approval rules before Hermes acts on Robinhood Chain.
