@@ -33,7 +33,7 @@ def stock(address=A, price=100):
 
 def args(amount='3000000', **extra):
     return {'chainId': 4663, 'tokenIn': {'address': A, 'decimals': 6},
-            'tokenOut': B, 'amountIn': amount, **extra}
+            'tokenOut': B, 'amountIn': amount, 'amountInRaw': amount, **extra}
 
 
 def app(tmp_path, stocks=None, **options):
@@ -106,6 +106,7 @@ def test_missing_data_is_silent_for_policy(tmp_path, missing, detail, other_rule
         del data['prices']['chain']['usd']
     elif missing == 'amount':
         del arguments['amountIn']
+        del arguments['amountInRaw']
     else:
         del arguments['tokenIn']['decimals']
     service, _ = app(tmp_path, stocks={A: data}, ask_no_record=other_rule,
@@ -134,8 +135,8 @@ def test_non_stock_swap_is_silent(tmp_path):
 @pytest.mark.parametrize('larger', ['In', 'Out'])
 def test_both_stock_sides_use_larger_value(tmp_path, larger):
     service, _ = app(tmp_path, stocks={A: stock(A), B: stock(B)})
-    arguments = args('1000000', tokenOut={'address': B, 'decimals': 6}, amountOut='1000000')
-    arguments['amount' + larger] = '4000000'
+    arguments = args('1000000', tokenOut={'address': B, 'decimals': 6}, amountOut='1000000', amountOutRaw='1000000')
+    arguments['amount' + larger + 'Raw'] = '4000000'
     directive, _, printed = run(service, arguments)
     assert directive['action'] == 'approve'
     assert 'swap value $400.00 (amount × Toll chain price read ' + AS_OF + ')' in printed.splitlines()
@@ -185,7 +186,7 @@ def test_cron_matches_other_rules(tmp_path, allow, disposition):
 def test_decoded_swap_uses_existing_metadata_and_chain_price(tmp_path, side):
     service, reads = app(tmp_path)
     response = {'coins': [{'address': A, 'decimals': 6}], 'x-toll': {
-        'decoded': [{'kind': 'swap', side: [{'address': A, 'amount': '3000000'}]}],
+        'decoded': [{'kind': 'swap', side: [{'address': A, 'raw': '3000000'}]}],
         'simulation': {'status': 'success'}}}
     service.network.clients['toll'].check_tx = lambda *a: response
     arguments = {'chainId': 4663, 'from': WALLET, 'to': ROUTER, 'data': '0x', 'token': A}
@@ -195,16 +196,16 @@ def test_decoded_swap_uses_existing_metadata_and_chain_price(tmp_path, side):
     assert sorted(reads) == [A, WALLET, ROUTER]
 
 
-def test_existing_simulation_delta_supplies_amount(tmp_path):
+def test_existing_simulation_delta_does_not_establish_swap_amount(tmp_path):
     service, _ = app(tmp_path)
     response = {'x-toll': {'decoded': [{'kind': 'swap', 'sold': [A]}],
         'simulation': {'status': 'success', 'deltas': [{'holder': WALLET, 'token': A, 'delta': '-3000000', 'decimals': 6}]}}}
     service.network.clients['toll'].check_tx = lambda *a: response
     directive, _, printed = run(service, {'chainId': 4663, 'from': WALLET, 'to': ROUTER, 'data': '0x', 'token': A})
-    assert directive['action'] == 'approve' and 'swap value $300.00' in printed
+    assert directive is None and 'swap value not read: amount' in printed
 
 
-def test_hookr_existing_trade_raw_amount_and_decimals():
+def test_hookr_quote_does_not_establish_swap_amount():
     request = json.loads((ROOT / 'toll-tx/clean-swap/request.json').read_text())
     intent = tx_intents(request)[0]
     address = '0x41b57f6273b5a78cf9125ce6800f415738e0bba0'
@@ -212,10 +213,10 @@ def test_hookr_existing_trade_raw_amount_and_decimals():
         'gets': {'address': address, 'raw': '3000000', 'amount': '3', 'decimals': 6}})
     network = Card(address, 'network', {'base': Card(address, 'missing'),
         'sources': [Toll().stock(stock(address), address)]})
-    settings = Settings(ask_when={RULE: 250}, ask_no_record=False)
+    settings = Settings(ask_when={RULE: 250}, ask_no_record=False, on_unchecked='note')
     cards = annotate([card, network], {}, settings)
-    assert evaluate(cards, settings).action == 'ask'
-    assert 'swap value $300.00' in '\n'.join(cards[0].data['lines'])
+    assert evaluate(cards, settings).action == 'pass'
+    assert 'swap value not read: amount' in cards[0].data['lines']
 
 
 def test_membership_must_match_address(tmp_path):
@@ -226,7 +227,7 @@ def test_membership_must_match_address(tmp_path):
 
 def test_no_swap_no_threshold(tmp_path):
     service, _ = app(tmp_path)
-    directive, _, printed = run(service, {'chainId': 4663, 'token': A, 'amount': '3000000'}, tool='transfer')
+    directive, _, printed = run(service, {'chainId': 4663, 'token': A, 'raw': '3000000'}, tool='transfer')
     assert directive is None and 'swap value' not in printed
 
 
@@ -264,7 +265,7 @@ def test_unusable_decimals_never_guessed(tmp_path, decimals):
 def test_decoded_nested_token_metadata(tmp_path):
     service, _ = app(tmp_path)
     service.network.clients['toll'].check_tx = lambda *a: {'x-toll': {
-        'decoded': [{'kind': 'swap', 'bought': [{'token': {'address': A, 'decimals': 6}, 'amount': '3000000'}]}],
+        'decoded': [{'kind': 'swap', 'bought': [{'token': {'address': A, 'decimals': 6}, 'raw': '3000000'}]}],
         'simulation': {'status': 'success'}}}
     directive, _, printed = run(service, {'chainId': 4663, 'from': WALLET, 'to': ROUTER, 'data': '0x', 'token': A})
     assert directive['action'] == 'approve' and 'swap value $300.00' in printed
