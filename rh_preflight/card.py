@@ -93,9 +93,9 @@ class Card:
         ids.extend(text(v) for v in self.data.get("evidence", []) if isinstance(v, str))
         return list(dict.fromkeys(ids))
 
-    def render(self):
-        rendered = self._render()
-        if self.cached_read_at is None or self.cache_clock is None:
+    def render(self, *, include_cache_label=True):
+        rendered = self._render(include_cache_label=include_cache_label)
+        if not include_cache_label or self.cached_read_at is None or self.cache_clock is None:
             return rendered
         minutes = max(0, int((self.cache_clock() - self.cached_read_at) // 60))
         age = f"{minutes} min ago" if minutes else "under 1 min ago"
@@ -109,7 +109,7 @@ class Card:
             lines.append(label)
         return "\n".join(lines)
 
-    def _render(self):
+    def _render(self, *, include_cache_label=True):
         d = self.data
         if self.kind == "transaction":
             from .presentation import answer_line
@@ -131,7 +131,7 @@ class Card:
                                 rule == 'your rule: ask before every detected action'))
             elif len(decision.rules) > 1 or (decision.rules and (decision.action == "block" or decision.rules[0] not in heading[0])):
                 heading.extend(decision.rules)
-            base = d["base"].render().splitlines()
+            base = d["base"].render(include_cache_label=include_cache_label).splitlines()
             citation = d.get("citation")
             if citation and base and base[-1] == citation:
                 base.pop()
@@ -212,7 +212,8 @@ class Card:
 
     @property
     def digest(self):
-        return hashlib.sha256(self.render().encode()).hexdigest()
+        # Read age is display metadata, including on a network card's base.
+        return hashlib.sha256(self.render(include_cache_label=False).encode()).hexdigest()
 
     def public(self):
         rendered = self.render()
@@ -229,7 +230,7 @@ class Card:
             if 'rule_targets' in self.data:
                 extra['rule_targets'] = self.data['rule_targets']
         return {**extra, "target": self.target, "kind": self.kind, "card": rendered,
-                "digest": hashlib.sha256(rendered.encode()).hexdigest(), "evidence_ids": self.evidence_ids}
+                "digest": self.digest, "evidence_ids": self.evidence_ids}
 
 
 def token_card(target, payload):

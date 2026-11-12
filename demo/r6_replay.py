@@ -44,7 +44,7 @@ def answer(name, path, payload=None):
 
 
 class CaptureCard(Card):
-    def render(self):
+    def _render(self, *, include_cache_label=True):
         return f'NVDA · {self.target}\nHEY response for NVDA was not captured; no builder reading shown'
 
 

@@ -1,6 +1,8 @@
 ## Unreleased
 
 Make the HEY record cache configurable with hey_cache_seconds in seconds, default 600; 0 disables caching. Label cached HEY reads with their age on cards.
+Cache HEY snapshot locks for at most sixty seconds or hey_cache_seconds, whichever is shorter; 0 disables cache reads and writes.
+Keep card digests unchanged by the cached HEY read age while retaining the label on displayed and stored cards.
 
 ## 0.5.4
 

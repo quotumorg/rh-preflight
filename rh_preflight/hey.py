@@ -265,9 +265,10 @@ class Client:
         if card.kind != 'agent' or not isinstance(slug, str) or not re.fullmatch(r'[a-z0-9-]{1,120}', slug):
             return card
         key = ('snapshot-locks', slug)
+        ttl = min(60, self.ttl)
         with self.lock:
-            cached = self.cache.get(key)
-        if cached and self.clock() - cached[0] < 60:
+            cached = self.cache.get(key) if ttl > 0 else None
+        if cached and self.clock() - cached[0] < ttl:
             locks = cached[1]
         else:
             try:
@@ -276,9 +277,10 @@ class Client:
                     return card
                 locks = snapshot.get('locks')
                 with self.lock:
-                    self.cache[key] = (self.clock(), locks)
-                    while len(self.cache) > 512:
-                        self.cache.popitem(last=False)
+                    if ttl > 0:
+                        self.cache[key] = (self.clock(), locks)
+                        while len(self.cache) > 512:
+                            self.cache.popitem(last=False)
             except (Unavailable, ValueError, TypeError):
                 return card
         return replace(card, data={**card.data, 'locks': locks})
