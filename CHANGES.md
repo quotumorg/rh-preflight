@@ -1,3 +1,7 @@
+## Unreleased
+
+Make the HEY record cache configurable with hey_cache_ttl in seconds, default 600; 0 disables caching.
+
 ## 0.5.4
 
 - Drop private Hermes approval imports. Only public cron identity triggers the cron stop or allow_unattended exception. Outside detected cron, asks now return Hermes approve directives instead of a plugin stop for absent or unreadable presence. Hermes fails closed without a human or approval bridge unless its configured unattended or single-query policy permits the call. YOLO and approvals.mode: off now bypass these asks, even with allow_unattended: false; hard stops remain unconditional.

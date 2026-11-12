@@ -224,7 +224,7 @@ class Client:
             return Card(target, "unreachable")
         try:
             with self.lock:
-                cached = self.cache.get(key)
+                cached = self.cache.get(key) if self.ttl > 0 else None
                 if cached and self.clock() - cached[0] < self.ttl:
                     self.hits += 1
                     self.cache.move_to_end(key)
@@ -246,6 +246,8 @@ class Client:
             if card.kind == "unreachable":
                 return card
             with self.lock:
+                if self.ttl == 0:
+                    return deepcopy(card)
                 self.cache[key] = (self.clock(), card)
                 self.cache.move_to_end(key)
                 while len(self.cache) > 512:
