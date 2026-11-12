@@ -1,5 +1,5 @@
 name: rh-preflight
-version: 0.5.4
+version: 0.5.5
 requires_hermes: ">=0.23.0"
 description: "rh-preflight by quotum with HEY Research Lab. Reads builder records and ten Robinhood Chain projects; rh-preflight applies your approval rules before Hermes acts on chain 4663."
 author: quotum, HEY Research Lab
