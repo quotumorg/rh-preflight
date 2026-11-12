@@ -4,6 +4,7 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from .sources.priors import LABEL as PAY_LABEL
 from .sources.sherwood import LABEL as VAULT_LABEL
+from .sources.common import money
 
 
 @dataclass(frozen=True)
@@ -17,6 +18,8 @@ def evaluate(cards, settings, unattended=False, now=None):
     rules = []
     stops = []
     for card in cards:
+        if card.data.get('stock_swap_above_usd') and settings.ask_when.get('stock_swap_above_usd') is not None:
+            rules.append('your rule: Stock Token swap above $' + money(settings.ask_when['stock_swap_above_usd']))
         if card.kind == 'transaction':
             d = card.data
             for approval in d.get('approvals', []):

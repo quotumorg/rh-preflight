@@ -49,6 +49,11 @@ class Settings:
             if setting not in {"on", "off"}:
                 raise ValueError("sources must map source names to on or off")
         for name, setting in self.ask_when.items():
+            if name == "stock_swap_above_usd":
+                if setting is not None and (type(setting) not in (int, float) or setting <= 0
+                                            or isinstance(setting, float) and not math.isfinite(setting)):
+                    raise ValueError("ask_when.stock_swap_above_usd must be a positive finite number or null")
+                continue
             if name not in {"payee_no_priors_record", "vault_strategy_inactive", "stock_no_hey_record"} or type(setting) is not bool:
                 raise ValueError("ask_when must map rule names to booleans")
         if not isinstance(self.toll_key_header, str) or not re.fullmatch(r'[A-Za-z][A-Za-z0-9-]{0,63}', self.toll_key_header) or self.toll_key_header.lower() in {'host', 'content-length', 'content-type', 'connection', 'user-agent', 'accept', 'x-hey-integration'}:

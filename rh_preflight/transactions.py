@@ -497,7 +497,7 @@ def token_metadata(response, x):
     return metadata, add
 
 
-def project(card, intent, response=None, kinds=None, hookr=None, coin_findings="silent"):
+def project(card, intent, response=None, kinds=None, hookr=None, coin_findings="silent", stock_swap=False):
     """Project fixed facts, metadata and the first Hookr refusal sentence only."""
     from copy import deepcopy
     d = deepcopy(card.data)
@@ -654,4 +654,7 @@ def project(card, intent, response=None, kinds=None, hookr=None, coin_findings="
             d['lines'].append(f'simulated sender balance change: {quantity} {label}')
     if response or intent['payload'] is not None:
         d['lines'].append('Toll · https://t0ll.xyz')
+    if stock_swap:
+        from .stock_swap import transaction_sides
+        d['swap_sides'] = transaction_sides(intent, response, hookr, metadata)
     return Card(card.target, card.kind, d)

@@ -111,12 +111,18 @@ class Card:
 
     def _render(self, *, include_cache_label=True):
         d = self.data
+        stock_lines = []
+        if d.get('stock_swap_above_usd') and 'decision' in d:
+            from .stock_swap import PREFIX
+            decision = d['decision']
+            if decision.action in {'ask', 'note'}:
+                stock_lines = [f'{decision.action} · {rule}' for rule in decision.rules if rule.startswith(PREFIX)]
         if self.kind == "transaction":
             from .presentation import answer_line
             heading = [answer_line(d['decision'])] if 'decision' in d else []
             rules = list(d['decision'].rules) if 'decision' in d else []
             heading.extend(rule for rule in rules if rule not in heading[0])
-            return "\n".join(heading + d['lines'])
+            return "\n".join(heading + [line for line in stock_lines if line not in heading] + d['lines'])
         if self.kind == "network":
             from .presentation import answer_line, coverage
             from .policy import evaluate
@@ -135,7 +141,7 @@ class Card:
             citation = d.get("citation")
             if citation and base and base[-1] == citation:
                 base.pop()
-            return "\n".join(heading + base + [source_line(r) for r in d.get("sources", []) if r.line] + ([citation] if citation else []))
+            return "\n".join(heading + [line for line in stock_lines if line not in heading] + base + d.get('lines', []) + [source_line(r) for r in d.get("sources", []) if r.line] + ([citation] if citation else []))
         if self.kind == "agent":
             return render_agent(self.target, d)
         if self.kind == "identifier":

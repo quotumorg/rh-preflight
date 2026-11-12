@@ -113,10 +113,6 @@ class Client(Keyless):
             return Reading(self.label, 'present',
                            'Toll: response address differs from requested address; '
                            'official Stock Token status not established · https://t0ll.xyz')
-        prices = data['prices']
-        chain, reference = prices['chain'], prices['reference']
-        line = (f"chain price ${money(chain['usd'])} read {field(chain['as_of'])}; "
-                f"Chainlink reference ${money(reference['usd'])} updated {field(reference['updated_at'])}")
         registry = data.get('registry') or {}
         ticker = data.get('ticker')
         official = (registry.get('source') == 'https://api.robinhood.com/rhj/assets'
@@ -125,11 +121,20 @@ class Client(Keyless):
                     and isinstance(ticker, str) and re.fullmatch(r'[A-Z0-9.]{1,20}', ticker)
                     and re.fullmatch(r'[A-Z]{2}[A-Z0-9]{9}[0-9]', str(data.get('isin')))
                     and data.get('status') == 'ASSET_STATUS_ACTIVE')
+        prices = data.get('prices') or {}
+        chain, reference = prices.get('chain') or {}, prices.get('reference') or {}
+        if not official and (not {'usd', 'as_of'} <= chain.keys()
+                             or not {'usd', 'updated_at'} <= reference.keys()):
+            raise ValueError()
+        line = (f"chain price ${money(chain.get('usd'))} read {field(chain.get('as_of'))}; "
+                f"Chainlink reference ${money(reference.get('usd'))} updated {field(reference.get('updated_at'))}")
         if official:
             line = (f'official Robinhood Stock Token {field(ticker)}, ISIN {field(data["isin"])}, '
                     f'status {field(data["status"])}, registry as of {field(registry.get("as_of"))}; ' + line)
         return Reading(self.label, 'present', f'{self.label}: {line} · {self.public_page(data.get("page"))}',
-                       stock_ticker=ticker if official else None)
+                       stock_ticker=ticker if official else None,
+                       stock_price_usd=chain.get('usd') if official and type(chain.get('usd')) in (int, float, str) else None,
+                       stock_price_as_of=chain.get('as_of') if official and isinstance(chain.get('as_of'), str) else None)
 
     def coin(self, target, deadline):
         stripe = self.coin_stripes[hash(target.lower()) % len(self.coin_stripes)]

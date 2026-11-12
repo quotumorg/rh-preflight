@@ -20,6 +20,7 @@ from .extract import chain_context, addresses, objects, ADDRESS
 from .hookr_swap import decode as decode_hookr, ROUTER
 from .card import Card, text, plain
 from .transactions import tx_intents, local_card, project
+from .stock_swap import annotate as annotate_stock_swap
 from .budget import Pool, result as budget_result
 
 
@@ -108,7 +109,8 @@ class Service:
             # shorter budget even when a custom adapter ignores its deadline.
             cards = self.wait(reads, deadline, [Card(target, 'unreachable') for target in wanted]) if reads else []
             tx_cards = self.wait(txs, hook_deadline,
-                [project(card, intent) if settings.tx_check == 'on' else card
+                [project(card, intent, stock_swap=settings.ask_when.get('stock_swap_above_usd') is not None)
+                 if settings.tx_check == 'on' else card
                  for card, intent in zip(local, intents)]) if txs else []
             # Only a positive per-address registry answer establishes a known
             # spender. HEY builder presence alone does not establish that role.
@@ -118,7 +120,7 @@ class Service:
             for tx_card in tx_cards:
                 for approval in tx_card.data['approvals']:
                     approval['known'] = approval.get('known', False) or approval['spender'] in known
-            cards = tx_cards + cards
+            cards = annotate_stock_swap(tx_cards + cards, check_args, settings)
             checked_at = datetime.now(timezone.utc)
             decision = evaluate(cards, settings, unattended=self.presence(), now=checked_at)
             associations = target_rules(cards, settings, checked_at) if len(cards) > 1 else [None]
@@ -200,7 +202,8 @@ class Service:
                             and str((intent.get('payload') or {}).get('to', '')).lower() == ROUTER):
                         trade = pool.submit(check_trade, intent, deadline, response)
                 trade_response = budget_result(trade, deadline - .015, None) if trade else None
-                composed = project(card, intent, response, kinds, trade_response, settings.toll_coin_findings)
+                composed = project(card, intent, response, kinds, trade_response, settings.toll_coin_findings,
+                                   stock_swap=settings.ask_when.get('stock_swap_above_usd') is not None)
                 trade_unchecked = trade is not None and (not isinstance(trade_response, dict)
                     or trade_response.get('status') not in {'ok', 'refused'})
                 # Simulation can reveal approvals in calldata that local selector
@@ -213,7 +216,8 @@ class Service:
                     reading = budget_result(future, builder_deadline - .005, None)
                     kinds[spender] = {'code': 'contract with code', 'no_code': 'no code'}.get(reading.state if reading else None, 'not read')
                 if extra_codes:
-                    composed = project(card, intent, response, kinds, trade_response, settings.toll_coin_findings)
+                    composed = project(card, intent, response, kinds, trade_response, settings.toll_coin_findings,
+                                       stock_swap=settings.ask_when.get('stock_swap_above_usd') is not None)
                 if trade_unchecked:
                     composed.data['unchecked'] = True
                     composed.data['lines'].append('Hookr: wallet pool rules could not be checked')
