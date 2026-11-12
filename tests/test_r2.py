@@ -88,15 +88,36 @@ def test_badge_from_tokenless_project_record(network, record, expected):
     assert not any('/api/v1/builder?' in p for p, _ in network[1]['requests'])
 
 
-def test_slow_source_does_not_starve_other_sources_or_hey(network, tmp_path, blocked):
+def test_slow_source_does_not_starve_other_sources_or_hey(network, tmp_path, blocked,
+                                                          controlled_budget, monkeypatch):
+    import threading
     origin, state = network
     service = Service(settings=Settings(timeout=4, mode='note'), client=Client(origin, timeout=4), ledger=Ledger(tmp_path))
+    expired = threading.Event()
     with blocked() as (gate, entered, returned):
-        state['response_gates'] = {'/api/check': gate}
+        # Block the adapter itself so no socket timeout can decide its verdict.
+        def priors_lookup(*args, **kwargs):
+            from rh_preflight.sources.common import Reading
+            gate()
+            return Reading('Priors', 'unlisted', '')
+        monkeypatch.setattr(service.network.clients['priors'], 'lookup', priors_lookup)
+        def is_expired(name, args):
+            return (name == 'source_read' and args[0] == 'priors'
+                    or name == 'agent_read' and args[1] is not None)
+        def expire():
+            assert entered.wait(30)
+            # These actual reads must finish before we declare Priors out of time.
+            ready = [f for f in jobs if f.test_job[0] == 'core'
+                     or f.test_job[0] == 'source_read' and f.test_job[1][0] != 'priors']
+            assert {f.test_job[1][0] for f in ready if f.test_job[0] == 'source_read'} == {'hookr', 'sherwood'}
+            for future in ready:
+                future.result(timeout=30)
+            expired.set()
+        jobs = controlled_budget(is_expired, service, expire)
         args = {'chainId': 4663, 'payTo': ACTIVE, 'poolId': POOL, 'vault': VAULT}
         assert service.pre_tool_call('swap_pay_deposit', args) is None
         output = service.transform_tool_result('swap_pay_deposit', args, 'done')
-        assert entered.is_set() and not returned.is_set()
+        assert expired.is_set() and entered.is_set() and not returned.is_set()
         assert 'Priors could not be reached' in output
         assert 'Harbor Kit' in output and 'HEY could not be reached' not in output
         assert 'Hookr: pool' in output
@@ -198,14 +219,16 @@ def test_refusal_keeps_dependent_payee_rule(network, tmp_path, enabled):
     assert 'Priors could not be reached' not in output
 
 
-def test_source_cache_lock_wait_respects_deadline(network):
+def test_source_cache_lock_wait_respects_deadline(network, monkeypatch):
     client = priors.Client(network[0], timeout=.06)
     path = '/api/check?address=' + ACTIVE
-    stripe = client.stripes[hash(path) % len(client.stripes)]
-    stripe.acquire()
-    try:
-        assert client.lookup(ACTIVE).state == 'unreachable'
-        assert stripe.locked()
-        assert network[1]['requests'] == []
-    finally:
-        stripe.release()
+    from types import SimpleNamespace
+    waits = []
+    client.clock = lambda: 100.0
+    def acquire(*, timeout):
+        waits.append(timeout)
+        return False  # The held stripe's injected budget has expired.
+    client.stripes[hash(path) % len(client.stripes)] = SimpleNamespace(acquire=acquire)
+    assert client.lookup(ACTIVE).state == 'unreachable'
+    assert waits == pytest.approx([.06])
+    assert network[1]['requests'] == []

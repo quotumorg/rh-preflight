@@ -238,9 +238,10 @@ def test_uncheckable_trade_skips(change):
     assert client.check_trade(intent, time.monotonic() + 1) is None
 
 
-def test_toll_and_hookr_trade_are_parallel(tmp_path, monkeypatch):
+def test_toll_and_hookr_trade_are_parallel(tmp_path, monkeypatch, controlled_budget):
     monkeypatch.setattr(time, 'monotonic', lambda: 100.0)
     app, intent = service(tmp_path)
+    controlled_budget(lambda name, args: False, app)
     toll_started, hookr_started = threading.Event(), threading.Event()
     response = fixture()[1]
     client = app.network.clients['hookr']

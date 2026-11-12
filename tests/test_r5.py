@@ -27,7 +27,7 @@ NEW = [wormhole, toll, dexscreener, geckoterminal, chain, offrouter]
 
 @contextmanager
 def local_http():
-    state = {'requests': [], 'mode': 'present', 'release': threading.Event(), 'chain_id': '0x1237'}
+    state = {'requests': [], 'mode': 'present', 'chain_id': '0x1237'}
     class Handler(BaseHTTPRequestHandler):
         def log_message(self, *args):
             pass
@@ -40,8 +40,6 @@ def local_http():
 
         def answer(self, payload):
             state['requests'].append((self.path, dict(self.headers), payload))
-            if state['mode'] == 'timeout':
-                state['release'].wait()
             code, body = 200, {}
             if state['mode'] == '402':
                 code, body = 402, b'payment required, not JSON'
@@ -95,7 +93,6 @@ def local_http():
     try:
         yield origin, state
     finally:
-        state['release'].set()
         server.shutdown()
         server.server_close()
         thread.join()
@@ -114,11 +111,14 @@ def target(module):
 
 @pytest.mark.parametrize('module', NEW)
 @pytest.mark.parametrize('mode', ['present', 'absent', 'malformed', '402', 'timeout'])
-def test_each_new_source_present_absent_malformed_payment_timeout(http, module, mode):
+def test_each_new_source_present_absent_malformed_payment_timeout(http, module, mode, expire_transport):
     origin, state = http
     state['mode'] = mode
     client = module.Client(origin, timeout=.04 if mode == 'timeout' else 1)
+    calls = expire_transport(client) if mode == 'timeout' else None
     reading = client.lookup(target(module))
+    if mode == 'timeout':
+        assert len(calls) == 2 and not state['requests']
     if mode == '402':
         assert reading.line == '' and len(state['requests']) == 1
     elif mode in ('malformed', 'timeout'):
@@ -153,10 +153,14 @@ def test_all_capture_lines():
 
 @pytest.mark.parametrize('kind,ident,expected', [('agent', '7622', 'card loads'), ('hook', HOOK, 'hook is upgradeable')])
 @pytest.mark.parametrize('mode', ['present', 'absent', 'malformed', '402', 'timeout'])
-def test_toll_mcp_free_tools(http, kind, ident, expected, mode):
+def test_toll_mcp_free_tools(http, kind, ident, expected, mode, expire_transport):
     origin, state = http
     state.update(mode=mode, sse=True)
-    result = toll.Client(origin, timeout=.04 if mode == 'timeout' else 1).lookup(ident, kind=kind)
+    client = toll.Client(origin, timeout=.04 if mode == 'timeout' else 1)
+    calls = expire_transport(client) if mode == 'timeout' else None
+    result = client.lookup(ident, kind=kind)
+    if mode == 'timeout':
+        assert len(calls) == 2 and not state['requests']
     assert (expected in result.line) if mode == 'present' else (result.line == '' if mode in ('absent', '402') else 'could not be reached' in result.line)
     for path, headers, payload in state['requests']:
         assert path == '/mcp' and payload['method'] == 'tools/call'
@@ -268,7 +272,7 @@ def test_name_difference_labels_both_without_judgement():
     assert 'name A, symbol B, HEY project name C' in Network.annotate(base, [row])[0].line
 
 
-def test_toll_prerequisite_does_not_wait_for_unrelated_source(monkeypatch, blocked):
+def test_toll_prerequisite_does_not_wait_for_unrelated_source(monkeypatch, blocked, controlled_budget):
     net = Network(timeout=4)
     hit = threading.Event()
     with blocked() as (gate, entered, returned):
@@ -283,6 +287,14 @@ def test_toll_prerequisite_does_not_wait_for_unrelated_source(monkeypatch, block
                     hit.set()
                 return Reading(source, 'unlisted', '')
             monkeypatch.setattr(client, 'lookup', lookup)
+        def expire():
+            assert entered.wait(30)
+            agent = [f for f in jobs if f.test_job[0] == 'agent_read']
+            assert len(agent) == 1
+            agent[0].result(timeout=30)
+            assert hit.is_set()
+        jobs = controlled_budget(lambda name, args: name == 'lookup' and args[0] == 'geckoterminal',
+                                 before_expire=expire)
         net.enrich([Card(TOKEN, 'identifier')], 'read', {}, Settings(), all_sources=True)
         assert hit.is_set() and entered.is_set() and not returned.is_set()
 

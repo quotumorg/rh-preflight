@@ -167,7 +167,7 @@ def test_wallet_request_projection(method, params):
 
 @pytest.mark.parametrize('slow', ['builder', 'toll'])
 @pytest.mark.parametrize('setting,expected', [('ask', 'approve'), ('stop', 'block'), ('note', None)])
-def test_budget_contains_slow_stub_and_on_unchecked(tmp_path, slow, setting, expected, blocked):
+def test_budget_contains_slow_stub_and_on_unchecked(tmp_path, slow, setting, expected, blocked, controlled_budget):
     service = app(tmp_path, timeout=.04, tx_timeout=.04, on_unchecked=setting, ask_payout_other=False)
     with blocked() as (wait, entered, returned):
         if slow == 'builder':
@@ -178,8 +178,10 @@ def test_budget_contains_slow_stub_and_on_unchecked(tmp_path, slow, setting, exp
             service.network.clients['toll'].check_tx = wait
             args = {'chainId': 4663, 'to': A, 'data': '0x', 'from': B, 'value': '1'}
             tool = 'unknown'
+        controlled_budget(lambda name, args: name == ('wait' if slow == 'builder' else 'simulate'),
+                          service, lambda: entered.wait(30) or pytest.fail('worker did not enter'))
         directive = service.pre_tool_call(tool, args)
-        assert not returned.is_set()
+        assert entered.is_set() and not returned.is_set()
         assert (directive['action'] if directive else None) == expected
 
 
@@ -300,11 +302,13 @@ def test_key_header_validation(header):
         Settings(toll_key_header=header)
 
 
-def test_slow_simulation_preserves_local_code_less_stop(tmp_path, blocked):
+def test_slow_simulation_preserves_local_code_less_stop(tmp_path, blocked, controlled_budget):
     service = app(tmp_path, timeout=.04, tx_timeout=.04)
     args = json.loads((FIXTURES / 'unlimited-approval-eoa' / 'request.json').read_text())
-    with blocked() as (slow, _, returned):
+    with blocked() as (slow, entered, returned):
         service.network.clients['toll'].check_tx = slow
+        controlled_budget(lambda name, args: name == 'simulate', service,
+                          lambda: entered.wait(30) or pytest.fail('simulation did not enter'))
         directive = service.pre_tool_call('unknown', args)
         assert not returned.is_set()
         assert directive['action'] == 'block'

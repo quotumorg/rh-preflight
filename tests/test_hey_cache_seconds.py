@@ -84,12 +84,15 @@ def test_config_reaches_client_and_doctor(monkeypatch, tmp_path, value, expected
 
 def test_setting_default_and_declared_schema():
     from pathlib import Path
-    import yaml
+    import re
 
     assert Settings().hey_cache_seconds == 600
-    schema = yaml.safe_load((Path(__file__).parents[1] / 'plugin.yaml').read_text())['config_schema']
-    assert schema['hey_cache_seconds']['default'] == 600
-    assert set(name for name in schema if name.startswith('hey_cache_')) == {'hey_cache_seconds'}
+    manifest = (Path(__file__).parents[1] / 'plugin.yaml').read_text()
+    schema = re.search(r'^config_schema:\n((?:[ \t].*\n|\n)*)', manifest, re.M).group(1)
+    keys = re.findall(r'^  (hey_cache_\w+):$', schema, re.M)
+    assert keys == ['hey_cache_seconds']
+    setting = re.search(r'^  hey_cache_seconds:\n((?:    .*\n)*)', schema, re.M).group(1)
+    assert re.search(r'^    default: 600$', setting, re.M)
 
 
 def hey_card(kind):

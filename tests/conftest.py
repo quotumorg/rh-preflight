@@ -60,3 +60,55 @@ def scheduled_service():
         service.executor, service.wait = Executor(), wait
         return ticks, submitted, waits
     return install
+
+
+@pytest.fixture
+def controlled_budget(monkeypatch):
+    """Explicitly expire selected jobs; all other waits only guard against hangs."""
+    import time
+    from concurrent.futures import ThreadPoolExecutor
+    from rh_preflight import hooks, network
+
+    monkeypatch.setattr(time, 'monotonic', lambda: 100.0)
+    jobs = []
+    submit = ThreadPoolExecutor.submit
+
+    def tracked(pool, fn, *args, **kwargs):
+        future = submit(pool, fn, *args, **kwargs)
+        future.test_job = (fn.__name__, args)
+        jobs.append(future)
+        return future
+
+    monkeypatch.setattr(ThreadPoolExecutor, 'submit', tracked)
+
+    def install(expired, service=None, before_expire=lambda: None):
+        def wait(future, deadline, fallback):
+            if expired(*future.test_job):
+                before_expire()
+                assert not future.done(), 'expired job must still be pending'
+                return fallback
+            return future.result(timeout=30)  # Hang guard, never a fallback verdict.
+        monkeypatch.setattr(hooks, 'budget_result', wait)
+        monkeypatch.setattr(network, 'budget_result', wait)
+        if service is not None:
+            service.clock, service.wait = time.monotonic, wait
+            for client in [service.client, *service.network.clients.values()]:
+                client.clock = time.monotonic
+        return jobs
+    return install
+
+
+@pytest.fixture
+def expire_transport(monkeypatch):
+    """A transport deadline expires on open, with no socket or wall-clock wait."""
+    from types import SimpleNamespace
+
+    def install(client):
+        ticks, calls = [100.0], []
+        client.clock = lambda: ticks[0]
+        def open(request, timeout):
+            calls.append((request, timeout))
+            raise TimeoutError('test-controlled transport deadline')
+        monkeypatch.setattr(client, 'opener', SimpleNamespace(open=open))
+        return calls
+    return install

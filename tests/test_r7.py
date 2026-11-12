@@ -172,9 +172,10 @@ def test_hookr_snapshot_is_order_independent(first, failed, monkeypatch):
 
 @pytest.mark.parametrize('failed', [False, True])
 @pytest.mark.parametrize('pool_first', [False, True])
-def test_network_hookr_pools_targets_one_index_one_line(failed, pool_first, monkeypatch):
+def test_network_hookr_pools_targets_one_index_one_line(failed, pool_first, monkeypatch, controlled_budget):
     monkeypatch.setattr(time, 'monotonic', lambda: 100.0)
     network = Network(timeout=1)
+    controlled_budget(lambda name, args: False)
     hooks = network.clients['hookr']
     hooks.clock = lambda: 100.0
     calls = []

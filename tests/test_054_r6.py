@@ -106,12 +106,12 @@ def test_limits_and_shell_parse_failures_stay_unchecked(tmp_path, args):
     assert 'transaction could not be checked' in answer['message']
 
 
-def test_megabyte_send_still_receives_transaction_budget(tmp_path, monkeypatch):
+def test_megabyte_send_still_receives_transaction_budget(tmp_path, monkeypatch, controlled_budget):
     from dataclasses import replace
     app = service(tmp_path)
     app.settings = replace(app.settings, sources={**app.settings.sources, 'toll': 'on'})
     monkeypatch.setattr(time, 'monotonic', lambda: 100.0)
-    app.clock = time.monotonic
+    controlled_budget(lambda name, args: False, app)
     remaining = []
     def check(payload, deadline, *args):
         remaining.append(deadline - time.monotonic())
