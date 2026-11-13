@@ -1,5 +1,6 @@
 """Fifth review: explicit action scope, complete pair identity and scoped keys."""
 import json
+from pathlib import Path
 
 import pytest
 
@@ -111,3 +112,16 @@ def test_unknown_warning_code_cannot_establish_decimals():
     card = value_card(response)
     assert not card.data.get(RULE)
     assert 'swap value not read: decimals' in card.data['lines']
+
+
+def test_stock_swap_tool_keeps_the_film_shape(tmp_path):
+    root = Path(__file__).parent / 'fixtures'
+    fixture = json.loads((root / 'stock-swap/nvda-buy-film.json').read_text())
+    price = json.loads((root / 'captures/r5/toll-markets-stock-nvda.json').read_text())
+    service, reads = app(tmp_path, stocks={price['address'].lower(): price}, **fixture['settings'])
+    directive, row, printed = run(service, fixture['arguments'], 'stock_swap')
+    assert directive['action'] == 'approve' and row['disposition'] == 'ask'
+    assert fixture['expected_ask'] in printed.splitlines()
+    assert fixture['expected_value'] in printed.splitlines()
+    assert row['rules'] == [RULE + ': your rule: Stock Token swap above $250.00']
+    assert len(reads) == 2
