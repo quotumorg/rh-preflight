@@ -4,10 +4,11 @@ from dataclasses import replace
 from datetime import datetime
 from decimal import Decimal, InvalidOperation, localcontext
 
-from .extract import chain_context
+from .extract import chain_context, objects
 from .hookr_swap import decode
 from .sources.common import field, money
-from .transactions import addr, integer, intent_rows, read_only_tool, execution_requested, WRITE_RPC
+from .transactions import (addr, integer, intent_rows, read_only_tool,
+                           execution_requested, typed_payload, WRITE_RPC)
 
 RULE = 'stock_swap_above_usd'
 PREFIX = 'your rule: Stock Token swap above $'
@@ -160,14 +161,20 @@ def annotate(cards, args, settings, tool_name=None):
         # Reuse the detector's simulation and read-only exclusions. Raw-only
         # action arguments have no transaction card, even in a mixed batch.
         rows = list(intent_rows(args))
+        typed_rows = {id(child) for row in rows if typed_payload(row)
+                      for child in objects(row)}
         readonly = (tool_name is not None and read_only_tool(tool_name)
                     and not execution_requested(rows)
                     and not any(row.get('method') in WRITE_RPC for row in rows))
         if not readonly:
             index = next(i for i, card in enumerate(cards) if card.kind == 'network')
             swaps += [(index, sides) for row in rows
-                      if not any(key in row for key in ('data', 'input', 'calldata'))
-                      and not any(row.get(key) is not None for key in ('amount', 'amountIn', 'amountOut', 'value', 'allowance'))
+                      if id(row) not in typed_rows
+                      and not any(key in row for key in ('data', 'input', 'calldata'))
+                      # Match the detector's first generic amount exactly. A
+                      # leading null leaves this row without a shape card.
+                      and next((row[key] for key in ('amount', 'amountIn', 'amountOut', 'value', 'allowance')
+                                if key in row), None) is None
                       if (sides := argument_sides(row))]
     result = list(cards)
     for index, sides in swaps:
