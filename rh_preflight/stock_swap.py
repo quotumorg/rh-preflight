@@ -58,7 +58,7 @@ def restrict_transactions(intents, args, settings, tool_name):
                 entries = params if isinstance(params, list) and len(params) == 1 else []
             elif 'method' not in row and 'rpc' not in row:
                 entries = [row]
-                if isinstance(row.get('command'), str) and re.match(r'^\s*cast\s+send\s', row['command']):
+                if isinstance(row.get('command'), str) and re.fullmatch(r'\s*cast[ \t]+send[ \t]+[^;&|\n\r]*\s*', row['command']):
                     supported += [intent['payload'] for intent in cast_sends(
                         {'chainId': 4663, 'command': row['command']}, settings.assume_chain)
                         if intent['payload'] is not None]
