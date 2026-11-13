@@ -25,7 +25,7 @@ def action_rows(args):
                 or isinstance(rpc, dict) and rpc.get('method') in READ_RPC | SIGN_RPC)
     if excluded(args):
         return []
-    calls = args.get('calls') if 'method' not in args and 'rpc' not in args else None
+    calls = args.get('calls') if not any(key in args for key in ('method', 'rpc', 'command')) else None
     return [row for row in [args, *(calls if isinstance(calls, list) else [])]
             if isinstance(row, dict) and not excluded(row)]
 

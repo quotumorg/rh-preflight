@@ -75,3 +75,19 @@ def test_literal_send_uses_decoded_amount_instead_of_command_metadata(tmp_path):
     assert directive is None and not row['rules']
     assert 'swap value $100.00 ' in printed
     assert 'swap value $300.00 ' not in printed
+
+
+@pytest.mark.parametrize('child', ['arguments', 'transaction'])
+@pytest.mark.parametrize('command', [
+    f'cast call {ROUTER} --data 0x --chain 4663',
+    f'cast send {ROUTER} --from {WALLET} --data 0x --chain 4663 --help',
+])
+def test_shell_command_does_not_execute_calls_metadata(tmp_path, child, command):
+    service, _ = app(tmp_path)
+    service.network.clients['toll'].check_tx = lambda *a: deepcopy(decoded())
+    nested = raw_swap() if child == 'arguments' else {
+        'chainId': 4663, 'from': WALLET, 'to': ROUTER, 'data': '0x'}
+    arguments = {'chainId': 4663, 'token': A, 'command': command, 'calls': [nested]}
+    directive, row, printed = run(service, arguments, 'terminal')
+    assert directive is None and not row['rules']
+    assert 'swap value $' not in printed
