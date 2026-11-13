@@ -1,7 +1,6 @@
 """Toll project reads and optional unsigned transaction simulation."""
 import json
 from dataclasses import replace
-import os
 import threading
 import re
 from urllib.parse import quote
@@ -14,6 +13,14 @@ TOOLS = {'agent': ('check_agent', 'id'), 'hook': ('check_hook', 'address'), 'sto
 NUMBER = r'[0-9]+(?:\.[0-9]+)?'
 # a whole check_coin answer is kept this long per address, so repeats do not spend the caller's free daily quota
 COIN_TTL = 600
+
+
+def toll_key():
+    try:
+        from agent.secret_scope import get_secret
+    except ImportError:
+        return None
+    return get_secret('TOLL_API_KEY')
 
 
 class Client(Keyless):
@@ -32,7 +39,7 @@ class Client(Keyless):
         # The one access-model assumption: an optional partner key uses this
         # header, only on the exact production host and check route.
         from urllib.parse import urlsplit
-        key = os.environ.get('TOLL_API_KEY')
+        key = toll_key()
         if key and path == '/api/tx/check' and urlsplit(self.base_url).hostname == 't0ll.xyz':
             return {getattr(self.tx_headers, 'key_header', 'x-api-key'): key}
         return {}
