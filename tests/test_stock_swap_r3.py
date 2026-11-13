@@ -1,9 +1,12 @@
 """Third hostile review: raw argument scope and complete metadata checks."""
+from copy import deepcopy
+
 import pytest
 
 from rh_preflight.stock_swap import RULE
 from test_stock_swap_above_usd import A, B, WALLET, ROUTER, ASK, app, run
 from test_stock_swap_r2 import raw_swap
+from test_stock_swap_review import decoded, value_card
 
 
 @pytest.mark.parametrize('envelope', ['standalone', 'wallet', 'flat'])
@@ -47,3 +50,60 @@ def test_null_first_generic_amount_does_not_drop_raw_swap(tmp_path, first, later
     assert sum(line.startswith('swap value $300.00 ') for line in printed.splitlines()) == 1
 
 
+@pytest.mark.parametrize('generic', [False, True])
+@pytest.mark.parametrize('conflict', ['identity', 'decimals'])
+def test_deep_argument_metadata_conflicts_are_unread(tmp_path, generic, conflict):
+    inner = {'address': B} if conflict == 'identity' else {'address': A, 'decimals': 18}
+    token = {'address': A, 'decimals': 6, 'token': {'address': A, 'token': inner}}
+    arguments = raw_swap(tokenIn=token, **({'amountIn': '3'} if generic else {}))
+    service, _ = app(tmp_path)
+    directive, row, printed = run(service, arguments)
+    assert directive is None and not row['rules']
+    assert 'swap value not read:' in printed and 'decimals' in printed
+
+
+@pytest.mark.parametrize('location', ['coins', 'warning', 'hookr', 'delta', 'side'])
+def test_deep_transaction_metadata_identity_is_unread(location):
+    response = decoded({'address': A, 'raw': '3000000'})
+    response['coins'] = []
+    bad = {'address': A, 'decimals': 6, 'token': {'address': A, 'token': B}}
+    quote = None
+    if location == 'coins':
+        response['coins'] = [bad]
+    elif location == 'warning':
+        response['warnings'] = [{'code': 'coin-careful', 'x-toll-evidence': bad}]
+    elif location == 'hookr':
+        quote = {'status': 'ok', 'pays': bad}
+    elif location == 'delta':
+        response['x-toll']['simulation']['deltas'] = [bad]
+    else:
+        response['x-toll']['decoded'][0]['sold'][0].update(bad)
+    card = value_card(response, hookr=quote)
+    assert not card.data.get(RULE)
+    assert any(line.startswith('swap value not read:') and 'decimals' in line
+               for line in card.data['lines'])
+
+
+@pytest.mark.parametrize('kind', ['swap', 'transfer'])
+@pytest.mark.parametrize('conflict', ['identity', 'decimals'])
+def test_all_decoded_row_metadata_is_checked(kind, conflict):
+    response = decoded({'address': A, 'raw': '3000000'})
+    bad = {'kind': kind, 'address': A, 'decimals': 18}
+    if conflict == 'identity':
+        bad.update(address=B, token=A, decimals=6)
+    if kind == 'swap':
+        response['x-toll']['decoded'][0].update(bad)
+    else:
+        response['x-toll']['decoded'].append(bad)
+    card = value_card(response)
+    assert not card.data.get(RULE)
+    assert 'swap value not read: decimals' in card.data['lines']
+
+
+def test_consistent_deep_metadata_remains_usable(tmp_path):
+    token = {'address': A, 'token': {'address': A, 'token': {'address': A, 'decimals': 6}}}
+    service, _ = app(tmp_path)
+    directive, _, printed = run(service, raw_swap(tokenIn=deepcopy(token)))
+    assert directive and directive['action'] == 'approve' and ASK in printed.splitlines()
+    card = value_card(decoded({**token, 'raw': '3000000'}))
+    assert card.data[RULE]

@@ -14,16 +14,27 @@ RULE = 'stock_swap_above_usd'
 PREFIX = 'your rule: Stock Token swap above $'
 
 
+def token_rows(token):
+    while isinstance(token, dict):
+        yield token
+        token = token.get('token')
+
+
+def token_addresses(token):
+    return {address for row in token_rows(token) for key in ('address', 'token')
+            if (address := addr(row.get(key)))}
+
+
 def token_address(token):
-    nested = token.get('token')
-    return addr(token.get('address')) or addr(nested.get('address') if isinstance(nested, dict) else nested)
+    for row in token_rows(token):
+        address = addr(row.get('address')) or addr(row.get('token'))
+        if address:
+            return address
+    return None
 
 
 def conflicting_identity(token):
-    nested = token.get('token')
-    nested_address = addr(nested.get('address') if isinstance(nested, dict) else nested)
-    address = addr(token.get('address'))
-    return bool(address and nested_address and address != nested_address)
+    return len(token_addresses(token)) > 1
 
 
 def raw_amount(candidates):
@@ -45,11 +56,10 @@ def argument_sides(row):
         candidates = [token['raw']] if 'raw' in token else []
         if 'amount' + side + 'Raw' in row:
             candidates.append(row['amount' + side + 'Raw'])
-        decimals = [token[k] for k in ('decimals',) if k in token]
-        nested = token.get('token')
-        if isinstance(nested, dict) and 'decimals' in nested:
-            decimals.append(nested['decimals'])
+        decimals = [entry['decimals'] for entry in token_rows(token) if 'decimals' in entry]
         decimals += [row[k] for k in ('decimals' + side, 'token' + side + 'Decimals') if k in row]
+        if conflicting_identity(token):
+            decimals.append('conflicting identity')
         token.update(address=token_address(token), direction=direction,
                      raw=None if conflicting_identity(token) else raw_amount(candidates),
                      decimals=known_decimals(decimals), _decimal_values=decimals)
@@ -94,6 +104,9 @@ def transaction_sides(intent, response, hookr, metadata):
     # to an independent quote, not this call. Deltas can include fees, rebases,
     # refunds, other transfers or several hops, even with the expected sign.
     rows = [*(response.get('coins') or []), *(x.get('coins') or [])]
+    # token_metadata also ingests each decoded row itself, including non-swaps.
+    # Inspect those originals before its first-wins projection loses conflicts.
+    rows += x.get('decoded') or []
     rows += [token for row in swaps for direction in ('sold', 'bought') for token in row.get(direction) or []]
     sim = x.get('simulation') or {}
     rows += (sim.get('effects') or sim).get('deltas', [])
@@ -106,15 +119,13 @@ def transaction_sides(intent, response, hookr, metadata):
         def collect(row):
             if not isinstance(row, dict):
                 return
-            nested = row.get('token')
             if conflicting_identity(row):
-                if address in {addr(row.get('address')), token_address({'token': nested})}:
+                if address in token_addresses(row):
                     values.append('conflicting identity')
                 return
-            if isinstance(nested, dict):
-                collect(nested)
-            if token_address(row) == address and 'decimals' in row:
-                values.append(row['decimals'])
+            for entry in token_rows(row):
+                if token_address(entry) == address and 'decimals' in entry:
+                    values.append(entry['decimals'])
         for row in [token, {'address': address, **metadata.get(address, {})}, *rows]:
             collect(row)
         token['decimals'] = known_decimals(values)
