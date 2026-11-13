@@ -1,5 +1,7 @@
 ## 0.5.6
 
+Send the optional Toll profile secret key as x-toll-pass by default.
+
 Ask before Stock Token swaps above your stock_swap_above_usd threshold, off by default, using unambiguous base-unit amounts and Toll chain prices already read for the call.
 Print the computed swap value and price read time; missing or ambiguous amount, decimals, price or read time adds a not-read line without firing the rule. Value only explicit root actions and direct calls entries, including supported transaction envelopes with decoded swap raw sides or captured exact-input calldata; nested examples, simulation hints and conflicting pair identities cannot supply a value.
 Keep note mode, cron handling and hard stops unchanged; record stock_swap_above_usd with your triggered rules.

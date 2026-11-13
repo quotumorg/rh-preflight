@@ -24,7 +24,7 @@ class Settings:
     assume_chain: int | None = None
     tool_patterns: list[str] = field(default_factory=lambda: DEFAULT_PATTERNS.copy())
     tx_check: str = "on"
-    toll_key_header: str = "x-api-key"
+    toll_key_header: str = "x-toll-pass"
     ask_payout_other: bool = True
     ask_hookr_refused: bool = True
     toll_coin_findings: str = "silent"

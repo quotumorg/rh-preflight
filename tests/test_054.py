@@ -261,15 +261,31 @@ def test_key_comes_from_hermes_secret_scope_not_environment(monkeypatch):
     monkeypatch.setitem(sys.modules, 'agent.secret_scope', None)
     assert Toll().request_headers('/api/tx/check') == {}
     names = scoped_secret(monkeypatch, 'synthetic-scoped')
-    assert Toll().request_headers('/api/tx/check') == {'x-api-key': 'synthetic-scoped'}
+    assert Toll().request_headers('/api/tx/check') == {'x-toll-pass': 'synthetic-scoped'}
     assert names == ['TOLL_API_KEY']
+
+
+
+def test_default_toll_key_header(monkeypatch):
+    assert Settings().toll_key_header == 'x-toll-pass'
+    scoped_secret(monkeypatch, 'synthetic-default-054')
+    client = Toll()
+    seen = []
+    assert client.request_headers('/api/tx/check') == {'x-toll-pass': 'synthetic-default-054'}
+    def read(path, deadline, payload):
+        seen.append(client.request_headers(path))
+        return 200, {'x-toll': {}}
+    client._read = read
+    assert client.check_tx({}, time.monotonic() + 1) == {'x-toll': {}}
+    assert seen == [{'x-toll-pass': 'synthetic-default-054'}]
+    assert 'x-api-key' not in seen[0]
 
 
 def test_key_header_only_and_absent_from_outputs(tmp_path, monkeypatch, capsys):
     secret = 'synthetic-partner-secret-054'
     scoped_secret(monkeypatch, secret)
     client = Toll()
-    assert client.request_headers('/api/tx/check') == {'x-api-key': secret}
+    assert client.request_headers('/api/tx/check') == {'x-toll-pass': secret}
     assert client.request_headers('/mcp') == {}
     client.base_url = 'http://localhost:1234'
     assert client.request_headers('/api/tx/check') == {}

@@ -36,14 +36,14 @@ class Client(Keyless):
         self.coin_stripes = [threading.Lock() for _ in range(16)]
 
     def request_headers(self, path):
-        # The one access-model assumption: an optional partner key uses this
-        # header, only on the exact production host and check route.
+        # Send the optional partner key only on the exact production host
+        # and check route.
         from urllib.parse import urlsplit
         if path != '/api/tx/check' or urlsplit(self.base_url).hostname != 't0ll.xyz':
             return {}
         key = toll_key()
         if key:
-            return {getattr(self.tx_headers, 'key_header', 'x-api-key'): key}
+            return {getattr(self.tx_headers, 'key_header', 'x-toll-pass'): key}
         return {}
 
     def _read(self, path, deadline, payload=None):
@@ -59,7 +59,7 @@ class Client(Keyless):
                 raise
             return self._read_once(path, deadline, payload)
 
-    def check_tx(self, payload, deadline, key_header="x-api-key"):
+    def check_tx(self, payload, deadline, key_header="x-toll-pass"):
         from ..hey import Unavailable
         self.tx_headers.key_header = key_header
         try:

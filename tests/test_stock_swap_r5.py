@@ -99,9 +99,9 @@ def test_missing_scoped_key_never_uses_environment(monkeypatch):
 def test_secret_is_resolved_for_each_profile_call(monkeypatch):
     client = Toll()
     scoped_secret(monkeypatch, 'synthetic-profile-one')
-    assert client.request_headers('/api/tx/check') == {'x-api-key': 'synthetic-profile-one'}
+    assert client.request_headers('/api/tx/check') == {'x-toll-pass': 'synthetic-profile-one'}
     scoped_secret(monkeypatch, 'synthetic-profile-two')
-    assert client.request_headers('/api/tx/check') == {'x-api-key': 'synthetic-profile-two'}
+    assert client.request_headers('/api/tx/check') == {'x-toll-pass': 'synthetic-profile-two'}
 
 
 def test_unknown_warning_code_cannot_establish_decimals():
