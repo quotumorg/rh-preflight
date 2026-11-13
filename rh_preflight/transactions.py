@@ -71,7 +71,7 @@ def cast_strings(value, in_typed=False):
         yield value, in_typed
 
 
-def cast_sends(args, assume_chain):
+def cast_sends(args, assume_chain, *, execution_only=False):
     """Read literal cast sends without executing, expanding or retaining secrets."""
     signatures = {'approve(address,uint256)': ('095ea7b3', ('address', 'uint')),
                   'increaseAllowance(address,uint256)': ('39509351', ('address', 'uint')),
@@ -115,6 +115,8 @@ def cast_sends(args, assume_chain):
                 else:
                     positional.append(token)
                 i += 1
+            if execution_only and {'--help', '-h', '--version', '-V'} & options.keys():
+                continue
             target = addr(positional[0]) if positional else None
             sender = addr(options.get('--from', options.get('-f')))
             payload = {'chainId': 4663, 'to': target, 'data': options.get('--data', '0x')}

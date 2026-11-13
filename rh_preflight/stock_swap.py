@@ -60,7 +60,8 @@ def restrict_transactions(intents, args, settings, tool_name):
                 entries = [row]
                 if isinstance(row.get('command'), str) and re.fullmatch(r'\s*cast[ \t]+send[ \t]+[^;&|$`()<>\n\r]*\s*', row['command']):
                     sends = list(cast_sends(
-                        {'chainId': 4663, 'command': row['command']}, settings.assume_chain))
+                        {'chainId': 4663, 'command': row['command']}, settings.assume_chain,
+                        execution_only=True))
                     if len(sends) == 1 and sends[0]['payload'] is not None:
                         supported.append(sends[0]['payload'])
             else:
