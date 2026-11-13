@@ -39,8 +39,10 @@ class Client(Keyless):
         # The one access-model assumption: an optional partner key uses this
         # header, only on the exact production host and check route.
         from urllib.parse import urlsplit
+        if path != '/api/tx/check' or urlsplit(self.base_url).hostname != 't0ll.xyz':
+            return {}
         key = toll_key()
-        if key and path == '/api/tx/check' and urlsplit(self.base_url).hostname == 't0ll.xyz':
+        if key:
             return {getattr(self.tx_headers, 'key_header', 'x-api-key'): key}
         return {}
 

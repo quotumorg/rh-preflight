@@ -235,8 +235,8 @@ def test_price_identity_is_the_verified_address_even_on_a_project_card():
     network = Card(target, 'network', {'base': Card(target, 'missing'),
         'sources': [Toll().stock(stock(), A)]})
     settings = Settings(ask_when={RULE: 250})
-    cards = annotate([card, network], {}, settings)
-    assert cards[0].data[RULE]
+    cards = annotate([card, network], args(), settings)
+    assert cards[1].data[RULE]
 
 
 def test_invalid_decoded_raw_is_not_silently_replaced_by_calldata():

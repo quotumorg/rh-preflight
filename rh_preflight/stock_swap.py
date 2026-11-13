@@ -7,7 +7,7 @@ from decimal import Decimal, InvalidOperation, localcontext
 from .extract import chain_context
 from .hookr_swap import decode
 from .sources.common import field, money
-from .transactions import addr, integer, intent_rows, read_only_tool, execution_requested, WRITE_RPC
+from .transactions import addr, integer, intent_rows, read_only_tool, execution_requested, TOLL_CODES
 
 RULE = 'stock_swap_above_usd'
 PREFIX = 'your rule: Stock Token swap above $'
@@ -48,6 +48,9 @@ def raw_amount(candidates):
 def argument_sides(row):
     if not {'tokenIn', 'tokenOut'} <= row.keys():
         return []
+    ambiguous = any(not (token_address(token) if isinstance(token, dict) else addr(token))
+                    or isinstance(token, dict) and conflicting_identity(token)
+                    for token in (row['tokenIn'], row['tokenOut']))
     sides = []
     for side, direction in (('In', 'sold'), ('Out', 'bought')):
         original = row['token' + side]
@@ -60,7 +63,7 @@ def argument_sides(row):
         if conflicting_identity(token):
             decimals.append('conflicting identity')
         token.update(address=token_address(token), direction=direction,
-                     raw=None if conflicting_identity(token) else raw_amount(candidates),
+                     raw=None if ambiguous else raw_amount(candidates),
                      decimals=known_decimals(decimals), _decimal_values=decimals)
         sides.append(token)
     return sides
@@ -91,8 +94,6 @@ def transaction_sides(intent, response, hookr, metadata):
                 token.update(address=token_address(token), direction=direction,
                              raw=raw_amount([token['raw']]) if 'raw' in token else None)
                 sides.append(token)
-    if not swaps:
-        sides = argument_sides(intent.get('shape') or {})
     spec = decode(intent)
     if not sides and spec:
         sides = [{'address': spec[direction], 'direction': direction} for direction in ('sold', 'bought')]
@@ -111,7 +112,7 @@ def transaction_sides(intent, response, hookr, metadata):
     sim = x.get('simulation') or {}
     rows += (sim.get('effects') or sim).get('deltas', [])
     rows += [(warning.get('x-toll-evidence') or {}) for warning in response.get('warnings', [])
-             if isinstance(warning, dict)]
+             if isinstance(warning, dict) and warning.get('code') in TOLL_CODES]
     if hookr.get('status') == 'ok':
         rows += [hookr.get(direction) for direction in ('pays', 'gets')]
     for token in sides:
@@ -170,21 +171,30 @@ def annotate(cards, args, settings, tool_name=None):
     swaps = [(i, card.data['swap_sides']) for i, card in enumerate(cards)
              if card.data.get('swap_sides')]
     if chain_context(args, settings.assume_chain):
-        # Reuse the detector's simulation and read-only exclusions. Raw-only
-        # action arguments have no transaction card, even in a mixed batch.
-        rows = list(intent_rows(args, skip_typed=True))
-        readonly = (tool_name is not None and read_only_tool(tool_name)
-                    and not execution_requested(rows)
-                    and not any(row.get('method') in WRITE_RPC for row in rows))
-        if not readonly:
-            index = next(i for i, card in enumerate(cards) if card.kind == 'network')
-            swaps += [(index, sides) for row in rows
-                      if not any(key in row for key in ('data', 'input', 'calldata'))
-                      # Match the detector's first generic amount exactly. A
-                      # leading null leaves this row without a shape card.
-                      and next((row[key] for key in ('amount', 'amountIn', 'amountOut', 'value', 'allowance')
-                                if key in row), None) is None
-                      if (sides := argument_sides(row))]
+        # Only the root action or direct calls entries establish argument scope.
+        # Recursive examples can explain missing data, but never supply value.
+        root = args if isinstance(args, dict) else {}
+        calls = root.get('calls')
+        supported = {id(root)} | ({id(row) for row in calls if isinstance(row, dict)}
+                                  if isinstance(calls, list) else set())
+        index = next(i for i, card in enumerate(cards) if card.kind == 'network')
+        for row in intent_rows(args, skip_typed=True):
+            if any(key in row for key in ('data', 'input', 'calldata')):
+                continue
+            if (tool_name is not None and read_only_tool(tool_name)
+                    and not execution_requested([root, row])):
+                continue
+            sides = argument_sides(row)
+            if not sides:
+                continue
+            hints = [{str(key).lower().replace('_', ''): value}
+                     for entry in (root, row) for key, value in entry.items()
+                     if str(key).lower().replace('_', '') in
+                     {'quoteonly', 'readonly', 'dryrun', 'simulateonly', 'mode', 'action', 'operation'}]
+            if (id(row) not in supported or 'method' in row
+                    or any(not execution_requested([hint]) for hint in hints)):
+                sides = [{**token, 'raw': None} for token in sides]
+            swaps.append((index, sides))
     result = list(cards)
     for index, sides in swaps:
         values, missing = [], []

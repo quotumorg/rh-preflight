@@ -1,7 +1,7 @@
 ## 0.5.6
 
 Ask before Stock Token swaps above your stock_swap_above_usd threshold, off by default, using unambiguous base-unit amounts and Toll chain prices already read for the call.
-Print the computed swap value and price read time; missing or ambiguous amount, decimals, price or read time adds a not-read line without firing the rule. Ignore read-only examples and simulated params; check raw-only swaps in mixed calls and reject conflicting metadata identities.
+Print the computed swap value and price read time; missing or ambiguous amount, decimals, price or read time adds a not-read line without firing the rule. Value explicit root actions and direct calls entries, decoded swap raw sides or supported exact-input calldata; nested examples, simulated params and conflicting pair identities cannot supply an argument amount.
 Keep note mode, cron handling and hard stops unchanged; record stock_swap_above_usd with your triggered rules.
 
 ## 0.5.5
