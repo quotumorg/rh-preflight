@@ -52,6 +52,8 @@ def restrict_transactions(intents, args, settings, tool_name):
                 continue
             rpc = row.get('rpc', row)
             if isinstance(rpc, dict) and rpc.get('method') == 'eth_sendTransaction':
+                if not execution_scope(row, rpc, None):
+                    continue
                 params = rpc.get('params')
                 entries = params if isinstance(params, list) and len(params) == 1 else []
             elif 'method' not in row and 'rpc' not in row:
