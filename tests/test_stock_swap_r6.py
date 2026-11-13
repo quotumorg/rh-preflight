@@ -92,3 +92,26 @@ def test_supported_action_ignores_serialized_examples(tmp_path):
     assert directive['action'] == 'approve' and ASK in printed.splitlines()
     assert sum(line.startswith('swap value') for line in printed.splitlines()) == 1
     assert 'swap value $300.00 ' in printed
+
+
+@pytest.mark.parametrize('flag', ['execute', 'send', 'sign', 'submit', 'broadcast'])
+@pytest.mark.parametrize('transaction', [False, True])
+def test_disabled_execution_does_not_supply_swap_value(tmp_path, flag, transaction):
+    service, _ = app(tmp_path)
+    service.network.clients['toll'].check_tx = lambda *a: deepcopy(decoded())
+    arguments = {**exact_input_single(), 'token': A} if transaction else raw_swap()
+    directive, row, printed = run(service, {**arguments, flag: False})
+    assert directive is None and not row['rules']
+    assert 'swap value not read: amount' in printed
+    assert 'swap value $' not in printed
+
+
+def test_printing_a_cast_example_is_not_a_supported_send(tmp_path):
+    service, _ = app(tmp_path)
+    service.network.clients['toll'].check_tx = lambda *a: deepcopy(decoded())
+    arguments = {'chainId': 4663, 'token': A,
+                 'command': f'echo cast send {ROUTER} --from {WALLET} --data 0x --chain 4663'}
+    directive, row, printed = run(service, arguments, 'terminal')
+    assert directive is None and not row['rules']
+    assert 'swap value not read: amount' in printed
+    assert 'swap value $' not in printed

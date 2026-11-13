@@ -3,6 +3,7 @@
 from dataclasses import replace
 from datetime import datetime
 from decimal import Decimal, InvalidOperation, localcontext
+import re
 
 from .extract import chain_context
 from .hookr_swap import decode
@@ -33,7 +34,8 @@ def execution_scope(root, row, tool_name):
     hints = [{str(key).lower().replace('_', ''): value}
              for entry in (root, row) for key, value in entry.items()
              if str(key).lower().replace('_', '') in
-             {'quoteonly', 'readonly', 'dryrun', 'simulateonly', 'mode', 'action', 'operation'}]
+             {'quoteonly', 'readonly', 'dryrun', 'simulateonly', 'mode', 'action', 'operation',
+              'execute', 'send', 'sign', 'submit', 'broadcast'}]
     return (all(execution_requested([hint]) for hint in hints)
             and (tool_name is None or not read_only_tool(tool_name)
                  or execution_requested([root, row])))
@@ -54,7 +56,7 @@ def restrict_transactions(intents, args, settings, tool_name):
                 entries = params if isinstance(params, list) and len(params) == 1 else []
             elif 'method' not in row and 'rpc' not in row:
                 entries = [row]
-                if isinstance(row.get('command'), str):
+                if isinstance(row.get('command'), str) and re.match(r'^\s*cast\s+send\s', row['command']):
                     supported += [intent['payload'] for intent in cast_sends(
                         {'chainId': 4663, 'command': row['command']}, settings.assume_chain)
                         if intent['payload'] is not None]
