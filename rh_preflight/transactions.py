@@ -166,24 +166,27 @@ WRITE_RPC = {'eth_sendTransaction', 'eth_sendRawTransaction', 'eth_signTypedData
 READ_RPC = {'eth_call', 'eth_estimateGas', 'eth_createAccessList', 'debug_traceCall', 'wallet_simulateCalls'}
 
 
-def intent_rows(value, hypothetical=False, depth=0):
+def intent_rows(value, hypothetical=False, depth=0, *, skip_typed=False):
     """Skip simulated params, while retaining independent nested write requests."""
     if depth > 24:
         raise DetectionUnreadable('nested intent limit')
     if isinstance(value, dict):
+        if skip_typed and typed_payload(value):
+            return
         method = value.get('method')
         if method in WRITE_RPC:
             hypothetical = False
         if not hypothetical and method not in READ_RPC:
             yield value
         for key, child in value.items():
-            yield from intent_rows(child, hypothetical or (method in READ_RPC and key == 'params'), depth + 1)
+            yield from intent_rows(child, hypothetical or (method in READ_RPC and key == 'params'),
+                                   depth + 1, skip_typed=skip_typed)
     elif isinstance(value, (list, tuple)):
         for child in value:
-            yield from intent_rows(child, hypothetical, depth + 1)
+            yield from intent_rows(child, hypothetical, depth + 1, skip_typed=skip_typed)
     elif isinstance(value, str):
         for parsed in json_values(value):
-            yield from intent_rows(parsed, hypothetical, depth + 1)
+            yield from intent_rows(parsed, hypothetical, depth + 1, skip_typed=skip_typed)
 
 
 def execution_requested(rows):

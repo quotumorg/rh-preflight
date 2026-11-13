@@ -1,5 +1,6 @@
 """Third hostile review: raw argument scope and complete metadata checks."""
 from copy import deepcopy
+import json
 
 import pytest
 
@@ -9,15 +10,18 @@ from test_stock_swap_r2 import raw_swap
 from test_stock_swap_review import decoded, value_card
 
 
-@pytest.mark.parametrize('envelope', ['standalone', 'wallet', 'flat'])
+@pytest.mark.parametrize('envelope', ['standalone', 'wallet', 'flat', 'embedded_json', 'wallet_json'])
 def test_raw_swap_fields_in_typed_data_are_not_a_swap(tmp_path, envelope):
     typed = {'domain': {'chainId': 4663}, 'types': {'Message': []},
              'primaryType': 'Message', 'message': raw_swap()}
-    if envelope == 'wallet':
+    if envelope in {'wallet', 'wallet_json'}:
         arguments = {'chainId': 4663, 'method': 'eth_signTypedData_v4',
-                     'params': [WALLET, typed]}
+                     'params': [WALLET, json.dumps(typed) if envelope == 'wallet_json' else typed]}
     elif envelope == 'flat':
         arguments = {**typed, **raw_swap()}
+    elif envelope == 'embedded_json':
+        typed['message'] = {'example': json.dumps(raw_swap())}
+        arguments = {'chainId': 4663, 'typed': typed}
     else:
         arguments = {'chainId': 4663, 'typed': typed}
     service, _ = app(tmp_path)
