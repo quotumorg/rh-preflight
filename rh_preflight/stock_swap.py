@@ -248,7 +248,7 @@ def annotate(cards, args, settings, tool_name=None):
             sides = argument_sides(row)
             if not sides:
                 continue
-            if 'method' in row or 'rpc' in row or not execution_scope(args, row, tool_name):
+            if any(key in row for key in ('method', 'rpc', 'command')) or not execution_scope(args, row, tool_name):
                 sides = [{**token, 'raw': None} for token in sides]
             swaps.append((index, sides))
         # A declared swap with no supported Stock Token side has no readable

@@ -5,6 +5,7 @@ import pytest
 
 from test_stock_swap_above_usd import A, WALLET, ROUTER, ASK, app, run, stock
 from test_stock_swap_review import decoded, hookr_request
+from test_stock_swap_r2 import raw_swap
 
 
 @pytest.mark.parametrize('direct_call', [False, True])
@@ -48,3 +49,29 @@ def test_help_text_as_an_option_value_keeps_a_literal_send(tmp_path):
     directive, row, printed = run(service, arguments, 'terminal')
     assert directive['action'] == 'approve' and row['disposition'] == 'ask'
     assert ASK in printed.splitlines()
+
+
+@pytest.mark.parametrize('direct_call', [False, True])
+@pytest.mark.parametrize('command', [
+    f'cast call {ROUTER} --data 0x --chain 4663',
+    f'echo cast send {ROUTER} --from {WALLET} --data 0x --chain 4663',
+    f'cast send {ROUTER} --from {WALLET} --data 0x --chain 4663 --help',
+])
+def test_command_metadata_cannot_be_a_standalone_argument_swap(tmp_path, direct_call, command):
+    service, _ = app(tmp_path)
+    action = raw_swap(command=command)
+    arguments = {'chainId': 4663, 'calls': [action]} if direct_call else action
+    directive, row, printed = run(service, arguments, 'terminal')
+    assert directive is None and not row['rules']
+    assert 'swap value not read: amount' in printed
+    assert 'swap value $' not in printed
+
+
+def test_literal_send_uses_decoded_amount_instead_of_command_metadata(tmp_path):
+    service, _ = app(tmp_path)
+    service.network.clients['toll'].check_tx = lambda *a: decoded({'address': A, 'raw': '1000000'})
+    arguments = raw_swap(command=f'cast send {ROUTER} --from {WALLET} --data 0x --chain 4663')
+    directive, row, printed = run(service, arguments, 'terminal')
+    assert directive is None and not row['rules']
+    assert 'swap value $100.00 ' in printed
+    assert 'swap value $300.00 ' not in printed
