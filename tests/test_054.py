@@ -246,9 +246,29 @@ def test_one_retry_within_same_deadline_only():
     assert client.check_tx({}, 14) is None and len(calls) == 2
 
 
+def scoped_secret(monkeypatch, value):
+    import sys, types
+    names = []
+    module = types.ModuleType('agent.secret_scope')
+    module.get_secret = lambda name, default=None: names.append(name) or value
+    monkeypatch.setitem(sys.modules, 'agent', types.ModuleType('agent'))
+    monkeypatch.setitem(sys.modules, 'agent.secret_scope', module)
+    return names
+
+
+def test_key_comes_from_hermes_secret_scope_not_environment(monkeypatch):
+    import sys
+    monkeypatch.setenv('TOLL_API_KEY', 'synthetic-env-only')
+    monkeypatch.setitem(sys.modules, 'agent.secret_scope', None)
+    assert Toll().request_headers('/api/tx/check') == {}
+    names = scoped_secret(monkeypatch, 'synthetic-scoped')
+    assert Toll().request_headers('/api/tx/check') == {'x-api-key': 'synthetic-scoped'}
+    assert names == ['TOLL_API_KEY']
+
+
 def test_key_header_only_and_absent_from_outputs(tmp_path, monkeypatch, capsys):
     secret = 'synthetic-partner-secret-054'
-    monkeypatch.setenv('TOLL_API_KEY', secret)
+    scoped_secret(monkeypatch, secret)
     client = Toll()
     assert client.request_headers('/api/tx/check') == {'x-api-key': secret}
     assert client.request_headers('/mcp') == {}
@@ -278,7 +298,7 @@ def test_new_setting_validation(field, value):
 
 
 def test_configured_key_header_is_sent_only_to_check_route(monkeypatch):
-    monkeypatch.setenv('TOLL_API_KEY', 'synthetic-header-054')
+    scoped_secret(monkeypatch, 'synthetic-header-054')
     client = Toll()
     seen = []
     class Response:
