@@ -7,10 +7,70 @@ from decimal import Decimal, InvalidOperation, localcontext
 from .extract import chain_context
 from .hookr_swap import decode
 from .sources.common import field, money
-from .transactions import addr, integer, intent_rows, read_only_tool, execution_requested, TOLL_CODES
+from .transactions import (addr, integer, typed_payload, cast_sends, tool_words,
+                           read_only_tool, execution_requested, READ_RPC, SIGN_RPC, TOLL_CODES)
 
 RULE = 'stock_swap_above_usd'
 PREFIX = 'your rule: Stock Token swap above $'
+
+
+def action_rows(args):
+    """The optional rule accepts only a root action and direct calls entries."""
+    if not isinstance(args, dict):
+        return []
+    def excluded(row):
+        rpc = row.get('rpc')
+        return (typed_payload(row) or row.get('method') in READ_RPC | SIGN_RPC
+                or isinstance(rpc, dict) and rpc.get('method') in READ_RPC | SIGN_RPC)
+    if excluded(args):
+        return []
+    calls = args.get('calls') if 'method' not in args and 'rpc' not in args else None
+    return [row for row in [args, *(calls if isinstance(calls, list) else [])]
+            if isinstance(row, dict) and not excluded(row)]
+
+
+def execution_scope(root, row, tool_name):
+    hints = [{str(key).lower().replace('_', ''): value}
+             for entry in (root, row) for key, value in entry.items()
+             if str(key).lower().replace('_', '') in
+             {'quoteonly', 'readonly', 'dryrun', 'simulateonly', 'mode', 'action', 'operation'}]
+    return (all(execution_requested([hint]) for hint in hints)
+            and (tool_name is None or not read_only_tool(tool_name)
+                 or execution_requested([root, row])))
+
+
+def restrict_transactions(intents, args, settings, tool_name):
+    """Match existing intents against only the documented execution envelopes."""
+    rows = action_rows(args)
+    commands = ' '.join(row['command'] for row in rows if isinstance(row.get('command'), str))
+    supported = []
+    if chain_context(args, settings.assume_chain, commands):
+        for row in rows:
+            if not execution_scope(args, row, tool_name):
+                continue
+            rpc = row.get('rpc', row)
+            if isinstance(rpc, dict) and rpc.get('method') == 'eth_sendTransaction':
+                params = rpc.get('params')
+                entries = params if isinstance(params, list) and len(params) == 1 else []
+            elif 'method' not in row and 'rpc' not in row:
+                entries = [row]
+                if isinstance(row.get('command'), str):
+                    supported += [intent['payload'] for intent in cast_sends(
+                        {'chainId': 4663, 'command': row['command']}, settings.assume_chain)
+                        if intent['payload'] is not None]
+            else:
+                entries = []
+            for entry in entries:
+                if (not isinstance(entry, dict) or not addr(entry.get('to'))
+                        or not any(key in entry for key in ('data', 'input', 'calldata', 'value'))
+                        or not execution_scope(row, entry, None)):
+                    continue
+                payload = {key: entry[key] for key in ('chainId', 'from', 'to', 'data', 'value') if key in entry}
+                payload['data'] = entry.get('data', entry.get('input', entry.get('calldata', '0x')))
+                payload.setdefault('chainId', 4663)
+                supported.append(payload)
+    for intent in intents:
+        intent['stock_swap_supported'] = intent['payload'] is not None and intent['payload'] in supported
 
 
 def token_rows(token):
@@ -170,31 +230,28 @@ def annotate(cards, args, settings, tool_name=None):
         return cards
     swaps = [(i, card.data['swap_sides']) for i, card in enumerate(cards)
              if card.data.get('swap_sides')]
-    if chain_context(args, settings.assume_chain):
-        # Only the root action or direct calls entries establish argument scope.
-        # Recursive examples can explain missing data, but never supply value.
-        root = args if isinstance(args, dict) else {}
-        calls = root.get('calls')
-        supported = {id(root)} | ({id(row) for row in calls if isinstance(row, dict)}
-                                  if isinstance(calls, list) else set())
+    rows = action_rows(args)
+    if rows and chain_context(args, settings.assume_chain):
         index = next(i for i, card in enumerate(cards) if card.kind == 'network')
-        for row in intent_rows(args, skip_typed=True):
+        for row in rows:
             if any(key in row for key in ('data', 'input', 'calldata')):
                 continue
             if (tool_name is not None and read_only_tool(tool_name)
-                    and not execution_requested([root, row])):
+                    and not execution_requested([args, row])):
                 continue
             sides = argument_sides(row)
             if not sides:
                 continue
-            hints = [{str(key).lower().replace('_', ''): value}
-                     for entry in (root, row) for key, value in entry.items()
-                     if str(key).lower().replace('_', '') in
-                     {'quoteonly', 'readonly', 'dryrun', 'simulateonly', 'mode', 'action', 'operation'}]
-            if (id(row) not in supported or 'method' in row
-                    or any(not execution_requested([hint]) for hint in hints)):
+            if 'method' in row or 'rpc' in row or not execution_scope(args, row, tool_name):
                 sides = [{**token, 'raw': None} for token in sides]
             swaps.append((index, sides))
+        # A declared swap with no supported Stock Token side has no readable
+        # value. Do not search arbitrary argument objects to explain that fact.
+        if (tool_name is not None and {'swap', 'buy', 'sell', 'trade'} & set(tool_words(tool_name).split('_'))
+                and not read_only_tool(tool_name)
+                and not any(card.target == 'signature on chain 4663' for card in cards)
+                and not any(addr(token.get('address')) in stocks for _, sides in swaps for token in sides)):
+            swaps.append((index, [{'address': address} for address in stocks]))
     result = list(cards)
     for index, sides in swaps:
         values, missing = [], []

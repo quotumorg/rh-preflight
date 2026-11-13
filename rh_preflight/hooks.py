@@ -20,7 +20,7 @@ from .extract import chain_context, addresses, objects, ADDRESS
 from .hookr_swap import decode as decode_hookr, ROUTER
 from .card import Card, text, plain
 from .transactions import tx_intents, local_card, project
-from .stock_swap import annotate as annotate_stock_swap
+from .stock_swap import annotate as annotate_stock_swap, restrict_transactions
 from .budget import Pool, result as budget_result
 
 
@@ -70,6 +70,8 @@ class Service:
             # A failed detector pass has no complete targets. Do not re-enter
             # failed parsers or perform source reads against partial arguments.
             check_args = {} if any(i.get('detection_failed') for i in intents) else args
+            if settings.ask_when.get('stock_swap_above_usd') is not None:
+                restrict_transactions(intents, check_args, settings, tool_name)
             targets = extract(tool_name, check_args, settings)
             wanted = list(targets.addresses + targets.repos)
             payees, agents, pools = identifiers(check_args)

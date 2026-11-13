@@ -181,14 +181,12 @@ SIGN_RPC = {'eth_signTypedData_v4', 'personal_sign'}
 READ_RPC = {'eth_call', 'eth_estimateGas', 'eth_createAccessList', 'debug_traceCall', 'wallet_simulateCalls'}
 
 
-def intent_rows(value, hypothetical=False, depth=0, *, skip_typed=False, typed_ids=None, in_typed=False):
+def intent_rows(value, hypothetical=False, depth=0, *, typed_ids=None, in_typed=False):
     """Skip simulated params, while retaining independent nested write requests."""
     if depth > 24:
         raise DetectionUnreadable('nested intent limit')
     if isinstance(value, dict):
         in_typed = in_typed or typed_payload(value) or value.get('method') in SIGN_RPC
-        if skip_typed and in_typed:
-            return
         if in_typed and typed_ids is not None:
             typed_ids.add(id(value))
         method = value.get('method')
@@ -198,14 +196,14 @@ def intent_rows(value, hypothetical=False, depth=0, *, skip_typed=False, typed_i
             yield value
         for key, child in value.items():
             yield from intent_rows(child, hypothetical or (method in READ_RPC and key == 'params'),
-                                   depth + 1, skip_typed=skip_typed, typed_ids=typed_ids, in_typed=in_typed)
+                                   depth + 1, typed_ids=typed_ids, in_typed=in_typed)
     elif isinstance(value, (list, tuple)):
         for child in value:
-            yield from intent_rows(child, hypothetical, depth + 1, skip_typed=skip_typed,
+            yield from intent_rows(child, hypothetical, depth + 1,
                                    typed_ids=typed_ids, in_typed=in_typed)
     elif isinstance(value, str):
         for parsed in json_values(value):
-            yield from intent_rows(parsed, hypothetical, depth + 1, skip_typed=skip_typed,
+            yield from intent_rows(parsed, hypothetical, depth + 1,
                                    typed_ids=typed_ids, in_typed=in_typed)
 
 
@@ -691,4 +689,6 @@ def project(card, intent, response=None, kinds=None, hookr=None, coin_findings="
             and ((intent.get('payload') or {}).get('rpc') or {}).get('method') not in SIGN_RPC):
         from .stock_swap import transaction_sides
         d['swap_sides'] = transaction_sides(intent, response, hookr, metadata)
+        if intent.get('stock_swap_supported') is False:
+            d['swap_sides'] = [{**token, 'raw': None} for token in d['swap_sides']]
     return Card(card.target, card.kind, d)
