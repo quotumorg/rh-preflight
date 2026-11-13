@@ -10,17 +10,19 @@ from test_stock_swap_r2 import raw_swap
 from test_stock_swap_review import decoded, value_card
 
 
+@pytest.mark.parametrize('generic', [False, True])
 @pytest.mark.parametrize('envelope', ['standalone', 'wallet', 'flat', 'embedded_json', 'wallet_json'])
-def test_raw_swap_fields_in_typed_data_are_not_a_swap(tmp_path, envelope):
+def test_raw_swap_fields_in_typed_data_are_not_a_swap(tmp_path, envelope, generic):
+    action = raw_swap(**({'amountIn': '3'} if generic else {}))
     typed = {'domain': {'chainId': 4663}, 'types': {'Message': []},
-             'primaryType': 'Message', 'message': raw_swap()}
+             'primaryType': 'Message', 'message': action}
     if envelope in {'wallet', 'wallet_json'}:
         arguments = {'chainId': 4663, 'method': 'eth_signTypedData_v4',
                      'params': [WALLET, json.dumps(typed) if envelope == 'wallet_json' else typed]}
     elif envelope == 'flat':
-        arguments = {**typed, **raw_swap()}
+        arguments = {**typed, **action}
     elif envelope == 'embedded_json':
-        typed['message'] = {'example': json.dumps(raw_swap())}
+        typed['message'] = {'example': json.dumps(action)}
         arguments = {'chainId': 4663, 'typed': typed}
     else:
         arguments = {'chainId': 4663, 'typed': typed}
@@ -30,14 +32,47 @@ def test_raw_swap_fields_in_typed_data_are_not_a_swap(tmp_path, envelope):
     assert 'swap value' not in printed
 
 
-def test_independent_swap_beside_typed_data_is_still_valued(tmp_path):
+@pytest.mark.parametrize('generic', [False, True])
+def test_independent_swap_beside_typed_data_is_still_valued(tmp_path, generic):
     typed = {'domain': {'chainId': 4663}, 'types': {'Message': []},
              'primaryType': 'Message', 'message': raw_swap(amountInRaw='9000000')}
     service, _ = app(tmp_path)
-    _, row, printed = run(service, {'chainId': 4663, 'calls': [typed, raw_swap()]})
+    action = raw_swap(**({'amountIn': '3'} if generic else {}))
+    _, row, printed = run(service, {'chainId': 4663, 'calls': [typed, action]})
     assert any(RULE in rule for rule in row['rules'])
     values = [line for line in printed.splitlines() if line.startswith('swap value')]
     assert len(values) == 1 and values[0].startswith('swap value $300.00 ')
+
+
+@pytest.mark.parametrize('wallet', [False, True])
+@pytest.mark.parametrize('independent', [False, True])
+def test_transaction_inside_signature_is_not_a_swap_but_independent_send_is(tmp_path, wallet, independent):
+    payload = {'chainId': 4663, 'from': WALLET, 'to': ROUTER, 'data': '0x', 'token': A}
+    example = {'method': 'eth_sendTransaction', 'params': [payload]} if wallet else payload
+    typed = {'domain': {'chainId': 4663}, 'types': {'Message': []},
+             'primaryType': 'Message', 'message': {'example': json.dumps(example)}}
+    arguments = {'chainId': 4663, 'calls': [typed, example] if independent else [typed]}
+    service, _ = app(tmp_path)
+    service.network.clients['toll'].check_tx = lambda *a: decoded()
+    _, row, printed = run(service, arguments)
+    assert any(RULE in rule for rule in row['rules']) == independent
+    assert ('swap value $300.00 ' in printed) == independent
+    assert 'swap value not read:' not in printed
+
+
+@pytest.mark.parametrize('independent', [False, True])
+def test_literal_cast_inside_signature_does_not_supply_a_swap(tmp_path, independent):
+    command = f'cast send {ROUTER} --from {WALLET} --data 0x --chain 4663'
+    typed = {'domain': {'chainId': 4663}, 'types': {'Message': []},
+             'primaryType': 'Message', 'message': {'command': command}}
+    arguments = {'chainId': 4663, 'token': A, 'typed': typed}
+    if independent:
+        arguments['command'] = command
+    service, _ = app(tmp_path)
+    service.network.clients['toll'].check_tx = lambda *a: decoded()
+    _, row, printed = run(service, arguments)
+    assert any(RULE in rule for rule in row['rules']) == independent
+    assert ('swap value $300.00 ' in printed) == independent
 
 
 @pytest.mark.parametrize('first,later', [('amount', 'amountIn'), ('amountIn', 'amountOut'),

@@ -58,6 +58,19 @@ def unlimited(value, bits=256):
     return integer(str(value).split(' ', 1)[0]) == 2 ** bits - 1
 
 
+def cast_strings(value, in_typed=False):
+    if isinstance(value, dict):
+        in_typed = in_typed or typed_payload(value)
+        for key, child in value.items():
+            yield str(key), in_typed
+            yield from cast_strings(child, in_typed)
+    elif isinstance(value, (list, tuple)):
+        for child in value:
+            yield from cast_strings(child, in_typed)
+    elif isinstance(value, str):
+        yield value, in_typed
+
+
 def cast_sends(args, assume_chain):
     """Read literal cast sends without executing, expanding or retaining secrets."""
     signatures = {'approve(address,uint256)': ('095ea7b3', ('address', 'uint')),
@@ -65,7 +78,7 @@ def cast_sends(args, assume_chain):
                   'transfer(address,uint256)': ('a9059cbb', ('address', 'uint')),
                   'transferFrom(address,address,uint256)': ('23b872dd', ('address', 'address', 'uint')),
                   'setApprovalForAll(address,bool)': ('a22cb465', ('address', 'bool'))}
-    for literal in _strings(args):
+    for literal, in_typed in cast_strings(args):
         if not re.search(r'\bcast\s+send\b', literal):
             continue
         try:
@@ -138,6 +151,7 @@ def cast_sends(args, assume_chain):
             decoded &= isinstance(payload['data'], str) and bool(re.fullmatch(r'0x(?:[0-9a-fA-F]{2})*', payload['data']))
             decoded &= 'value' not in payload or integer(payload['value']) is not None
             yield {'payload': payload if decoded else None, 'typed': None, 'sender': sender,
+                   **({'typed_scope': True} if in_typed else {}),
                    **({'unparsed_send': True} if not decoded else {})}
 
 
@@ -166,13 +180,16 @@ WRITE_RPC = {'eth_sendTransaction', 'eth_sendRawTransaction', 'eth_signTypedData
 READ_RPC = {'eth_call', 'eth_estimateGas', 'eth_createAccessList', 'debug_traceCall', 'wallet_simulateCalls'}
 
 
-def intent_rows(value, hypothetical=False, depth=0, *, skip_typed=False):
+def intent_rows(value, hypothetical=False, depth=0, *, skip_typed=False, typed_ids=None, in_typed=False):
     """Skip simulated params, while retaining independent nested write requests."""
     if depth > 24:
         raise DetectionUnreadable('nested intent limit')
     if isinstance(value, dict):
-        if skip_typed and typed_payload(value):
+        in_typed = in_typed or typed_payload(value)
+        if skip_typed and in_typed:
             return
+        if in_typed and typed_ids is not None:
+            typed_ids.add(id(value))
         method = value.get('method')
         if method in WRITE_RPC:
             hypothetical = False
@@ -180,13 +197,15 @@ def intent_rows(value, hypothetical=False, depth=0, *, skip_typed=False):
             yield value
         for key, child in value.items():
             yield from intent_rows(child, hypothetical or (method in READ_RPC and key == 'params'),
-                                   depth + 1, skip_typed=skip_typed)
+                                   depth + 1, skip_typed=skip_typed, typed_ids=typed_ids, in_typed=in_typed)
     elif isinstance(value, (list, tuple)):
         for child in value:
-            yield from intent_rows(child, hypothetical, depth + 1, skip_typed=skip_typed)
+            yield from intent_rows(child, hypothetical, depth + 1, skip_typed=skip_typed,
+                                   typed_ids=typed_ids, in_typed=in_typed)
     elif isinstance(value, str):
         for parsed in json_values(value):
-            yield from intent_rows(parsed, hypothetical, depth + 1, skip_typed=skip_typed)
+            yield from intent_rows(parsed, hypothetical, depth + 1, skip_typed=skip_typed,
+                                   typed_ids=typed_ids, in_typed=in_typed)
 
 
 def execution_requested(rows):
@@ -220,7 +239,8 @@ def unchecked_intent(**extra):
 
 def _tx_intents(args, assume_chain=None, tool_name=None):
     """Project only unsigned transaction fields or the supported wallet request."""
-    rows = list(intent_rows(args))
+    typed_ids = set()
+    rows = list(intent_rows(args, typed_ids=typed_ids))
     if len(rows) > 1024:
         raise DetectionUnreadable('intent row limit')
     explicit_write = any(row.get('method') in WRITE_RPC for row in rows)
@@ -235,9 +255,13 @@ def _tx_intents(args, assume_chain=None, tool_name=None):
             and not any(cast_sends(args, assume_chain))):
         return []
     # JSON-RPC tools commonly expose method/params directly, without rpc.
-    rows += [{'rpc': row} for row in rows if row.get('method') in
+    def scoped_row(row, original):
+        if id(original) in typed_ids:
+            typed_ids.add(id(row))
+        return row
+    rows += [scoped_row({'rpc': row}, row) for row in rows if row.get('method') in
              {'eth_sendTransaction', 'eth_signTypedData_v4', 'personal_sign'}]
-    rows += [{**tx, 'data': tx.get('data', tx.get('input', tx.get('calldata', '0x')))}
+    rows += [scoped_row({**tx, 'data': tx.get('data', tx.get('input', tx.get('calldata', '0x')))}, rpc)
              for row in rows for rpc in [row.get('rpc')]
              if isinstance(rpc, dict) and rpc.get('method') == 'eth_sendTransaction'
              and isinstance(rpc.get('params'), list)
@@ -321,9 +345,13 @@ def _tx_intents(args, assume_chain=None, tool_name=None):
                 result.append({'payload': None, 'typed': None, 'sender': addr(row.get('from')), 'unparsed_send': True})
                 continue
             payload.setdefault('chainId', 4663)
-            if any(item['payload'] == payload for item in result):
+            existing = next((item for item in result if item['payload'] == payload), None)
+            if existing is not None:
+                if id(row) not in typed_ids:
+                    existing.pop('typed_scope', None)
                 continue
-            result.append({'payload': payload, 'typed': None, 'sender': addr(row.get('from'))})
+            result.append({'payload': payload, 'typed': None, 'sender': addr(row.get('from')),
+                           **({'typed_scope': True} if id(row) in typed_ids else {})})
     # Action arguments are not an unsigned transaction. Keep their local facts,
     # but never treat an unavailable simulation as a completed check.
     for row in rows:
@@ -345,7 +373,8 @@ def _tx_intents(args, assume_chain=None, tool_name=None):
             continue
         result.append({'payload': None, 'typed': None,
                        'sender': addr(row.get('from') or row.get('wallet')),
-                       'shape': row, 'shape_kind': kind, 'shape_amount': amount})
+                       'shape': row, 'shape_kind': kind, 'shape_amount': amount,
+                       **({'typed_scope': True} if id(row) in typed_ids else {})})
     result.extend(cast_sends(args, assume_chain))
     return result
 
@@ -657,7 +686,7 @@ def project(card, intent, response=None, kinds=None, hookr=None, coin_findings="
             d['lines'].append(f'simulated sender balance change: {quantity} {label}')
     if response or intent['payload'] is not None:
         d['lines'].append('Toll · https://t0ll.xyz')
-    if stock_swap:
+    if stock_swap and not intent.get('typed_scope'):
         from .stock_swap import transaction_sides
         d['swap_sides'] = transaction_sides(intent, response, hookr, metadata)
     return Card(card.target, card.kind, d)
