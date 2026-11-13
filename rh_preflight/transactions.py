@@ -60,7 +60,7 @@ def unlimited(value, bits=256):
 
 def cast_strings(value, in_typed=False):
     if isinstance(value, dict):
-        in_typed = in_typed or typed_payload(value)
+        in_typed = in_typed or typed_payload(value) or value.get('method') in SIGN_RPC
         for key, child in value.items():
             yield str(key), in_typed
             yield from cast_strings(child, in_typed)
@@ -177,6 +177,7 @@ def read_only_tool(tool_name):
 
 
 WRITE_RPC = {'eth_sendTransaction', 'eth_sendRawTransaction', 'eth_signTypedData_v4', 'personal_sign'}
+SIGN_RPC = {'eth_signTypedData_v4', 'personal_sign'}
 READ_RPC = {'eth_call', 'eth_estimateGas', 'eth_createAccessList', 'debug_traceCall', 'wallet_simulateCalls'}
 
 
@@ -185,7 +186,7 @@ def intent_rows(value, hypothetical=False, depth=0, *, skip_typed=False, typed_i
     if depth > 24:
         raise DetectionUnreadable('nested intent limit')
     if isinstance(value, dict):
-        in_typed = in_typed or typed_payload(value)
+        in_typed = in_typed or typed_payload(value) or value.get('method') in SIGN_RPC
         if skip_typed and in_typed:
             return
         if in_typed and typed_ids is not None:
@@ -686,7 +687,8 @@ def project(card, intent, response=None, kinds=None, hookr=None, coin_findings="
             d['lines'].append(f'simulated sender balance change: {quantity} {label}')
     if response or intent['payload'] is not None:
         d['lines'].append('Toll · https://t0ll.xyz')
-    if stock_swap and not intent.get('typed_scope'):
+    if (stock_swap and not intent.get('typed_scope') and not intent.get('typed')
+            and ((intent.get('payload') or {}).get('rpc') or {}).get('method') not in SIGN_RPC):
         from .stock_swap import transaction_sides
         d['swap_sides'] = transaction_sides(intent, response, hookr, metadata)
     return Card(card.target, card.kind, d)

@@ -106,10 +106,12 @@ def transaction_sides(intent, response, hookr, metadata):
     # token_metadata also ingests each decoded row itself, including non-swaps.
     # Inspect those originals before its first-wins projection loses conflicts.
     rows += x.get('decoded') or []
-    rows += [token for row in swaps for direction in ('sold', 'bought') for token in row.get(direction) or []]
+    rows += [token for row in x.get('decoded') or [] for direction in ('sold', 'bought')
+             for token in row.get(direction) or []]
     sim = x.get('simulation') or {}
     rows += (sim.get('effects') or sim).get('deltas', [])
-    rows += [(warning.get('x-toll-evidence') or {}) for warning in response.get('warnings', [])]
+    rows += [(warning.get('x-toll-evidence') or {}) for warning in response.get('warnings', [])
+             if isinstance(warning, dict)]
     if hookr.get('status') == 'ok':
         rows += [hookr.get(direction) for direction in ('pays', 'gets')]
     for token in sides:
