@@ -55,3 +55,24 @@ def test_compound_shell_examples_cannot_supply_swap_value(tmp_path, separator, d
     assert directive is None and not row['rules']
     assert 'swap value not read: amount' in printed
     assert 'swap value $' not in printed
+
+
+@pytest.mark.parametrize('wrapper', ['$(echo {example})', '`echo {example}`', 'echo {example}'])
+@pytest.mark.parametrize('direct_call', [False, True])
+def test_shell_substitution_examples_cannot_supply_swap_value(tmp_path, wrapper, direct_call):
+    service, _ = app(tmp_path)
+    def check_tx(payload, *args):
+        if payload.get('to') == ROUTER:
+            return deepcopy(decoded())
+        return {'x-toll': {'simulation': {'status': 'success'}}}
+    service.network.clients['toll'].check_tx = check_tx
+    example = f'cast send {ROUTER} --from {WALLET} --data 0x --chain 4663 --unused foo'
+    command = (f'cast send {B} --from {WALLET} --value 0 --chain 4663 --password '
+               + wrapper.format(example=example))
+    action = {'command': command}
+    arguments = {'chainId': 4663, 'token': A}
+    arguments.update({'calls': [action]} if direct_call else action)
+    directive, row, printed = run(service, arguments, 'terminal')
+    assert directive is None and not row['rules']
+    assert 'swap value not read: amount' in printed
+    assert 'swap value $' not in printed
