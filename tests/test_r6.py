@@ -273,3 +273,11 @@ def test_matching_hey_hoodlock_read():
     own = client.lookup(DELTA)
     base = Card(DELTA, 'identifier', {'locks': capture('hey-snapshot-delta.json')['locks']})
     assert Network.annotate(base, [own]) == [own]
+
+
+@pytest.mark.parametrize('data', [{'hey_status': 'UNKNOWN', 'activity_measured': None, 'meaningful_ships_30d': 0},
+                                  {'hey_status': 'Active', 'activity_measured': False, 'meaningful_ships_30d': 0}])
+def test_unmeasured_activity_never_renders_zero_ships(data):
+    output = Card('https://github.com/example/repo', 'repo', data).render()
+    assert 'in 30 days: not measured' in output
+    assert 'in 30 days: 0' not in output

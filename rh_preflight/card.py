@@ -190,7 +190,10 @@ class Card:
         from .sources.common import plural
         count = d.get("meaningful_ships_30d")
         ships_label = plural(count, "Ship")
-        count = str(count) if type(count) is int and count >= 0 else "not measured; count not in HEY's answer"
+        if d.get("hey_status") == "UNKNOWN" or d.get("activity_measured") is False:
+            count = "not measured"
+        else:
+            count = str(count) if type(count) is int and count >= 0 else "not measured; count not in HEY's answer"
         change = d.get("latest_change") or {}
         if change:
             changed = (f"Latest change: {text(change.get('summary'))} · {stamp(change.get('occurred_at'))}"
