@@ -179,6 +179,18 @@ def test_doctor_counts_per_target_404_as_reachable(name):
     assert client.probe()['reachable'] is True
 
 
+def _source_bundle():
+    try:
+        import certifi
+        return __import__('pathlib').Path(certifi.where())
+    except ImportError:
+        paths = ssl.get_default_verify_paths()
+        for candidate in (paths.cafile, paths.openssl_cafile):
+            if candidate and __import__('pathlib').Path(candidate).is_file():
+                return __import__('pathlib').Path(candidate)
+    pytest.skip('no CA bundle on this host')
+
+
 @pytest.fixture
 def ca_environment(monkeypatch):
     for name in ('SSL_CERT_FILE', 'REQUESTS_CA_BUNDLE'):
@@ -189,10 +201,9 @@ def ca_environment(monkeypatch):
 @pytest.mark.parametrize('variable', ['SSL_CERT_FILE', 'REQUESTS_CA_BUNDLE'])
 @pytest.mark.parametrize('mode', ['missing', 'unreadable', 'valid'])
 def test_ca_override_fallback_once_and_doctor(variable, mode, ca_environment, monkeypatch, tmp_path, capsys):
-    import certifi
     bundle = tmp_path / 'bundle.pem'
     if mode != 'missing':
-        bundle.write_bytes(__import__('pathlib').Path(certifi.where()).read_bytes())
+        bundle.write_bytes(_source_bundle().read_bytes())
     if mode == 'unreadable':
         original = builtins.open
         def denied(path, *args, **kwargs):
