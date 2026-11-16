@@ -1,3 +1,7 @@
+## Unreleased
+
+send Toll's tx check the time left before the tx deadline as `budgetMs` (whole milliseconds, less a 0.4 second round trip, within Toll's 300 to 30000 bounds), on the first attempt and on the one retry. Toll answers inside it, so a coin it has not read by then arrives as the existing `Toll has not read ... yet` line beside the completed simulation, where a cut connection gave `Toll: not simulated`. No setting, default, rule or dependency changes; with too little time left the request is sent as before.
+
 ## 0.5.7
 
 print signature take amounts from Toll with exact base-unit conversion, signed limits, optional USD and recorded blocks; retain validated take facts in the ledger.

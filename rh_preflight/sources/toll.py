@@ -13,6 +13,11 @@ TOOLS = {'agent': ('check_agent', 'id'), 'hook': ('check_hook', 'address'), 'sto
 NUMBER = r'[0-9]+(?:\.[0-9]+)?'
 # a whole check_coin answer is kept this long per address, so repeats do not spend the caller's free daily quota
 COIN_TTL = 600
+# Toll's tx route takes a caller time budget in whole milliseconds and answers
+# inside it with what it has read by then. Bounds are Toll's documented ones.
+BUDGET_MIN_MS, BUDGET_MAX_MS = 300, 30000
+# Left out of the budget for the request and the reply to cross the network.
+BUDGET_ROUND_TRIP = .4
 
 
 def toll_key():
@@ -53,11 +58,27 @@ class Client(Keyless):
         # A normal swap can take 14 seconds. Do not interrupt a healthy first
         # attempt after the builder transport's two-second retry window.
         try:
-            return self._read_once(path, deadline, payload)
+            return self._read_once(path, deadline, self.budgeted(payload, deadline))
         except TemporaryUnavailable:
             if deadline - self.clock() <= .01:
                 raise
-            return self._read_once(path, deadline, payload)
+            # The retry has less time left, so it states a smaller budget.
+            return self._read_once(path, deadline, self.budgeted(payload, deadline))
+
+    def budgeted(self, payload, deadline):
+        """Add budgetMs: the time left before this deadline, less the round trip.
+
+        Toll then answers before the deadline. A coin it has not read by then is
+        the stable coin-not-read warning beside the completed simulation, in place
+        of a cut connection. Too little time left sends the request unchanged.
+        """
+        if not isinstance(payload, dict):
+            return payload
+        left = (deadline - self.clock() - BUDGET_ROUND_TRIP) * 1000
+        # The comparison is false for NaN, so an unusable clock sends no budget.
+        if not left >= BUDGET_MIN_MS:
+            return payload
+        return {**payload, 'budgetMs': round(min(left, BUDGET_MAX_MS))}
 
     def check_tx(self, payload, deadline, key_header="x-toll-pass"):
         from ..hey import Unavailable
