@@ -235,7 +235,7 @@ def test_moved_pull_completes_signature_check_but_keeps_approval(name, on_unchec
     card, _, _, response = sample(name)
     decision = evaluate([card], Settings(on_unchecked=on_unchecked))
     printed = present(card, decision).render()
-    block = response['x-toll']['take']['takes'][0]['block']
+    block = response['x-toll']['take']['takes'][0]['simulated']['block']
     assert f'Toll: pull simulated at block {block}' in printed
     assert 'not simulated' not in printed and 'could not be checked' not in printed
     assert not card.data['unchecked']
@@ -248,9 +248,11 @@ def test_moved_pull_completes_signature_check_but_keeps_approval(name, on_unchec
         assert decision.action == 'ask' and decision.rules == (SIGNATURE_TAKE_REASON,)
 
 
-def test_pull_simulation_uses_max_take_block_not_nested_simulated_block():
-    card, _, _ = pull_card([one_row(block=32), one_row(block=34), one_row(block=33)])
-    assert 'Toll: pull simulated at block 34' in card.data['lines']
+def test_pull_simulation_uses_max_simulated_block():
+    card, _, _ = pull_card([one_row(block=32, simulated={'status': 'moved', 'block': 35}),
+                            one_row(block=34, simulated={'status': 'moved', 'block': 37}),
+                            one_row(block=33, simulated={'status': 'moved', 'block': 36})])
+    assert 'Toll: pull simulated at block 37' in card.data['lines']
     assert not card.data['unchecked']
 
 

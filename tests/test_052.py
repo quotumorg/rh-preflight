@@ -41,7 +41,7 @@ def assert_source_parity(card):
 @pytest.mark.parametrize('label,color', [
     ('go', '#15803d'), ('ask', '#b45309'), ('stop', '#b91c1c'), ('note', '#4b5563'),
 ])
-@pytest.mark.parametrize('prefix', ['', 'if Hermes swapped this now: '])
+@pytest.mark.parametrize('prefix', ['', 'if Hermes swapped this now: ', 'if Hermes Agent swapped this now: '])
 def test_desktop_answer_color(label, color, prefix):
     card = {'target': 'agent:31337', 'answer': prefix + label + ' · your rule',
             'coverage': '11 sources · 11 answered', 'card': ''}
@@ -377,7 +377,7 @@ class Terminal(io.StringIO):
 
 
 @pytest.mark.parametrize('outcome,code', [('go', '32'), ('ask', '33'), ('stop', '31')])
-@pytest.mark.parametrize('prefix', ['', 'if Hermes swapped this now: '])
+@pytest.mark.parametrize('prefix', ['', 'if Hermes swapped this now: ', 'if Hermes Agent swapped this now: '])
 def test_cli_color_only_leading_outcome_on_tty(monkeypatch, outcome, code, prefix):
     monkeypatch.delenv('NO_COLOR', raising=False)
     monkeypatch.setattr(cli.sys, 'stdout', Terminal())
@@ -398,7 +398,7 @@ def test_cli_no_color_when_set_or_redirected(monkeypatch, tty, no_color):
 
 @pytest.mark.parametrize('text', ['note · rule', 'Go · rule', 'go', 'go ·', 'goose · rule',
                                  'prefix go · rule', ' go · rule', 'go - rule',
-                                 '\nask · rule', 'if Hermes swapped this now: now: stop · rule'])
+                                 '\nask · rule', 'if Hermes Agent swapped this now: now: stop · rule'])
 def test_cli_regex_leaves_other_text_unchanged(monkeypatch, text):
     monkeypatch.delenv('NO_COLOR', raising=False)
     monkeypatch.setattr(cli.sys, 'stdout', Terminal())

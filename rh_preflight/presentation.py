@@ -19,7 +19,7 @@ def answer_line(decision, read_only=False):
         if len(decision.rules) > 1:
             detail += f' +{len(decision.rules) - 1} more'
         answer = f'{label} · {detail}'
-    return ('if Hermes swapped this now: ' if read_only else '') + answer
+    return ('if Hermes Agent swapped this now: ' if read_only else '') + answer
 
 
 def source_data(card):

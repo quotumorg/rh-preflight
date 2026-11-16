@@ -102,7 +102,7 @@ def test_saved_official_membership_through_read_hook_and_ledger(tmp_path, silent
     net.clients[source]._read = read
     app = Service(settings=settings, client=Hey(), network=net, ledger=Ledger(tmp_path), presence=lambda: False)
     card = app.card(NVDA)
-    assert card.render().startswith('if Hermes swapped this now: ' + expected + ' · ')
+    assert card.render().startswith('if Hermes Agent swapped this now: ' + expected + ' · ')
     checked_coverage(card)
     assert 'HEY Research Lab: no published project' in card.render()
     args = {'chain': 4663, 'token': NVDA}

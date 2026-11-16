@@ -88,7 +88,7 @@ def test_first_answer_on_every_surface(tmp_path, capsys, outcome, label, rule_co
     ledger.add('', 'swap', [card], rules, 'ask_when', outcome)
     stored = ledger.rows()[0]['cards'][0]
     for rendered in (public['card'], slash, terminal, stored['card']):
-        assert rendered.splitlines()[0].startswith('if Hermes swapped this now: ' + label + ' · ')
+        assert rendered.splitlines()[0].startswith('if Hermes Agent swapped this now: ' + label + ' · ')
         assert rendered.splitlines()[1] == checked_coverage(card)
         if len(rules) > 1 or outcome == 'block' and rules:
             assert rendered.splitlines()[2:2 + len(rules)] == list(rules)
@@ -134,11 +134,11 @@ def test_read_is_attended_swap_and_respects_current_settings(tmp_path):
             return Card(target, 'missing')
     settings = Settings(sources={n: 'off' for n in MODULES})
     app = Service(settings=settings, client=Hey(), ledger=Ledger(tmp_path), presence=lambda: True)
-    assert app.card(ACTIVE).render().startswith('if Hermes swapped this now: ask · your rule: no HEY record\n')
+    assert app.card(ACTIVE).render().startswith('if Hermes Agent swapped this now: ask · your rule: no HEY record\n')
     app.settings = replace(settings, mode='note')
-    assert app.card(ACTIVE).render().startswith('if Hermes swapped this now: note · ')
+    assert app.card(ACTIVE).render().startswith('if Hermes Agent swapped this now: note · ')
     app.settings = replace(settings, ask_no_record=False)
-    assert app.card(ACTIVE).render().startswith('if Hermes swapped this now: go · no rule of yours fired\n')
+    assert app.card(ACTIVE).render().startswith('if Hermes Agent swapped this now: go · no rule of yours fired\n')
     assert not app.ledger.rows()
 
 

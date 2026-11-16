@@ -88,7 +88,7 @@ def test_readme_offline_card_matches_bundled_replay():
     readme = (Path(__file__).resolve().parents[1] / 'README.md').read_text()
     nvda = cards()[1]
     assert nvda.render() in readme
-    assert nvda.render().startswith('if Hermes swapped this now: ask · your rule: HEY record could not be read')
+    assert nvda.render().startswith('if Hermes Agent swapped this now: ask · your rule: HEY record could not be read')
     assert 'HEY (0.0 s)' not in nvda.render()
 
 
@@ -160,7 +160,7 @@ def test_bundled_answers_preserve_citation_without_invented_unknowns(name):
 def test_saved_priors_keeps_answer_coverage_and_citation():
     view = cards()[0].render().splitlines()
     assert view[:2] == [
-        'if Hermes swapped this now: go · no rule of yours fired',
+        'if Hermes Agent swapped this now: go · no rule of yours fired',
         '11 sources · 8 answered · 1 not for this target: Borro · off: Sherwood, OffRouter',
     ]
     payload = json.loads(capture_path('hey-builder_status-addr.json').read_text())

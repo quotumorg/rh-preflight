@@ -125,7 +125,7 @@ def walkthrough(service, execute=forbidden, multi_target=False):
     scenario = MULTI_SCENARIO if multi_target else SCENARIO
     say('offline gate replay · ' + scenario + ' · clock: ' + HEY['asOf'])
     say('rh-preflight by quotum with HEY Research Lab · https://heyresearch.xyz')
-    say('bundled captures; uncaptured sources off; temporary ledger; no Hermes prompt')
+    say('bundled captures; uncaptured sources off; temporary ledger; no Hermes Agent prompt')
     say('swap · chain 4663 · ' + (PRIORS.lower() + ', ' if multi_target else '') + TARGET)
     for line in first['message'].splitlines():
         say(line)

@@ -1,9 +1,11 @@
 name: rh-preflight
 version: 0.5.7
 requires_hermes: ">=0.23.0"
-description: "rh-preflight by quotum with HEY Research Lab. Reads builder records and ten Robinhood Chain projects; rh-preflight applies your approval rules before Hermes acts on chain 4663."
+description: "rh-preflight by quotum with HEY Research Lab. Reads builder records and ten Robinhood Chain projects; rh-preflight applies your approval rules before Hermes Agent acts on chain 4663."
 author: quotum, HEY Research Lab
 license: MIT
+known_issues:
+  - "on Hermes Agent 0.23.0/0.23.1 with Tool Search on, a deferred plugin action tool invoked through the tool_call bridge skips pre_tool_call, so the rh-preflight gate does not see the real tool; run `hermes config set tools.tool_search.enabled off` or use a newer Hermes Agent with the fix (canary >= 20261115, PR #155527)."
 provides_tools:
   - builder_card
 provides_hooks:
@@ -38,7 +40,7 @@ config_schema:
   allow_unattended:
     type: bool
     default: false
-    description: Permit detected cron calls in ask modes without a human request; non-cron asks use Hermes approval
+    description: Permit detected cron calls in ask modes without a human request; non-cron asks use Hermes Agent approval
   assume_chain:
     type: int
     description: Optional 4663 for tools without an explicit chain field
@@ -78,7 +80,7 @@ config_schema:
   timeout:
     type: float
     default: 4.0
-    description: Builder and independent-source budget in seconds, capped at 25 below the Hermes 30-second limit; restart after changing
+    description: Builder and independent-source budget in seconds, capped at 25 below the Hermes Agent 30-second limit; restart after changing
   hey_cache_seconds:
     type: float
     default: 600

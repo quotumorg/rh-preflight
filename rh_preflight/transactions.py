@@ -679,8 +679,13 @@ def project(card, intent, response=None, kinds=None, hookr=None, coin_findings="
         d['lines'].append('transaction deadline passed')
     simulated = sim.get('status') == 'success' or d['reverted'] or d['short_eth']
     if pull_simulated:
-        block = max(row['block'] for row in d['take']['takes'])
-        d['lines'].append(f'Toll: pull simulated at block {block}')
+        rows = d['take']['takes']
+        blocks = [row['simulated'].get('block') for row in rows]
+        if all(block is not None for block in blocks):
+            d['lines'].append(f'Toll: pull simulated at block {max(blocks)}')
+        else:
+            block = max(row['block'] for row in rows)
+            d['lines'].append(f'Toll: pull simulated; take read at block {block}')
     elif simulated and not d['reverted'] and not d['short_eth']:
         d['lines'].append(f"Toll: simulated at block {field(sim.get('block'))}")
     if not simulated and not pull_simulated and intent['payload'] is not None:

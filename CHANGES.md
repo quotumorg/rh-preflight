@@ -1,9 +1,13 @@
 ## 0.5.7
 
-Print what each signature lets a spender take now from Toll's take rows, with the signed limit, current balance, USD value when read and block. Keep base-unit amounts exact with Decimal, name expired signatures or used nonces, and retain take facts in the local ledger.
-When every validated take row reports a moved pull, print the latest take block as pull simulated without treating a missing transaction simulation as unchecked.
-Ask by default when a signature lets someone take funds now, recorded as signature_take. An optional take_above_usd threshold replaces that ask and asks only strictly above the configured USD value; smaller exposures stay on the card. Zero takeable amounts, expired signatures and used nonces do not fire signature_take. Unread or malformed rows name the missing read and use on_unchecked; personal_sign, existing Permit rules, note mode, cron handling and hard stops remain.
-Check the HEY project dossier before attributing a resolved address to that project. Shared contextOnly contracts carry no project name, badge or ships; a failed dossier read keeps the builder card with an ownership-not-confirmed line.
+print signature take amounts from Toll with exact base-unit conversion, signed limits, optional USD and recorded blocks; retain validated take facts in the ledger.
+accept moved pulls across every validated take row as a completed signature simulation; label simulation blocks separately from take-read blocks and keep independent incomplete reads and Permit rules.
+ask by default for positive signature take exposure, recorded as signature_take; an optional take_above_usd threshold replaces that ask and compares strictly above the summed USD value. Zero amounts, expired signatures and used nonces do not fire the rule; malformed reads use on_unchecked. Keep personal_sign, note mode, cron handling and hard stops.
+check HEY's project dossier before attributing a resolved address; contextOnly shared contracts carry no project name, badge or ships, and failed dossier reads keep the builder card with an ownership-not-confirmed line.
+page HoodLock token-lock details in batches of 20, at most 10 pages and 200 locks under one deadline; label capped totals, keep unobserved lock presence unknown and count the complete vesting index.
+probe the readers' actual paths in doctor, including chain-id POSTs, Toll stock membership and HEY and Hookr fallbacks; leave Trnch unprobed without a token.
+warn once per startup environment configuration about missing or unreadable TLS trust overrides, fall back to certifi or system trust with verification enabled and report the fix in doctor.
+on Hermes Agent 0.23.0/0.23.1 with Tool Search on, a deferred plugin action tool invoked through the tool_call bridge skips pre_tool_call, so the rh-preflight gate does not see the real tool; run `hermes config set tools.tool_search.enabled off` or use a newer Hermes Agent with the fix (canary >= 20261115, PR #155527).
 
 ## 0.5.6
 
@@ -21,7 +25,7 @@ Keep card digests unchanged by the cached HEY read age while retaining the label
 
 ## 0.5.4
 
-- Drop private Hermes approval imports. Only public cron identity triggers the cron stop or allow_unattended exception. Outside detected cron, asks now return Hermes approve directives instead of a plugin stop for absent or unreadable presence. Hermes fails closed without a human or approval bridge unless its configured unattended or single-query policy permits the call. YOLO and approvals.mode: off now bypass these asks, even with allow_unattended: false; hard stops remain unconditional.
+- Drop private Hermes Agent approval imports. Only public cron identity triggers the cron stop or allow_unattended exception. Outside detected cron, asks now return Hermes Agent approve directives instead of a plugin stop for absent or unreadable presence. Hermes Agent fails closed without a human or approval bridge unless its configured unattended or single-query policy permits the call. YOLO and approvals.mode: off now bypass these asks, even with allow_unattended: false; hard stops remain unconditional.
 
 - Document the 0.5.3 upgrade command, preserved settings and ledger, new defaults and pinned-install behavior.
 
@@ -48,13 +52,13 @@ Hookr pool refusals ask by default under ask_hookr_refused; successful reads sup
 The toll_coin_findings setting defaults to silent; line permits neutral attribution, fixed Toll figures and an available public coin link.
 Failed or unknown started Hookr wallet checks use on_unchecked; Toll metadata takes precedence over Hookr metadata.
 Transaction cards name every fired rule once, in the answer or below it, including rules summarized by +N more.
-Internal errors stop calls in every mode; the README explains Hermes directives and unattended behavior.
+Internal errors stop calls in every mode; the README explains Hermes Agent directives and unattended behavior.
 
 With toll_coin_findings: line, a token address that is not a Robinhood Stock Token gets Toll's free `check_coin` read: fixed Figures lines only (launch venue and age, maker's launch count, wallets on Toll's flag list and their share, what the maker holds now). Verdict words and finding prose are never copied. A still-reading answer, a timeout, 429, 5xx or a used-up daily quota prints nothing; a whole answer is kept ten minutes per address, maximum 512, independently of check_tx. Silent skips the free coin read. Stock Tokens never spend coin quota.
 
 ## 0.5.3
 
-Cards added to JSON tool results keep the result valid JSON, so Hermes Desktop still shows the command output.
+Cards added to JSON tool results keep the result valid JSON, so Hermes Agent Desktop still shows the command output.
 
 ## 0.5.2
 

@@ -27,7 +27,7 @@ const BUCKET = {
 }
 
 function answerStyle(answer) {
-  const label = String(answer ?? '').replace(/^if Hermes swapped this now: /, '').split(' · ')[0]
+  const label = String(answer ?? '').replace(/^if Hermes(?: Agent)? swapped this now: /, '').split(' · ')[0]
   const color = Object.hasOwn(OUTCOME, label) ? OUTCOME[label] : null
   return color ? { display: 'inline-block', padding: '4px 10px', borderRadius: '6px', background: color, color: '#fff' } : undefined
 }

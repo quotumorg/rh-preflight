@@ -12,7 +12,7 @@ def colored(text):
     # Only the outcome word, only on a terminal, and never under NO_COLOR.
     if "NO_COLOR" in os.environ or not sys.stdout.isatty():
         return text
-    return re.sub(r"^((?:if Hermes swapped this now: )?)(go|ask|stop)(?= · )",
+    return re.sub(r"^((?:if Hermes(?: Agent)? swapped this now: )?)(go|ask|stop)(?= · )",
                   lambda m: f"{m[1]}\033[1;{ANSI[m[2]]}m{m[2]}\033[0m", text, count=1)
 
 

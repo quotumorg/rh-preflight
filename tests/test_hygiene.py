@@ -84,7 +84,7 @@ def test_all_authored_user_facing_strings_follow_wording_rule():
     local_gate_copy = {
         '| `stop` | The detected call is blocked because a person cannot answer, or the local check failed. |',
         'The plugin detects literal `cast call` commands as well as writes. Its card should begin '
-        '`ask · your rule: ask before every detected action`; Hermes presents the human approval choices. '
+        '`ask · your rule: ask before every detected action`; Hermes Agent presents the human approval choices. '
         'Choose **deny**. The command is blocked before execution, so this walkthrough does not require '
         'a wallet or an installed `cast`. If the agent only explains the command, request a terminal '
         'tool call. A slash-card read cannot demonstrate this prompt.',
@@ -191,7 +191,7 @@ def test_joint_credit_on_public_surfaces():
     readme = (ROOT / 'README.md').read_text()
     assert readme.splitlines()[2] == 'rh-preflight by [quotum](https://quotum.org) with [HEY Research Lab](https://heyresearch.xyz).'
     manifest = (ROOT / 'plugin.yaml').read_text()
-    assert 'rh-preflight by quotum with HEY Research Lab. Reads builder records and ten Robinhood Chain projects; rh-preflight applies your approval rules before Hermes acts on chain 4663.' in manifest
+    assert 'rh-preflight by quotum with HEY Research Lab. Reads builder records and ten Robinhood Chain projects; rh-preflight applies your approval rules before Hermes Agent acts on chain 4663.' in manifest
     assert 'author: quotum, HEY Research Lab' in manifest
     desktop = (ROOT / 'desktop/plugin.js').read_text()
     assert desktop.count('CREDIT = "rh-preflight by quotum with HEY Research Lab"') == 1
