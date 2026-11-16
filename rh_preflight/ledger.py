@@ -33,6 +33,8 @@ class Ledger:
     def add(self, session, tool_name, cards, rules, mode, disposition):
         from .stock_swap import PREFIX, RULE
         rules = [RULE + ': ' + rule if rule.startswith(PREFIX) else rule for rule in rules]
+        from .take import PREFIX as TAKE_PREFIX, RULE as TAKE_RULE
+        rules = [TAKE_RULE + ': ' + rule if rule.startswith(TAKE_PREFIX) else rule for rule in rules]
         check_id = uuid.uuid4().hex
         conn = self._connect()
         try:

@@ -79,11 +79,19 @@ class Client(Keyless):
             for event in events:
                 parts = [line[5:].lstrip() for line in event.splitlines() if line.startswith('data:')]
                 if parts:
-                    row = json.loads('\n'.join(parts))
+                    row = self._decode_json('\n'.join(parts))
                     if isinstance(row, dict) and row.get('id') == 1:
                         return row
             raise ValueError()
-        return super()._decode(raw)
+        return self._decode_json(raw)
+
+    @staticmethod
+    def _decode_json(raw):
+        data = json.loads(raw)
+        if isinstance(data, dict) and isinstance(data.get('x-toll'), dict) and 'take' in data['x-toll']:
+            # Keep USD number tokens exact without changing other Toll schemas.
+            data['x-toll']['take'] = json.loads(raw, parse_float=str)['x-toll']['take']
+        return data
 
     def target_page(self, target=None, kind='stock', **kwargs):
         if kind == 'agent' and str(target).isdigit():

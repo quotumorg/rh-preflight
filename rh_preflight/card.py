@@ -95,7 +95,7 @@ class Card:
 
     def render(self, *, include_cache_label=True):
         rendered = self._render(include_cache_label=include_cache_label)
-        if not include_cache_label or self.cached_read_at is None or self.cache_clock is None:
+        if self.data.get("context_only") or not include_cache_label or self.cached_read_at is None or self.cache_clock is None:
             return rendered
         minutes = max(0, int((self.cache_clock() - self.cached_read_at) // 60))
         age = f"{minutes} min ago" if minutes else "under 1 min ago"
@@ -138,12 +138,19 @@ class Card:
             elif len(decision.rules) > 1 or (decision.rules and (decision.action == "block" or decision.rules[0] not in heading[0])):
                 heading.extend(decision.rules)
             base = d["base"].render(include_cache_label=include_cache_label).splitlines()
+            if d["base"].data.get('context_only') and (d.get('lines') or any(r.line for r in d.get('sources', []))):
+                base = []
             citation = d.get("citation")
             if citation and base and base[-1] == citation:
                 base.pop()
             return "\n".join(heading + [line for line in stock_lines if line not in heading] + base + d.get('lines', []) + [source_line(r) for r in d.get("sources", []) if r.line] + ([citation] if citation else []))
+        if self.kind == "context":
+            return "HEY: shared contract, not one project's own"
         if self.kind == "agent":
-            return render_agent(self.target, d)
+            rendered = render_agent(self.target, d)
+            if d.get('ownership_unconfirmed'):
+                rendered += "\nHEY: project ownership of this address not confirmed"
+            return rendered
         if self.kind == "identifier":
             return f"{text(self.target)}\nHEY not queried for agent or pool ids"
         if self.kind == "unreachable":
@@ -238,6 +245,11 @@ class Card:
                      'rules': list(decision.rules), 'sources': source_data(self)}
             if 'rule_targets' in self.data:
                 extra['rule_targets'] = self.data['rule_targets']
+        if 'take' in self.data:
+            extra['take'] = self.data['take']
+        base = self.data.get('base') if self.kind == 'network' else self
+        if base is not None and base.data.get('context_only'):
+            extra.update(context_only=True, context_reason=base.data.get('context_reason'))
         return {**extra, "target": self.target, "kind": self.kind, "card": rendered,
                 "digest": self.digest, "evidence_ids": self.evidence_ids}
 

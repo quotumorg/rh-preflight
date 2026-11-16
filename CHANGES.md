@@ -1,3 +1,9 @@
+## 0.5.7
+
+Print what each signature lets a spender take now from Toll's take rows, with the signed limit, current balance, USD value when read and block. Keep base-unit amounts exact with Decimal, name expired signatures or used nonces, and retain take facts in the local ledger.
+Ask before the sum of takeable USD exceeds your optional take_above_usd threshold, off by default. Unread or malformed rows name the missing read and use on_unchecked; existing Permit rules, note mode, cron handling and hard stops remain.
+Check the HEY project dossier before attributing a resolved address to that project. Shared contextOnly contracts carry no project name, badge or ships; a failed dossier read keeps the builder card with an ownership-not-confirmed line.
+
 ## 0.5.6
 
 Send the optional Toll profile secret key as x-toll-pass by default.

@@ -33,7 +33,8 @@ def paths(network):
 ])
 def test_one_exact_selector(network, target, project, expected):
     Client(network[0]).lookup(target, project=project)
-    assert paths(network) == [expected]
+    followup = ['/api/projects/harbor-kit'] if target.lower() == ACTIVE else []
+    assert paths(network) == [expected] + followup
 
 
 @pytest.mark.parametrize('argv', [['--project', 'hookr'], ['x', '--project', 'hookr']])

@@ -17,6 +17,12 @@ def evaluate(cards, settings, unattended=False, now=None):
     now = now or datetime.now(timezone.utc)
     rules = []
     stops = []
+    threshold = settings.ask_when.get('take_above_usd')
+    if threshold is not None:
+        from decimal import Decimal
+        from .take import total, money as take_money, PREFIX
+        if total(cards) > Decimal(str(threshold)):
+            rules.append(PREFIX + take_money(Decimal(str(threshold))))
     for card in cards:
         if card.data.get('stock_swap_above_usd') and settings.ask_when.get('stock_swap_above_usd') is not None:
             rules.append('your rule: Stock Token swap above $' + money(settings.ask_when['stock_swap_above_usd']))
@@ -77,7 +83,7 @@ def evaluate(cards, settings, unattended=False, now=None):
             if ask_no_record:
                 rules.append("your rule: no HEY record")
             continue
-        if card.kind == "missing":
+        if card.kind in {"missing", "context"}:
             if ask_no_record:
                 rules.append("your rule: no HEY record")
             continue

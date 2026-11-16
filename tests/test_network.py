@@ -203,7 +203,8 @@ def test_agent_missing_gate_fields_use_fallback(network):
     assert card.data['verified_builder'] is True
     assert 'Interface' not in card.render()
     assert 'Evidence:' not in card.render()
-    assert '/api/v1/builder?' in network[1]['requests'][1][0]
+    assert network[1]['requests'][1][0] == '/api/projects/harbor-kit'
+    assert '/api/v1/builder?' in network[1]['requests'][2][0]
 
 
 def test_research_repository_requires_exact_dossier_match(network):

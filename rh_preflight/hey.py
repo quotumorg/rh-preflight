@@ -244,7 +244,7 @@ class Client:
                 return self._error_card(target, 429, error.data, "HEY answered with a rate limit (HTTP 429)")
             except (Unavailable, TypeError, ValueError, AttributeError, KeyError):
                 return Card(target, "unreachable", {"read_error": "HEY's response did not establish a builder record"})
-            if card.kind == "unreachable":
+            if card.kind == "unreachable" or card.data.get("ownership_unconfirmed"):
                 return card
             with self.lock:
                 if self.ttl == 0:
@@ -309,6 +309,7 @@ class Client:
         except TemporaryUnavailable:
             return self._address(target, deadline) if ADDRESS.fullmatch(target) else Card(target, "unreachable")
         resolution_note = None
+        ownership = {}
         if project and (status == 404 or data.get("status") == "not_found"):
             # One name lookup can resolve a display name mistaken for a slug.
             try:
@@ -329,6 +330,10 @@ class Client:
             return card
         if status == 200 and data.get("status") == "ok":
             subject = (data.get("subject") or {}).get("project") or {}
+            if ADDRESS.fullmatch(target):
+                ownership = self._address_context(target, subject, deadline)
+                if ownership.get('context_only'):
+                    return Card(target, 'context', ownership)
             token = subject.get("token") or {}
             address = target if ADDRESS.fullmatch(target) else token.get("address") if token.get("chainId") == 4663 else None
             needs = any(card.data.get(k) is None for k in required) or card.data.get("verified_builder") is None
@@ -359,7 +364,58 @@ class Client:
                     pass
         if resolution_note:
             card = Card(target, card.kind, {**card.data, "resolution_note": resolution_note})
+        if ownership:
+            card = replace(card, data={**card.data, **ownership})
         return card
+
+    def _project_record(self, slug, deadline):
+        """Share successful dossier reads within the existing HEY cache bound."""
+        key = ('project-record', slug)
+        with self.lock:
+            cached = self.cache.get(key) if self.ttl > 0 else None
+            if cached and self.clock() - cached[0] < self.ttl:
+                self.cache.move_to_end(key)
+                return deepcopy(cached[1])
+        status, record = self._read('/api/projects/' + quote(slug, safe=''), deadline)
+        if status != 200 or not isinstance(record, dict) or not isinstance(record.get('sources'), list):
+            raise Unavailable()
+        with self.lock:
+            if self.ttl > 0:
+                self.cache[key] = (self.clock(), deepcopy(record))
+                self.cache.move_to_end(key)
+                while len(self.cache) > 512:
+                    self.cache.popitem(last=False)
+        return record
+
+    def _address_context(self, target, subject, deadline):
+        slug = subject.get('slug')
+        if not isinstance(slug, str) or not re.fullmatch(r'[a-z0-9][a-z0-9-]{0,119}', slug):
+            return {'ownership_unconfirmed': True}
+        try:
+            record = self._project_record(slug, deadline)
+        except (Unavailable, ValueError, TypeError, AttributeError):
+            return {'ownership_unconfirmed': True}
+        for source in record['sources']:
+            if not isinstance(source, dict) or source.get('contextOnly') is not True:
+                continue
+            url = source.get('url')
+            if not isinstance(url, str):
+                continue
+            try:
+                parsed = urlsplit(url)
+                if parsed.scheme not in {'http', 'https'} or not parsed.hostname or parsed.username or parsed.password:
+                    continue
+                path = parsed.path
+            except ValueError:
+                continue
+            # The final path component must be exactly one 40-hex address.
+            match = re.search(r'(?:^|/)(0x[0-9a-f]{40})$', path, re.I)
+            if match and match[1].lower() == target.lower():
+                from .card import text
+                reason = source.get('contextReason')
+                return {'context_only': True,
+                        'context_reason': text(reason)[:80] if isinstance(reason, str) else None}
+        return {}
 
     @staticmethod
     def _project_badge(record):

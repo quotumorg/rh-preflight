@@ -109,7 +109,11 @@ def test_all_authored_user_facing_strings_follow_wording_rule():
 def test_public_files_contain_no_local_paths_or_long_dashes():
     for path in public_files():
         content = public_text(path)
-        assert not any(chr(code) in content for code in (0x2013, 0x2014)), path.name
+        # Immutable upstream captures keep their punctuation; test_057 pins their hashes.
+        raw_057 = (path.is_relative_to(ROOT / 'tests' / 'fixtures' / '057')
+                   and path.suffix == '.json' and path.parent.name in {'toll-live', 'hey-live'})
+        if not raw_057:
+            assert not any(chr(code) in content for code in (0x2013, 0x2014)), path.name
         # Build the local-home prefixes so the guard itself stays portable.
         assert not re.search("/" + "(?:Users|home)/[A-Za-z]", content), path.name
 

@@ -542,6 +542,11 @@ def project(card, intent, response=None, kinds=None, hookr=None, coin_findings="
     codes = {w['code'] for w in warnings}
     metadata, add_metadata = token_metadata(response, x)
     sender = intent.get('sender')
+    if 'take' in x and ((intent.get('payload') or {}).get('rpc', {}).get('method') in SIGN_RPC or intent.get('typed')):
+        from .take import project as project_take
+        d['take'], take_lines, take_unread = project_take(x['take'])
+        d['lines'].extend(take_lines)
+        d['unchecked'] |= take_unread
     hookr = hookr if isinstance(hookr, dict) else {}
     if hookr.get('status') == 'ok':
         for name in ('pays', 'gets'):
