@@ -10,7 +10,7 @@ from datetime import datetime, timezone
 from .extract import extract
 from .hey import Client
 from .ledger import Ledger
-from .policy import evaluate
+from .policy import evaluate, SIGNATURE_TAKE_RULE, SIGNATURE_TAKE_REASON
 from .explanations import target_rules
 from .presentation import present
 from .runtime import unattended
@@ -129,8 +129,11 @@ class Service:
             cards = [present(card, decision, rule_targets=rules)
                      for card, rules in zip(cards, associations)]
             message = "\n\n".join(c.render() for c in cards)
+            ledger_rules = tuple(SIGNATURE_TAKE_RULE + ': ' + rule
+                                 if rule == SIGNATURE_TAKE_REASON else rule
+                                 for rule in decision.rules)
             check_id = self.ledger.add(kwargs.get("session_id") or kwargs.get("task_id", ""),
-                                       tool_name, cards, decision.rules, settings.mode, decision.action)
+                                       tool_name, cards, ledger_rules, settings.mode, decision.action)
             with self.lock:
                 self.pending[self._key(tool_name, args, kwargs)] = message
                 while len(self.pending) > 512:

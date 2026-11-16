@@ -6,6 +6,9 @@ from .sources.priors import LABEL as PAY_LABEL
 from .sources.sherwood import LABEL as VAULT_LABEL
 from .sources.common import money
 
+SIGNATURE_TAKE_RULE = 'signature_take'
+SIGNATURE_TAKE_REASON = 'your rule: this signature lets someone take funds'
+
 
 @dataclass(frozen=True)
 class Decision:
@@ -28,6 +31,8 @@ def evaluate(cards, settings, unattended=False, now=None):
             rules.append('your rule: Stock Token swap above $' + money(settings.ask_when['stock_swap_above_usd']))
         if card.kind == 'transaction':
             d = card.data
+            if d.get('signature_take') and threshold is None:
+                rules.append(SIGNATURE_TAKE_REASON)
             for approval in d.get('approvals', []):
                 if approval['unlimited'] and approval['kind'] == 'no code':
                     stops.append('your rule: approval for all to a spender with no code' if approval.get('all_items')

@@ -1,7 +1,8 @@
 ## 0.5.7
 
 Print what each signature lets a spender take now from Toll's take rows, with the signed limit, current balance, USD value when read and block. Keep base-unit amounts exact with Decimal, name expired signatures or used nonces, and retain take facts in the local ledger.
-Ask before the sum of takeable USD exceeds your optional take_above_usd threshold, off by default. Unread or malformed rows name the missing read and use on_unchecked; existing Permit rules, note mode, cron handling and hard stops remain.
+When every validated take row reports a moved pull, print the latest take block as pull simulated without treating a missing transaction simulation as unchecked.
+Ask by default when a signature lets someone take funds now, recorded as signature_take. An optional take_above_usd threshold replaces that ask and asks only strictly above the configured USD value; smaller exposures stay on the card. Zero takeable amounts, expired signatures and used nonces do not fire signature_take. Unread or malformed rows name the missing read and use on_unchecked; personal_sign, existing Permit rules, note mode, cron handling and hard stops remain.
 Check the HEY project dossier before attributing a resolved address to that project. Shared contextOnly contracts carry no project name, badge or ships; a failed dossier read keeps the builder card with an ownership-not-confirmed line.
 
 ## 0.5.6

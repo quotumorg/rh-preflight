@@ -542,11 +542,23 @@ def project(card, intent, response=None, kinds=None, hookr=None, coin_findings="
     codes = {w['code'] for w in warnings}
     metadata, add_metadata = token_metadata(response, x)
     sender = intent.get('sender')
-    if 'take' in x and ((intent.get('payload') or {}).get('rpc', {}).get('method') in SIGN_RPC or intent.get('typed')):
+    signing_method = (intent.get('payload') or {}).get('rpc', {}).get('method')
+    signature = signing_method in SIGN_RPC or bool(intent.get('typed'))
+    pull_simulated = False
+    if 'take' in x and signature:
         from .take import project as project_take
         d['take'], take_lines, take_unread = project_take(x['take'])
         d['lines'].extend(take_lines)
         d['unchecked'] |= take_unread
+        if signing_method != 'personal_sign':
+            rows = d['take'].get('takes', [])
+            d['signature_take'] = any(
+                row.get('status') != 'not-read' and not row['expired']
+                and row['nonceOk'] is not False and int(row['takeable']) > 0
+                for row in rows)
+            # Only a fully validated pull simulation completes this check.
+            pull_simulated = bool(rows) and not take_unread and all(
+                row.get('simulated', {}).get('status') == 'moved' for row in rows)
     hookr = hookr if isinstance(hookr, dict) else {}
     if hookr.get('status') == 'ok':
         for name in ('pays', 'gets'):
@@ -666,9 +678,12 @@ def project(card, intent, response=None, kinds=None, hookr=None, coin_findings="
     if d['expired']:
         d['lines'].append('transaction deadline passed')
     simulated = sim.get('status') == 'success' or d['reverted'] or d['short_eth']
-    if simulated and not d['reverted'] and not d['short_eth']:
+    if pull_simulated:
+        block = max(row['block'] for row in d['take']['takes'])
+        d['lines'].append(f'Toll: pull simulated at block {block}')
+    elif simulated and not d['reverted'] and not d['short_eth']:
         d['lines'].append(f"Toll: simulated at block {field(sim.get('block'))}")
-    if not simulated and intent['payload'] is not None:
+    if not simulated and not pull_simulated and intent['payload'] is not None:
         d['unchecked'] = True
         d['lines'].append('Toll: not simulated')
     for delta in effects.get('deltas', []):

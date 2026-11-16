@@ -14,7 +14,7 @@ from rh_preflight.hey import Client as Hey, TemporaryUnavailable, Unavailable, R
 from rh_preflight.hooks import Service
 from rh_preflight.ledger import Ledger
 from rh_preflight.network import MODULES
-from rh_preflight.policy import evaluate
+from rh_preflight.policy import evaluate, SIGNATURE_TAKE_REASON
 from rh_preflight.presentation import present, source_data
 from rh_preflight.settings import Settings
 from rh_preflight.sources.common import Reading
@@ -62,7 +62,7 @@ def test_live_signature_samples(name, tmp_path):
     printed = present(card, evaluate([card], Settings())).render()
     assert 'Toll:' in printed and 'ALLOW' not in printed and not WORDING.search(printed)
     assert '\x1b' not in printed and chr(0x2014) not in printed
-    assert card.data['unchecked']  # Take facts never complete the existing simulation check.
+    assert card.data['unchecked'] == (name in {'permit-zero-balance', 'personal-sign'})
     if name == 'permit-unlimited':
         assert ('Toll: this signature lets 0x1111…1111 take up to 8,324.467654 USDG '
                 '(~$8,324.47) now, signed unlimited, block 115484554') in printed
@@ -218,7 +218,181 @@ def test_sum_across_rows_and_signatures_without_float_rounding():
 @pytest.mark.parametrize('ask_when', [{}, {RULE: None}])
 def test_take_threshold_default_off(ask_when):
     card, _, _ = policy_card('9999')
-    assert evaluate([card], Settings(ask_when=ask_when)).action == 'pass'
+    decision = evaluate([card], Settings(ask_when=ask_when))
+    assert decision.action == 'ask' and decision.rules == (SIGNATURE_TAKE_REASON,)
+
+
+def pull_card(rows=None):
+    card, request, intent, response = sample('eip3009-5usdg')
+    if rows is not None:
+        response['x-toll']['take']['takes'] = rows
+    return project(local_card(intent), intent, response), request, response
+
+
+@pytest.mark.parametrize('name', ['permit-unlimited', 'eip3009-5usdg'])
+@pytest.mark.parametrize('on_unchecked', ['ask', 'stop', 'note'])
+def test_moved_pull_completes_signature_check_but_keeps_approval(name, on_unchecked):
+    card, _, _, response = sample(name)
+    decision = evaluate([card], Settings(on_unchecked=on_unchecked))
+    printed = present(card, decision).render()
+    block = response['x-toll']['take']['takes'][0]['block']
+    assert f'Toll: pull simulated at block {block}' in printed
+    assert 'not simulated' not in printed and 'could not be checked' not in printed
+    assert not card.data['unchecked']
+    assert SIGNATURE_TAKE_REASON in decision.rules
+    if name == 'permit-unlimited':
+        assert decision.action == 'block'
+        assert 'your rule: unlimited approval to a spender with no code' in decision.rules
+        assert 'your rule: Permit or Permit2 signature requires approval' in decision.rules
+    else:
+        assert decision.action == 'ask' and decision.rules == (SIGNATURE_TAKE_REASON,)
+
+
+def test_pull_simulation_uses_max_take_block_not_nested_simulated_block():
+    card, _, _ = pull_card([one_row(block=32), one_row(block=34), one_row(block=33)])
+    assert 'Toll: pull simulated at block 34' in card.data['lines']
+    assert not card.data['unchecked']
+
+
+@pytest.mark.parametrize('simulated', [None, {'status': 'nothing'}, {'status': 'no-move'},
+    {'status': 'reverted'}, {'status': 'success'}, {'status': 'unknown'}])
+def test_only_documented_moved_status_completes_pull_check(simulated):
+    card, _, _ = pull_card([one_row(), one_row(simulated=simulated)])
+    assert card.data['unchecked'] and 'Toll: not simulated' in card.data['lines']
+    assert not any('pull simulated' in line for line in card.data['lines'])
+    assert evaluate([card], Settings(on_unchecked='stop')).action == 'block'
+
+
+@pytest.mark.parametrize('generic_simulation', [False, True])
+def test_mixed_moved_and_malformed_rows_keep_unchecked(generic_simulation):
+    card, request, response = pull_card([one_row(), one_row(block='bad')])
+    if generic_simulation:
+        response['x-toll']['simulation'] = {'status': 'success', 'block': 12}
+        intent = tx_intents(request)[0]
+        card = project(local_card(intent), intent, response)
+    assert UNREAD in card.data['lines'] and card.data['unchecked']
+    assert not any('pull simulated' in line for line in card.data['lines'])
+    decision = evaluate([card], Settings())
+    assert SIGNATURE_TAKE_REASON in decision.rules
+    assert 'your rule: transaction could not be checked' in decision.rules
+
+
+@pytest.mark.parametrize('warning', ['typed-data-unread', 'coin-partly-read'])
+def test_moved_pull_preserves_independent_unchecked_reasons(warning):
+    _, request, response = pull_card()
+    response['warnings'] = [{'code': warning}]
+    intent = tx_intents(request)[0]
+    card = project(local_card(intent), intent, response)
+    assert card.data['unchecked']
+    assert any('pull simulated at block' in line for line in card.data['lines'])
+    assert 'Toll: not simulated' not in card.data['lines']
+    assert evaluate([card], Settings(on_unchecked='stop')).action == 'block'
+
+
+@pytest.mark.parametrize('changes', [dict(takeable='0'), dict(expired=True), dict(nonceOk=False),
+    dict(expired=True, nonceOk=False), dict(takeable='0', balance='0')])
+@pytest.mark.parametrize('status', ['moved', 'nothing'])
+def test_no_default_signature_take_for_zero_expired_or_used_nonce(changes, status):
+    card, _, _ = pull_card([one_row(**changes, simulated={'status': status})])
+    assert not card.data['signature_take']
+    decision = evaluate([card], Settings())
+    assert SIGNATURE_TAKE_REASON not in decision.rules
+    assert decision.action == ('pass' if status == 'moved' else 'ask')
+    assert bool(card.data['unchecked']) == (status != 'moved')
+
+
+@pytest.mark.parametrize('usd', [None, '0', '5'])
+@pytest.mark.parametrize('nonce', [None, True])
+def test_default_signature_take_uses_token_amount_without_requiring_usd(usd, nonce):
+    card, _, _ = pull_card([one_row(usd=usd, nonceOk=nonce)])
+    decision = evaluate([card], Settings())
+    assert decision.action == 'ask' and decision.rules == (SIGNATURE_TAKE_REASON,)
+
+
+@pytest.mark.parametrize('threshold,action', [(4, 'ask'), (5, 'pass'), (6, 'pass')])
+def test_threshold_replaces_default_ask_after_successful_pull(threshold, action):
+    card, _, _ = pull_card()
+    decision = evaluate([card], Settings(ask_when={RULE: threshold}, on_unchecked='stop'))
+    printed = present(card, decision).render()
+    assert decision.action == action and SIGNATURE_TAKE_REASON not in decision.rules
+    assert 'not simulated' not in printed and 'could not be checked' not in printed
+    assert 'take up to 5 USDG' in printed  # The exposure stays visible below the threshold.
+    assert decision.rules == ((PREFIX + f'{threshold:.2f}',) if action == 'ask' else ())
+
+
+@pytest.mark.parametrize('on_unchecked,action', [('ask', 'ask'), ('stop', 'block'), ('note', 'pass')])
+def test_personal_sign_and_not_read_keep_existing_behavior(on_unchecked, action):
+    personal, _, _, response = sample('personal-sign')
+    decision = evaluate([personal], Settings(on_unchecked=on_unchecked))
+    assert decision.action == action and SIGNATURE_TAKE_REASON not in decision.rules
+    assert personal.data['lines'] == ['personal_sign request on chain 4663',
+        'Toll: ' + response['x-toll']['take']['line'], 'Toll: not simulated', 'Toll · https://t0ll.xyz']
+    _, request, response = pull_card()
+    response['x-toll']['take'] = {'status': 'not-read', 'line': 'pull unavailable'}
+    intent = tx_intents(request)[0]
+    card = project(local_card(intent), intent, response)
+    assert card.data['unchecked'] and 'Toll: pull unavailable' in card.data['lines']
+    assert 'Toll: not simulated' in card.data['lines']
+    decision = evaluate([card], Settings(on_unchecked=on_unchecked))
+    assert decision.action == action and SIGNATURE_TAKE_REASON not in decision.rules
+
+
+def test_personal_sign_does_not_use_typed_signature_pull_completion():
+    _, _, intent, response = sample('personal-sign')
+    response['x-toll']['take'] = {'status': 'read', 'takes': [one_row()]}
+    card = project(local_card(intent), intent, response)
+    assert card.data['unchecked'] and not card.data.get('signature_take')
+    assert 'Toll: not simulated' in card.data['lines']
+    assert not any('pull simulated' in line for line in card.data['lines'])
+
+
+def test_transaction_cannot_use_signature_take_to_complete_simulation():
+    intent = tx_intents({'chainId': 4663, 'from': SPENDER, 'to': USDG, 'data': '0x'})[0]
+    response = {'x-toll': {'take': {'status': 'read', 'takes': [one_row()]}}}
+    card = project(local_card(intent), intent, response)
+    assert 'take' not in card.data and not card.data.get('signature_take')
+    assert card.data['unchecked'] and 'Toll: not simulated' in card.data['lines']
+
+
+def test_moved_pull_does_not_clear_missing_signer_check():
+    _, request, response = pull_card()
+    intent = tx_intents(request)[0]
+    intent['sender'] = None
+    card = project(local_card(intent), intent, response)
+    assert card.data['unchecked']
+    assert any('signing wallet not recorded' in line for line in card.data['lines'])
+    assert any('pull simulated at block' in line for line in card.data['lines'])
+    assert 'Toll: not simulated' not in card.data['lines']
+
+
+@pytest.mark.parametrize('mode,cron,allow,disposition', [
+    ('ask_when', False, False, 'ask'), ('ask_when', False, True, 'ask'),
+    ('note', False, False, 'note'), ('ask', False, False, 'ask'),
+    ('ask_when', True, False, 'block'), ('ask_when', True, True, 'pass'),
+    ('ask', True, False, 'block'), ('ask', True, True, 'pass'),
+    ('note', True, False, 'note'), ('note', True, True, 'note'),
+])
+def test_signature_take_service_ledger_and_ask_semantics(tmp_path, mode, cron, allow, disposition):
+    _, request, response = pull_card()
+    settings = Settings(mode=mode, allow_unattended=allow, on_unchecked='stop',
+        sources={s: 'off' for s in MODULES if s != 'toll'}, ask_no_record=False)
+    service = Service(settings=settings, ledger=Ledger(tmp_path), presence=lambda: cron)
+    service.client.lookup = lambda target, **kw: Card(target, 'missing')
+    service.network.clients['toll'].lookup = lambda *a, **kw: Reading('Toll', 'unlisted', '')
+    service.network.clients['toll'].check_tx = lambda *a: response
+    directive = service.pre_tool_call('wallet_sign', request)
+    row = service.ledger.rows()[0]
+    assert row['disposition'] == disposition
+    assert 'signature_take: ' + SIGNATURE_TAKE_REASON in row['rules']
+    stored = next(card for card in row['cards'] if 'take' in card)
+    assert SIGNATURE_TAKE_REASON in stored['rules']
+    assert 'not simulated' not in stored['card']
+    assert 'could not be checked' not in stored['card']
+    if disposition in {'ask', 'block'}:
+        assert directive['action'] == ('block' if disposition == 'block' else 'approve')
+        assert 'this signature lets someone take funds' in directive['message']
+    else:
+        assert directive is None
 
 
 @pytest.mark.parametrize('mode,cron,allow,disposition', [
@@ -242,6 +416,7 @@ def test_take_rule_through_service_and_ledger(tmp_path, mode, cron, allow, dispo
     else:
         assert directive is None
     assert RULE + ': ' + PREFIX + '250.00' in row['rules']
+    assert not any(rule.startswith('signature_take:') for rule in row['rules'])
     assert row['cards'][0]['take']['takes'][0]['usd'] == '300'
 
 
