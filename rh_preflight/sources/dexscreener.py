@@ -14,10 +14,14 @@ class Client(Keyless):
     def target_page(self, target=None, **kwargs):
         return self.page + "/" + target if isinstance(target, str) and ADDRESS.fullmatch(target) else self.page
 
+    @staticmethod
+    def reader_path(target):
+        return '/latest/dex/tokens/' + target
+
     def fetch(self, target, deadline, has_code=None):
         if not isinstance(target, str) or not ADDRESS.fullmatch(target):
             return Reading(self.label, 'unlisted', '')
-        data = self.read('/latest/dex/tokens/' + target, deadline)
+        data = self.read(self.reader_path(target), deadline)
         rows = data['pairs']
         if rows is not None and not isinstance(rows, list):
             raise ValueError()

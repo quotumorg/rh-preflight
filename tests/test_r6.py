@@ -96,6 +96,7 @@ def test_hoodlock_batches_and_scope():
 def test_hoodlock_cap_and_malformed_rpc():
     h, _ = wire(hoodlock)
     original = h._read
+    # Exercise the bound without assuming the original single-page limit.
     def read(path, deadline, payload=None):
         status, data = original(path, deadline, payload)
         if isinstance(payload, list) and len(payload) == 4:
@@ -106,7 +107,8 @@ def test_hoodlock_cap_and_malformed_rpc():
             data = [{**row, 'id': i+1} for i in range(20)]
         return status, data
     h._read = read
-    assert 'first 20 of 25' in h.lookup(DELTA).line
+    with patch.object(hoodlock, 'MAX_ITEMS', 20):
+        assert 'first 20 shown of 25' in h.lookup(DELTA).line
     h, _ = wire(hoodlock)
     h._read = lambda *args: (200, [{'id': 1, 'result': '0x'}, {'id': 1, 'result': '0x'}])
     assert h.lookup(DELTA).state == 'unreachable'

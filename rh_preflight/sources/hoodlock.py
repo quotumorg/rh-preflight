@@ -8,6 +8,12 @@ from .chain import Client as RPC, call, results
 from .common import plural, Reading
 
 LOCKER = '0xd0f7d8c6e9f6d80c297bebe4f7fd1b9c8125c32f'
+# The saved ABI returns complete ID arrays. Page the detail eth_calls,
+# without inventing an index pagination method or a vesting-detail selector.
+PAGE_SIZE = 20
+MAX_PAGES = 10
+MAX_ITEMS = 200
+
 VESTING = '0x910e19bcC4bce46999994Ed7297E0Fc4431ec72E'
 
 
@@ -59,19 +65,22 @@ class Client(RPC):
         block = rows[4]['result']
         if not re.fullmatch(r'0x[0-9a-fA-F]+', str(block)):
             raise ValueError()
-        selected = locks[:20]
-        detail = results(self.rpc([eth(LOCKER, '0xf4dadc61' + format(ident, '064x'), i+1, block)
-                                   for i, ident in enumerate(selected)], deadline)) if selected else {}
+        selected = locks[:min(MAX_ITEMS, PAGE_SIZE * MAX_PAGES)]
         active, withdrawn, unlocks = 0, 0, []
-        for i in range(len(selected)):
-            row = words(detail[i+1]['result'])
-            if len(row) != 5 or row[0] >= 2**160 or row[1] != int(target, 16) or row[4] not in (0, 1):
-                raise ValueError()
-            withdrawn += row[4]
-            if not row[4] and row[3] > self.wall_clock():
-                active += row[2]
-                unlocks.append(row[3])
+        for offset in range(0, len(selected), PAGE_SIZE):
+            page = selected[offset:offset + PAGE_SIZE]
+            detail = results(self.rpc([
+                eth(LOCKER, '0xf4dadc61' + format(ident, '064x'), i+1, block)
+                for i, ident in enumerate(page)], deadline))
+            for i in range(len(page)):
+                row = words(detail[i+1]['result'])
+                if len(row) != 5 or row[0] >= 2**160 or row[1] != int(target, 16) or row[4] not in (0, 1):
+                    raise ValueError()
+                withdrawn += row[4]
+                if not row[4] and row[3] > self.wall_clock():
+                    active += row[2]
+                    unlocks.append(row[3])
         percent = format(Decimal(active) * 100 / Decimal(supply[0]), '.2f')
         until = datetime.fromtimestamp(min(unlocks), timezone.utc).strftime('%Y-%m-%d') if unlocks else 'no future unlock'
-        bound = f'; first 20 of {len(locks)} locks' if len(locks) > 20 else ''
-        return Reading(self.label, 'present', f'HoodLock: {percent}% of supply locked until {until}, {withdrawn} of {len(selected)} {plural(len(selected), "lock")} already withdrawn, {len(schedules)} vesting {plural(len(schedules), "schedule")} ({scope}{bound}) · {self.page}', token_lock=bool(active) if len(locks) <= 20 or active else None)
+        bound = f'; first {len(selected)} shown of {len(locks)} locks; totals cover shown locks only' if len(locks) > len(selected) else ''
+        return Reading(self.label, 'present', f'HoodLock: {percent}% of supply locked until {until}, {withdrawn} of {len(selected)} {plural(len(selected), "lock")} already withdrawn, {len(schedules)} vesting {plural(len(schedules), "schedule")} ({scope}{bound}) · {self.page}', token_lock=bool(active) if len(locks) == len(selected) or active else None)

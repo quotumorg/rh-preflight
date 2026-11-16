@@ -10,10 +10,13 @@ class Client(Source):
     origin = "https://priors.trade"
     label = LABEL
     page = origin
-    probe_path = "/api/check?agent=1"
+
+    @staticmethod
+    def reader_path(target, agent=False):
+        return "/api/check?" + urlencode({"agent" if agent else "address": target})
 
     def fetch(self, target, deadline, agent=False):
-        return self.parse(self.read("/api/check?" + urlencode({"agent" if agent else "address": target}), deadline))
+        return self.parse(self.read(self.reader_path(target, agent=agent), deadline))
 
     def parse(self, data):
         agents = data["agents"]

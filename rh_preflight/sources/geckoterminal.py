@@ -14,9 +14,13 @@ class Client(Keyless):
     def rate_limited(self, target=None, **kwargs):
         return Reading(self.label, 'rate_limited', f'{self.label} rate-limited this read · {self.target_page(target)}')
 
+    @staticmethod
+    def reader_path(target):
+        return '/api/v2/networks/robinhood/tokens/' + target
+
     def fetch(self, target, deadline):
         if not isinstance(target, str) or not ADDRESS.fullmatch(target):
             return Reading(self.label, 'unlisted', '')
-        row = self.read('/api/v2/networks/robinhood/tokens/' + target, deadline)['data']['attributes']
+        row = self.read(self.reader_path(target), deadline)['data']['attributes']
         return Reading(self.label, 'present', f"{self.label}: FDV ${money(row['fdv_usd'])}, "
             f"CoinGecko listing {field(row['coingecko_coin_id'], 'none')} · {self.page}/{target}")

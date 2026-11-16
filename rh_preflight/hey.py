@@ -14,7 +14,7 @@ import threading
 import time
 from urllib.error import HTTPError, URLError
 from urllib.parse import quote, urlencode, urlsplit
-from urllib.request import HTTPRedirectHandler, ProxyHandler, Request, build_opener
+from urllib.request import HTTPRedirectHandler, HTTPSHandler, ProxyHandler, Request, build_opener
 
 from . import __version__
 from .card import Card, contract_card, token_card, agent_card
@@ -71,7 +71,9 @@ class Client:
         self.slots = threading.BoundedSemaphore(3)
         self.cooldown = 0.0
         self.hits = self.misses = self.requests = 0
-        self.opener = build_opener(ProxyHandler({}), NoRedirect())
+        from .trust import configuration
+        context, _ = configuration()
+        self.opener = build_opener(ProxyHandler({}), NoRedirect(), HTTPSHandler(context=context))
 
     def stats(self):
         with self.lock:
@@ -578,8 +580,10 @@ class Client:
     def probe(self):
         start = self.clock()
         try:
-            status, _ = self._read("/api/projects?limit=1", start + self.timeout)
-            reached = status == 200
+            card = self._agent("0x" + "0" * 40, start + self.timeout)
+            reached = card.kind != "unreachable"
         except Unavailable:
             reached = False
-        return {"reachable": reached, "latency_ms": round((self.clock() - start) * 1000, 2)}
+        from .trust import check
+        return {"reachable": reached, "latency_ms": round((self.clock() - start) * 1000, 2),
+                "tls_trust": check()}

@@ -27,7 +27,7 @@ class Client(Keyless):
     origin = 'https://t0ll.xyz'
     label = 'Toll'
     page = origin
-    probe_path = '/mcp'
+    probe_target = 'NVDA'
     accept = 'application/json, text/event-stream'
 
     def __init__(self, *args, **kwargs):
@@ -100,6 +100,10 @@ class Client(Keyless):
             return self.page + '/api/hook/' + target
         return self.page + '/markets/' + quote(target, safe='') if isinstance(target, str) else self.page
 
+    @staticmethod
+    def reader_path(target):
+        return '/api/markets/stock/' + quote(target, safe='')
+
     def fetch(self, target, deadline, kind='stock', coin_findings='silent'):
         if kind == 'stock':
             if not isinstance(target, str) or not re.fullmatch(r'[A-Za-z0-9.]{1,60}|0x[0-9a-fA-F]{40}', target):
@@ -107,7 +111,7 @@ class Client(Keyless):
             # This free route establishes Robinhood Stock Token membership. A
             # non-stock 404 on a ticker ends here, without calling another method.
             try:
-                data = self.read('/api/markets/stock/' + quote(target, safe=''), deadline)
+                data = self.read(self.reader_path(target), deadline)
             except Absent:
                 if not ADDRESS.fullmatch(target):
                     raise

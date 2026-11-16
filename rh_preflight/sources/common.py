@@ -50,7 +50,11 @@ class Source(Client):
     origin = ""
     label = ""
     page = ""
-    probe_path = "/"
+    probe_target = "0x" + "0" * 40
+
+    @property
+    def probe_path(self):
+        return self.reader_path(self.probe_target)
 
     def __init__(self, base_url=None, **kwargs):
         origin = base_url or self.origin
@@ -119,7 +123,10 @@ class Source(Client):
         try:
             self.read(self.probe_path, start + self.timeout, ttl=0)
             reached = True
-        except (Unavailable, ValueError, TypeError, Absent):
+        except Absent:
+            # A per-target no-record reply establishes transport reachability.
+            reached = True
+        except (Unavailable, ValueError, TypeError):
             reached = False
         return {"reachable": reached, "latency_ms": round((self.clock()-start)*1000, 2)}
 

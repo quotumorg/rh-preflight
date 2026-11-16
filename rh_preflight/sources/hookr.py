@@ -41,6 +41,16 @@ class Client(Source):
         # travel with the snapshot rather than become an empty/stale index.
         return self.lookup('', deadline=deadline)
 
+    def probe(self):
+        start = self.clock()
+        try:
+            # Registry reads and the HTML fallback must follow the reader too.
+            self.fetch('', start + self.timeout)
+            reached = True
+        except (Unavailable, KeyError, ValueError, TypeError, AttributeError):
+            reached = False
+        return {'reachable': reached, 'latency_ms': round((self.clock() - start) * 1000, 2)}
+
     def load_index(self, deadline):
         if not self.index_lock.acquire(timeout=max(0, deadline - self.clock())):
             raise Unavailable()

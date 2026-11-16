@@ -12,11 +12,15 @@ class Client(Keyless):
     def target_page(self, target=None, **kwargs):
         return self.page + "/?ca=" + target if isinstance(target, str) and ADDRESS.fullmatch(target) else self.page
 
+    @staticmethod
+    def reader_path(target):
+        return '/api/service?' + urlencode({'action': 'token', 'value': target})
+
     def fetch(self, target, deadline):
         if not ADDRESS.fullmatch(str(target)):
             return Reading(self.label, 'unlisted', '')
         page = self.page + '/?ca=' + target
-        data = self.read('/api/service?' + urlencode({'action': 'token', 'value': target}), deadline)
+        data = self.read(self.reader_path(target), deadline)
         if data['chainId'] != 4663:
             raise ValueError()
         if data['contract'] is False:

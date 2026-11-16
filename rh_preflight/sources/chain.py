@@ -46,8 +46,21 @@ class Client(Keyless):
     label = 'Robinhood Chain'
     page = 'https://robinhoodchain.blockscout.com'
 
+    reader_path = ''
+
     def rpc(self, payload, deadline):
-        return self.read('', deadline, payload=payload)
+        return self.read(self.reader_path, deadline, payload=payload)
+
+    def probe(self):
+        start = self.clock()
+        try:
+            # Always probe the same RPC URL and method as identity verification.
+            row = self.read(self.reader_path, start + self.timeout, ttl=0,
+                            payload=call('eth_chainId', []))
+            reached = row.get('result') == '0x1237'
+        except (Unavailable, ValueError, TypeError, AttributeError):
+            reached = False
+        return {'reachable': reached, 'latency_ms': round((self.clock() - start) * 1000, 2)}
 
     def verify(self, deadline):
         if not VERIFY_LOCK.acquire(timeout=max(0, deadline - self.clock())):

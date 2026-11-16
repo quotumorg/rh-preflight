@@ -12,12 +12,16 @@ class Client(Keyless):
     def target_page(self, target=None, **kwargs):
         return self.page + "/t/4663/" + target if isinstance(target, str) and ADDRESS.fullmatch(target) else self.page
 
+    @staticmethod
+    def reader_path(target):
+        return '/api/v1/token/4663/' + target
+
     def fetch(self, target, deadline, has_code=None):
         if not ADDRESS.fullmatch(target):
             return Reading(self.label, 'unlisted', '')
         page = self.page + '/t/4663/' + target
         try:
-            data = self.read('/api/v1/token/4663/' + target, deadline)
+            data = self.read(self.reader_path(target), deadline)
         except Absent as error:
             if error.data.get('observed') is not False:
                 raise

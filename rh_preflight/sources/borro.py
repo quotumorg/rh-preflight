@@ -20,10 +20,14 @@ class Client(Keyless):
     label = 'Borro'
     page = origin
 
+    @staticmethod
+    def reader_path(target=None):
+        return '/markets.json'
+
     def fetch(self, target, deadline, stock_ticker=None):
         if not isinstance(stock_ticker, str) or not re.fullmatch(r'[A-Za-z0-9.]{1,60}', stock_ticker):
             return Reading(self.label, 'unlisted', '')
-        markets = self.read('/markets.json', deadline)
+        markets = self.read(self.reader_path(target), deadline)
         if markets['chain']['id'] != 4663 or not isinstance(markets['stocks'], list):
             raise ValueError()
         market = next((row for row in markets['stocks'] if row['symbol'] == stock_ticker), None)

@@ -26,6 +26,8 @@ def setup(parser):
 
 
 def run(service, args):
+    from .trust import check
+    check()
     try:
         if args.rh_preflight_command == "card":
             project = getattr(args, "project", None)
