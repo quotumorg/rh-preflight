@@ -16,6 +16,7 @@ from urllib.error import HTTPError, URLError
 from urllib.parse import quote, urlencode, urlsplit
 from urllib.request import HTTPRedirectHandler, HTTPSHandler, ProxyHandler, Request, build_opener
 
+from .inflight import KeyedLocks
 from . import __version__
 from .card import Card, contract_card, token_card, agent_card
 from .extract import ADDRESS, normalize_repo
@@ -67,7 +68,7 @@ class Client:
         self.timeout, self.ttl, self.clock = timeout, ttl, clock
         self.cache = OrderedDict()
         self.lock = threading.RLock()
-        self.stripes = [threading.Lock() for _ in range(32)]
+        self.inflight = KeyedLocks()
         self.slots = threading.BoundedSemaphore(3)
         self.cooldown = 0.0
         self.hits = self.misses = self.requests = 0
@@ -220,10 +221,10 @@ class Client:
                 raise ValueError("Enter an address, project name or GitHub repository URL")
         required = tuple(required) if required is not None else ("verified_builder", "activity_measured", "meaningful_ships_30d")
         key = (target, project, required)
-        # Stripes bound lock memory and collapse concurrent reads of the same target.
+        # Collapse only identical cache keys; unrelated reads keep their budget.
         deadline = min(deadline, self.clock() + self.timeout) if deadline is not None else self.clock() + self.timeout
-        stripe = self.stripes[hash(target) % len(self.stripes)]
-        if not stripe.acquire(timeout=max(0, deadline - self.clock())):
+        flight_key = ('lookup', key)
+        if not self.inflight.acquire(flight_key, timeout=max(0, deadline - self.clock())):
             return Card(target, "unreachable")
         try:
             with self.lock:
@@ -258,7 +259,7 @@ class Client:
             return deepcopy(card)
 
         finally:
-            stripe.release()
+            self.inflight.release(flight_key)
 
     def attach_locks(self, card, deadline):
         """Retain only token-lock fields from a resolved project's snapshot."""

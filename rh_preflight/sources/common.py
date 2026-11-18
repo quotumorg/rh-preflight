@@ -66,8 +66,8 @@ class Source(Client):
         self.base_url = origin.rstrip("/")
 
     def read(self, path, deadline, ttl=600):
-        stripe = self.stripes[hash(path) % len(self.stripes)]
-        if not stripe.acquire(timeout=max(0, deadline - self.clock())):
+        flight_key = ('source', path)
+        if not self.inflight.acquire(flight_key, timeout=max(0, deadline - self.clock())):
             raise Unavailable()
         try:
             with self.lock:
@@ -87,7 +87,7 @@ class Source(Client):
             return data
 
         finally:
-            stripe.release()
+            self.inflight.release(flight_key)
 
     def prefetch(self, deadline=None):
         try:
@@ -141,8 +141,8 @@ class Keyless(Source):
     def read(self, path, deadline, ttl=60, payload=None):
         import json
         key = (path, json.dumps(payload, sort_keys=True))
-        stripe = self.stripes[hash(key) % len(self.stripes)]
-        if not stripe.acquire(timeout=max(0, deadline - self.clock())):
+        flight_key = ('keyless', key)
+        if not self.inflight.acquire(flight_key, timeout=max(0, deadline - self.clock())):
             raise Unavailable()
         try:
             with self.lock:
@@ -166,7 +166,7 @@ class Keyless(Source):
                 raise Absent(data)
             return data
         finally:
-            stripe.release()
+            self.inflight.release(flight_key)
 
     def lookup(self, target, deadline=None, **kwargs):
         try:

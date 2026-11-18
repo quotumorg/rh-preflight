@@ -222,13 +222,13 @@ def test_refusal_keeps_dependent_payee_rule(network, tmp_path, enabled):
 def test_source_cache_lock_wait_respects_deadline(network, monkeypatch):
     client = priors.Client(network[0], timeout=.06)
     path = '/api/check?address=' + ACTIVE
-    from types import SimpleNamespace
     waits = []
     client.clock = lambda: 100.0
-    def acquire(*, timeout):
+    def acquire(key, *, timeout):
+        assert key == ('source', path)
         waits.append(timeout)
-        return False  # The held stripe's injected budget has expired.
-    client.stripes[hash(path) % len(client.stripes)] = SimpleNamespace(acquire=acquire)
+        return False  # The held key's injected budget has expired.
+    monkeypatch.setattr(client.inflight, "acquire", acquire)
     assert client.lookup(ACTIVE).state == 'unreachable'
     assert waits == pytest.approx([.06])
     assert network[1]['requests'] == []

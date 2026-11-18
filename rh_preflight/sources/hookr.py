@@ -128,8 +128,8 @@ class Client(Source):
     def mcp(self, name, arguments, deadline, cached=False):
         """Read-only tools/call; no initialization, session state or paid follow-up."""
         key = ('mcp', name, json.dumps(arguments, sort_keys=True))
-        stripe = self.stripes[hash(key) % len(self.stripes)]
-        if not stripe.acquire(timeout=max(0, deadline - self.clock())):
+        flight_key = ('mcp', key)
+        if not self.inflight.acquire(flight_key, timeout=max(0, deadline - self.clock())):
             raise Unavailable()
         try:
             with self.lock:
@@ -170,7 +170,7 @@ class Client(Source):
                         self.mcp_cache.popitem(last=False)
             return data
         finally:
-            stripe.release()
+            self.inflight.release(flight_key)
 
     @staticmethod
     def scan_link(address):

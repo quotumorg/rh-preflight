@@ -109,7 +109,6 @@ class Client(Keyless):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.tx_headers = threading.local()
-        self.coin_stripes = [threading.Lock() for _ in range(16)]
 
     def request_headers(self, path):
         # Send the optional partner key only on the exact production host
@@ -235,8 +234,8 @@ class Client(Keyless):
         if not isinstance(target, str) or not ADDRESS.fullmatch(target):
             return silent
         target = target.lower()
-        stripe = self.coin_stripes[hash(target) % len(self.coin_stripes)]
-        if not stripe.acquire(timeout=max(0, deadline - self.clock())):
+        flight_key = ('before_buy', target)
+        if not self.inflight.acquire(flight_key, timeout=max(0, deadline - self.clock())):
             return silent
         try:
             with self.lock:
@@ -271,7 +270,7 @@ class Client(Keyless):
             return silent
         finally:
             self.tx_headers.__dict__.pop('key_header', None)
-            stripe.release()
+            self.inflight.release(flight_key)
 
     def buy_check(self, target, deadline, key_header='x-toll-pass'):
         """Establish non-stock membership first; failures add no extra line."""
@@ -320,15 +319,15 @@ class Client(Keyless):
                        stock_ticker=ticker if official else None, **facts)
 
     def coin(self, target, deadline):
-        stripe = self.coin_stripes[hash(target.lower()) % len(self.coin_stripes)]
-        if not stripe.acquire(timeout=max(0, deadline - self.clock())):
+        flight_key = ('coin', target.lower())
+        if not self.inflight.acquire(flight_key, timeout=max(0, deadline - self.clock())):
             return Reading(self.label, 'unlisted', '')
         try:
             return self._coin(target, deadline)
         except (Unavailable, Absent, KeyError, TypeError, ValueError, AttributeError, IndexError):
             return Reading(self.label, 'unlisted', '')
         finally:
-            stripe.release()
+            self.inflight.release(flight_key)
 
     def _coin(self, target, deadline):
         key = target.lower()
