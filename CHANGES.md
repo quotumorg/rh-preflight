@@ -1,3 +1,9 @@
+## 0.5.11 (unreleased)
+
+print Toll's own before-buy word beside coin reads for a bought non-Stock-Token address and builder/direct-address token cards, with a validated first reason, remaining count, WAIT seconds, read age and same-token report link.
+send one MCP call under the existing deadline, source switch, cooldown and optional key header; keep parsed non-WAIT answers ten minutes per address separately from check_coin. Stock Tokens never call it.
+print validated tx actions as `Toll: ALLOW`, `Toll: WARN` or `Toll: BLOCK`. all words are informational; no approval rule changes. MCP acceptance of the key header is unverified offline.
+
 ## 0.5.10
 
 relay Trnch's verified flag and one-line summary with a validated token-page link per its licence; retain first-seen dates, kept-out categories and independent rugged or dumped facts.
