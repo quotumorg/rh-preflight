@@ -1,4 +1,4 @@
-## 0.5.10 (unreleased)
+## 0.5.10
 
 relay Trnch's verified flag and one-line summary with a validated token-page link per its licence; retain first-seen dates, kept-out categories and independent rugged or dumped facts.
 keep the legacy line when new fields are absent; unknown stays unlisted even when verified. no approval rule changes.
