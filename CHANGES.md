@@ -1,4 +1,4 @@
-## 0.5.9 (unreleased)
+## 0.5.9
 
 read HoodLock's keyless LP API under the existing source switch, deadline and cache, preserving released token-lock paging and approval rules.
 print informational future locked v2/v3/v4 positions grouped by pool, API USD when complete, earliest unlock and the validated proof link of the position that unlocks first.
