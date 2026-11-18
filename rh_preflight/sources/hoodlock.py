@@ -140,7 +140,7 @@ class Client(RPC):
             proof = rows[largest].get('proof')
             link = (f' · {proof}' if isinstance(proof, str) and re.fullmatch(
                 r'https://hoodlock\.tech/proof/position/[0-9]+', proof) else '')
-            lines.append(f'HoodLock LP: {len(rows)} locked {plural(len(rows), "position")} in {symbols}{usd} until {until}{partial}{link}')
+            lines.append(f'HoodLock LP: {len(rows)} locked {plural(len(rows), "position")} in {symbols}{usd}, first unlock {until}{partial}{link}')
         if partial and not lines:
             lines.append('HoodLock LP: incomplete API result')
         return lines

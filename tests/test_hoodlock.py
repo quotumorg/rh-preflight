@@ -62,12 +62,12 @@ def test_saved_sample_missing_value_and_aggregate_before_rounding(sample):
     shi = sample['locks'][0]['token1']
     client, _, _ = wire(sample, target=shi)
     row = client.lookup(shi)
-    assert row.line.splitlines()[1] == ('HoodLock LP: 1 locked position in WETH/SHI until 2027-10-05'
+    assert row.line.splitlines()[1] == ('HoodLock LP: 1 locked position in WETH/SHI, first unlock 2027-10-05'
                                       ' · https://hoodlock.tech/proof/position/1')
     lock = sample['locks'][-1]['token1']
     client, _, _ = wire(sample, target=lock)
     assert client.lookup(lock).line.splitlines()[1] == (
-        'HoodLock LP: 3 locked positions in WETH/LOCK, $0.02 locked until 2026-12-11'
+        'HoodLock LP: 3 locked positions in WETH/LOCK, $0.02 locked, first unlock 2026-12-11'
         ' · https://hoodlock.tech/proof/position/14')
 
 
@@ -105,7 +105,7 @@ def test_v2_and_incomplete_api_are_informational(sample):
     target = sample['locks'][0]['token1']
     client, _, _ = wire(sample, target=target)
     row = client.lookup(target)
-    assert ('HoodLock LP: 1 locked position in WETH/SHI, $1,234.56 locked until 2027-10-05'
+    assert ('HoodLock LP: 1 locked position in WETH/SHI, $1,234.56 locked, first unlock 2027-10-05'
             '; incomplete API result') in row.line
     assert row.token_lock is False
     base = Card(target, 'identifier')
@@ -281,7 +281,7 @@ def test_out_of_range_lp_values_keep_positions_and_token_facts(sample, value):
     assert row.state == 'present' and row.token_lock is True
     assert '1.00% of supply locked' in row.line
     assert row.line.splitlines()[-1] == (
-        'HoodLock LP: 2 locked positions in WETH/SHI until 2027-10-05'
+        'HoodLock LP: 2 locked positions in WETH/SHI, first unlock 2027-10-05'
         ' · https://hoodlock.tech/proof/position/1')
 
 
@@ -453,7 +453,7 @@ def test_lp_distinct_positions_in_same_pool_keep_aggregate(sample):
                   token0=position['token0'].upper().replace('0X', '0x'))
     sample['locks'] = [position, second]
     client, _, _ = wire(sample, target=position['token0'])
-    assert 'HoodLock LP: 2 locked positions in WETH/SHI, $200.00 locked until 2027-10-05' in client.lookup(position['token0']).line
+    assert 'HoodLock LP: 2 locked positions in WETH/SHI, $200.00 locked, first unlock 2027-10-05' in client.lookup(position['token0']).line
 
 
 @pytest.mark.parametrize('malformed', [False, True])
@@ -579,9 +579,9 @@ def test_hiss_v4_pools_keep_all_nine_positions_and_api_values(current_sample):
     client, _, _ = wire(current_sample, target=target)
     lines = client.lookup(target).line.splitlines()[1:]
     assert lines == [
-        'HoodLock LP: 6 locked positions in WETH/HISS, $35,537.08 locked until 2026-11-18'
+        'HoodLock LP: 6 locked positions in WETH/HISS, $35,537.08 locked, first unlock 2026-11-18'
         ' · https://hoodlock.tech/proof/position/2',
-        'HoodLock LP: 3 locked positions in HISS/USDG, $15,213.13 locked until 2026-11-18'
+        'HoodLock LP: 3 locked positions in HISS/USDG, $15,213.13 locked, first unlock 2026-11-18'
         ' · https://hoodlock.tech/proof/position/4']
     # Neither out-of-range liquidity nor hook metadata is an exclusion.
     assert any(not r['inRange'] for r in current_sample['locks'] if target in (r['token0'], r['token1']))
@@ -610,14 +610,14 @@ def test_invalid_proof_omits_link_without_losing_lp_facts(current_sample, proof)
     target = current_sample['locks'][0]['token1']
     client, _, _ = wire(current_sample, target=target)
     assert client.lookup(target).line.splitlines()[-1] == (
-        'HoodLock LP: 1 locked position in WETH/SHI until 2027-10-05')
+        'HoodLock LP: 1 locked position in WETH/SHI, first unlock 2027-10-05')
 
 
 def test_largest_position_proof_is_one_link_and_not_an_api_url(current_sample):
     target = current_sample['locks'][-1]['token1']
     client, _, _ = wire(current_sample, target=target)
     line = client.lookup(target).line.splitlines()[-1]
-    assert line == ('HoodLock LP: 3 locked positions in WETH/LOCK, $0.01 locked until 2026-12-11'
+    assert line == ('HoodLock LP: 3 locked positions in WETH/LOCK, $0.01 locked, first unlock 2026-12-11'
                     ' · https://hoodlock.tech/proof/position/14')
     assert line.count('https://') == 1 and '/api/' not in line
     current_sample['locks'].reverse()
