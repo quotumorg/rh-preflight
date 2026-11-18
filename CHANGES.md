@@ -1,3 +1,10 @@
+## 0.5.9 (unreleased)
+
+read HoodLock's keyless LP API under the existing source switch, deadline and cache, preserving released token-lock paging and approval rules.
+print informational future locked v2/v3/v4 positions grouped by pool, API USD when complete, earliest unlock and the largest position's validated proof link.
+remove the LP-not-read caveat after successful complete or labelled partial reads; keep it when skipped, failed or timed out.
+accept v4's 32-byte pool ids and retain independent facts across malformed optional LP data, nested RPC responses and date failures.
+
 ## 0.5.8
 
 send Toll's tx check the time left before the tx deadline as `budgetMs` (whole milliseconds, less a 0.4 second round trip, within Toll's 300 to 30000 bounds), on the first attempt and on the one retry. Toll answers inside it, so a coin it has not read by then arrives as the existing `Toll has not read ... yet` line beside the completed simulation, where a cut connection gave `Toll: not simulated`. No setting, default, rule or dependency changes; with too little time left the request is sent as before.

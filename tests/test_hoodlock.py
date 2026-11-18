@@ -554,3 +554,100 @@ def rpc_server():
         server.shutdown()
         server.server_close()
         thread.join(timeout=1)
+
+
+@pytest.fixture
+def current_sample():
+    return json.loads((SAMPLE.parent / 'lp-locks-2026-11-18.json').read_text())
+
+
+@pytest.mark.parametrize('complete', [False, True])
+@pytest.mark.parametrize('symbol', ['HISS', 'LOCK', 'UNMATCHED'])
+def test_successful_lp_read_never_keeps_not_read_caveat(current_sample, complete, symbol):
+    current_sample['complete'] = complete
+    target = next((r['token1'] for r in current_sample['locks'] if r['symbol1'] == symbol), TOKEN)
+    client, _, _ = wire(current_sample, target=target)
+    reading = client.lookup(target)
+    assert 'LP locks in HoodLock' not in reading.line
+    assert 'other lockers not read' in reading.line
+    assert ('HoodLock LP:' in reading.line) == (symbol != 'UNMATCHED' or not complete)
+    assert ('incomplete API result' in reading.line) is not complete
+
+
+def test_hiss_v4_pools_keep_all_nine_positions_and_api_values(current_sample):
+    target = '0x444ce8ede8e38e1ec18aeec45d415c1d298a8bcf'
+    client, _, _ = wire(current_sample, target=target)
+    lines = client.lookup(target).line.splitlines()[1:]
+    assert lines == [
+        'HoodLock LP: 6 locked positions in WETH/HISS, $35,537.08 locked until 2026-11-18'
+        ' · https://hoodlock.tech/proof/position/2',
+        'HoodLock LP: 3 locked positions in HISS/USDG, $15,213.13 locked until 2026-11-18'
+        ' · https://hoodlock.tech/proof/position/4']
+    # Neither out-of-range liquidity nor hook metadata is an exclusion.
+    assert any(not r['inRange'] for r in current_sample['locks'] if target in (r['token0'], r['token1']))
+
+
+@pytest.mark.parametrize('version', ['v2', 'v3', 'v4'])
+@pytest.mark.parametrize('hook_status', ['none', 'verified', 'safe', 'unknown'])
+def test_versions_hooks_and_managers_do_not_drop_locked_positions(current_sample, version, hook_status):
+    row = deepcopy(current_sample['locks'][0])
+    row.update(version=version, hooks='0x' + '12' * 20, hookStatus=hook_status,
+               positionManager='0x' + '34' * 20, inRange=False)
+    if version == 'v4':
+        row['pool'] = '0x' + '56' * 32
+    current_sample['locks'] = [row]
+    client, _, _ = wire(current_sample, target=row['token1'])
+    assert 'HoodLock LP: 1 locked position in WETH/SHI' in client.lookup(row['token1']).line
+
+
+@pytest.mark.parametrize('proof', [None, '', 'http://hoodlock.tech/proof/position/1',
+    'https://hoodlock.tech.evil/proof/position/1', 'https://evil/hoodlock.tech/proof/position/1',
+    'https://user@hoodlock.tech/proof/position/1', 'https://hoodlock.tech/api/v1/lp-locks',
+    'https://hoodlock.tech/proof/position/', 'https://hoodlock.tech/proof/position/../1',
+    'https://hoodlock.tech/proof/position/1?next=evil', 'https://hoodlock.tech/proof/position/1\n'])
+def test_invalid_proof_omits_link_without_losing_lp_facts(current_sample, proof):
+    current_sample['locks'] = [dict(current_sample['locks'][0], proof=proof)]
+    target = current_sample['locks'][0]['token1']
+    client, _, _ = wire(current_sample, target=target)
+    assert client.lookup(target).line.splitlines()[-1] == (
+        'HoodLock LP: 1 locked position in WETH/SHI until 2027-10-05')
+
+
+def test_largest_position_proof_is_one_link_and_not_an_api_url(current_sample):
+    target = current_sample['locks'][-1]['token1']
+    client, _, _ = wire(current_sample, target=target)
+    line = client.lookup(target).line.splitlines()[-1]
+    assert line == ('HoodLock LP: 3 locked positions in WETH/LOCK, $0.01 locked until 2026-12-11'
+                    ' · https://hoodlock.tech/proof/position/14')
+    assert line.count('https://') == 1 and '/api/' not in line
+    current_sample['locks'].reverse()
+    client, _, _ = wire(current_sample, target=target)
+    assert client.lookup(target).line.splitlines()[-1] == line
+
+
+def test_lp_timeout_keeps_released_caveat_and_token_facts(current_sample):
+    client, _, ticks = wire(current_sample, count=1)
+    original = client._read
+    def read(path, deadline, payload=None):
+        if path == hoodlock.LP_PATH:
+            ticks[0] = deadline
+            raise TemporaryUnavailable()
+        return original(path, deadline, payload)
+    client._read = read
+    reading = client.lookup(TOKEN)
+    assert '1.00% of supply locked' in reading.line
+    assert "LP locks in HoodLock's Liquidity Locker and other lockers not read" in reading.line
+    assert 'HoodLock LP:' not in reading.line
+
+
+def test_offline_cards_keep_captured_non_hoodlock_bytes():
+    from demo.r6_replay import lp_cards
+    cards = lp_cards()
+    for symbol, name in [('HISS', 'card-lpbranch-hiss-1118.txt'), ('LOCK', 'cards-058-lock-usdg-1118.txt')]:
+        original = (SAMPLE.parent / name).read_text().split('===== ')[1].split('\n', 1)[1]
+        original = original.split('===== ')[0].rstrip() + '\n'
+        original = original.replace('if Hermes swapped this now:', 'if Hermes Agent swapped this now:')
+        unchanged = lambda text: [line for line in text.splitlines() if not line.startswith('HoodLock')]
+        assert unchanged(cards[symbol]) == unchanged(original)
+        assert 'LP locks in HoodLock' not in cards[symbol]
+        assert 'HoodLock LP:' in cards[symbol]

@@ -18,11 +18,17 @@ Not probed: 1358 projects with no website in HEY (token-only listings); 3558 rea
 | 6 | Toll (project reads) | ERC-8004 agent card/payTo facts; official Stock Token registry and price vs Chainlink | in plugin |
 | 7 | Sentinelhood | contract, ERC-20, pons deployer and how many launches | in plugin |
 | 8 | Borro | Stock Token lending fees before BORRO drip, yearly short borrow fees and short desk price (stocks only) | in plugin |
-| 9 | HoodLock | how much supply is locked, until when, how much already withdrawn (their token Locker and Vesting contracts over RPC, ABI verified on Sourcify; HEY cites it); LP locks in HoodLock's Liquidity Locker and other lockers not read | in plugin |
+| 9 | HoodLock | how much supply is locked, until when, how much already withdrawn (their token Locker and Vesting contracts over RPC, ABI verified on Sourcify; HEY cites it); informational v2/v3/v4 LP positions from `https://hoodlock.tech/api/v1/lp-locks`, with validated position proof links; other lockers not read | in plugin |
 | 10 | Trnch | `https://trnch.fun/api/bot/v1/check?token={address}`; sends only the token address, live per check from the keyless API with no cache, prefetch or listing reads; attributed token check with credit to `https://trnch.fun/token/{address}` | permission granted in writing on 2026-11-10 as an exception to Trnch's terms 9.2 |
 | 11 | OffRouter | its own x402 mode, chain-specific payTo and model count | in plugin |
 
 OffRouter is read only for its own project. DexScreener, GeckoTerminal and raw RPC are infrastructure and do not count as ecosystem projects. Selection labels describe the saved survey, not present availability.
+
+### HoodLock token and LP scope
+
+token-lock details retain the released batches of twenty, ten-page and 200-item bounds under one deadline, with capped totals labelled. LP reads share that deadline, source switch and sixty-second cache. the GET sends no token or wallet. only exact token addresses in future, locked v2/v3/v4 positions match; v4 pool ids are 32 bytes. hooks, hookStatus, positionManager and inRange are not filters. distinct lock ids and consistent pool token pairs are required.
+
+LP lines group by pool, sum only supplied finite nonnegative USD values when all are available, and show the earliest unlock. partial results are labelled. each line uses the largest position's validated API proof link under `https://hoodlock.tech/proof/position/`, or omits the link. a successful LP read removes the LP-not-read caveat; skipped, failed and timed-out LP reads retain it. malformed optional LP responses preserve token facts. unrenderable token dates and nested RPC failures can still leave an independent LP answer. LP facts are informational and add no rule.
 
 ## Transaction simulation
 

@@ -1,5 +1,6 @@
 """Socket-free 2026-11-09 capture replay. Missing captures are labelled, never invented."""
 import json
+from pathlib import Path
 from demo.captures import capture_path
 from urllib.parse import parse_qs, urlsplit
 from rh_preflight.card import Card, agent_card
@@ -80,3 +81,34 @@ def cards():
     nvda = network.enrich([CaptureCard(NVDA, 'unreachable', {'read_error': 'HEY response for NVDA was not captured'})], 'read', {}, settings, all_sources=True)[0]
     nvda = Card(nvda.target, nvda.kind, {**nvda.data, 'hey_asked': False})
     return priors, nvda
+
+
+def lp_cards():
+    """Replay captured card text, projecting only the new LP response at capture time."""
+    from rh_preflight.sources.common import Reading
+    root = Path(__file__).resolve().parents[1] / 'tests' / 'fixtures' / 'hoodlock'
+    sample = json.loads((root / 'lp-locks-2026-11-18.json').read_text())
+    client = hoodlock.Client(wall_clock=lambda: sample['timestamp'])
+    output = {}
+    for symbol, name in [('HISS', 'card-lpbranch-hiss-1118.txt'),
+                         ('LOCK', 'cards-058-lock-usdg-1118.txt')]:
+        captured = (root / name).read_text().split('===== ')[1]
+        target, body = captured.split('\n', 1)
+        body = body.split('===== ')[0].rstrip()
+        # HISS was captured on the old branch; use the released answer wording.
+        body = body.replace('if Hermes swapped this now:', 'if Hermes Agent swapped this now:')
+        lines = []
+        for line in body.splitlines():
+            if line.startswith('HoodLock:') or line.startswith('HoodLock holds '):
+                line = client.with_lp(Reading('HoodLock', 'present', line), target, sample).line
+            lines.append(line)
+        output[symbol] = '\n'.join(lines) + '\n'
+    return output
+
+
+if __name__ == '__main__':
+    import argparse
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--lp', choices=('HISS', 'LOCK'), required=True)
+    args = parser.parse_args()
+    print(lp_cards()[args.lp], end='')

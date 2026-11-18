@@ -1,0 +1,28 @@
+===== 0xd5bf43f29bf7aa5bb42ae9e217b84b86eb7a4b94
+if Hermes Agent swapped this now: ask · your rule: activity not measured
+11 sources · 6 answered · 5 not for this target: Hookr, Toll, Borro, Sherwood, OffRouter
+HEY Research Lab: Hoodlock · 0xd5bf43f29bf7aa5bb42ae9e217b84b86eb7a4b94 · https://heyresearch.xyz/project/hoodlock
+hoodlock: HEY does not measure its building. HEY holds no repository, changelog or feed it can read building from, so it cannot say whether anyone is building. This is a gap in HEY's sources, not a finding about the team.
+Verified Builder: no (HEY)
+Latest meaningful ship: Deployed a new contract: LpRevenueRouter · 2026-08-16T18:49:05.000Z · https://heyresearch.xyz/api/evidence/ship%3A0707b6d5-13ce-478e-b67e-570fa7b25686
+HEY reports: HEY does not measure this project’s building: it holds no source it can read building from, or the activity it reads is recorded under another page. This is a gap in HEY’s sources, not a finding about the team.
+Freshness: recent at 2026-11-18T09:22:19.227Z; unknown · asOf: 2026-11-18T10:28:23.397Z
+Priors has no record for this address or agent · https://priors.trade
+Sentinelhood: ERC-20 LOCK, block 117329542 · https://sentinelhood.com/?ca=0xd5bf43f29bf7aa5bb42ae9e217b84b86eb7a4b94
+HoodLock: 11.36% of supply locked until 2026-11-22, 117 of 152 locks already withdrawn, 13 vesting schedules (token locks and vesting only; LP locks in HoodLock's Liquidity Locker and other lockers not read) · https://hoodlock.tech/lock-checker
+Trnch: not screened yet · https://trnch.fun/token/0xd5bf43f29bf7aa5bb42ae9e217b84b86eb7a4b94
+Agent Wormhole has not observed this token; that is not a verdict · https://dashboard.agentwormhole.com/t/4663/0xd5bf43f29bf7aa5bb42ae9e217b84b86eb7a4b94
+DexScreener: uniswap v3 pair, liquidity $35,330.40, 24h volume $3,688.59, pair since 2026-08-01 · https://dexscreener.com/robinhood/0x4562ca679dccc38f2dd59d28b2ebfec99f507af2
+GeckoTerminal: FDV $134,382.93, CoinGecko listing hoodlock · https://www.geckoterminal.com/robinhood/tokens/0xd5bf43f29bf7aa5bb42ae9e217b84b86eb7a4b94
+Source: HEY Research Lab, builder research for Robinhood Chain, https://heyresearch.xyz/project/hoodlock, as of 2026-11-18, rules hbm-v37
+===== 0x5fc5360d0400a0fd4f2af552add042d716f1d168
+if Hermes Agent swapped this now: ask · your rule: no HEY record
+11 sources · 6 answered · 5 not for this target: Hookr, Toll, Borro, Sherwood, OffRouter
+HEY Research Lab: no published project for this contract (HEY's index, not a statement about the token) · asOf: 2026-11-18T10:28:26.894Z · https://heyresearch.xyz
+Priors has no record for this address or agent · https://priors.trade
+Sentinelhood: ERC-20 USDG, block 117329577 · https://sentinelhood.com/?ca=0x5fc5360d0400a0fd4f2af552add042d716f1d168
+HoodLock: 0.00% of supply locked until no future unlock, 0 of 1 lock already withdrawn, 0 vesting schedules (token locks and vesting only; LP locks in HoodLock's Liquidity Locker and other lockers not read) · https://hoodlock.tech/lock-checker
+Trnch: no rug, no dump on record · first seen 2026-10-13T12:42:51.986Z · https://trnch.fun/token/0x5fc5360d0400a0fd4f2af552add042d716f1d168
+Agent Wormhole has not observed this token; that is not a verdict · https://dashboard.agentwormhole.com/t/4663/0x5fc5360d0400a0fd4f2af552add042d716f1d168
+DexScreener: uniswap v3 pair, liquidity $2,173,321.58, 24h volume $698,422.19, pair since 2026-08-14 · https://dexscreener.com/robinhood/0x654e4143e82a5824445ade0824351c2a9acd95a8
+GeckoTerminal: FDV $626,088,565.60, CoinGecko listing global-dollar · https://www.geckoterminal.com/robinhood/tokens/0x5fc5360d0400a0fd4f2af552add042d716f1d168

@@ -77,11 +77,14 @@ class Client(RPC):
                 or reading.state in ('payment_required', 'refused', 'rate_limited')):
             return reading
         try:
-            lines = self.lp_lines(target, self.read(LP_PATH, end))
+            return self.with_lp(reading, target, self.read(LP_PATH, end))
         except (Absent, Unavailable, KeyError, TypeError, ValueError, AttributeError,
                 IndexError, OverflowError, OSError, DecimalException, RecursionError):
             # An optional LP read must not erase the independent token-lock facts.
             return reading
+
+    def with_lp(self, reading, target, data):
+        lines = self.lp_lines(target, data)
         token_line = reading.line.replace(
             "token locks and vesting only; LP locks in HoodLock's Liquidity Locker and other lockers not read",
             'token locks and vesting only; other lockers not read')
