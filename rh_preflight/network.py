@@ -98,10 +98,12 @@ class Network:
                 options = {'has_code': True if known == 'code' else False if known == 'no_code' else None}
                 return lookup(name, target, **options)
 
+            trnch_batch = (pool.submit(self.clients['trnch'].lookup_many, targets, deadline=deadline)
+                           if enabled('trnch') and len(targets) > 1 else None)
             for target in targets:
                 prerequisites = {}
                 for name in ('sentinelhood', 'toll', 'hoodlock', 'trnch'):
-                    if enabled(name):
+                    if enabled(name) and not (name == 'trnch' and trnch_batch is not None):
                         future = pool.submit(lookup, name, target)
                         prerequisites[name] = future
                         futures.append((name, target, future))
@@ -155,6 +157,10 @@ class Network:
                 return budget_result(future, deadline - .005, fallback)
             results = [('chain', target, completed('chain', target, future)) for target, future in chains.items()]
             results += [(name, target, completed(name, target, future)) for name, target, future in futures]
+            if trnch_batch is not None:
+                batch = budget_result(trnch_batch, deadline - .005, {})
+                results.extend(('trnch', target, batch.get(target, self.clients['trnch'].unavailable(target)))
+                               for target in targets)
             for future in extra:
                 results.extend(budget_result(future, deadline, []))
         if not cards:

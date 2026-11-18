@@ -1,11 +1,12 @@
-"""Attribute only named Trnch fields from one live token check."""
-from dataclasses import dataclass
+"""Attribute named Trnch fields from requested single and batch token checks."""
+from collections import deque
+from dataclasses import dataclass, replace
 from datetime import datetime
 import re
 from urllib.parse import urlsplit
 
 from ..extract import ADDRESS
-from ..hey import Unavailable
+from ..hey import Unavailable, RateLimited
 from .common import Keyless, Reading, field
 
 
@@ -32,6 +33,80 @@ class Client(Keyless):
     label = 'Trnch'
     page = origin
 
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self.batch_calls = deque()
+
+    def _read(self, path, deadline, payload=None):
+        if path == '/api/bot/v1/check/batch':
+            # One attempt per page. A failed page falls back to single checks.
+            return self._read_once(path, deadline, payload)
+        return super()._read(path, deadline, payload)
+
+    def lookup_many(self, targets, deadline=None):
+        """Read only requested addresses, deduplicated, without a dataset cache."""
+        end = self.clock() + self.timeout
+        deadline = min(deadline, end) if deadline is not None else end
+        targets = list(dict.fromkeys(str(target).lower() for target in targets))
+        readings = {target: Reading(self.label, 'unlisted', '', asked=False)
+                    for target in targets if not ADDRESS.fullmatch(target)}
+        tokens = [target for target in targets if ADDRESS.fullmatch(target)]
+        if len(tokens) == 1:
+            readings[tokens[0]] = self.lookup(tokens[0], deadline=deadline)
+            return readings
+        limited = False
+        for offset in range(0, len(tokens), 20):
+            page = tokens[offset:offset + 20]
+            start = self.clock()
+            if limited or start >= deadline:
+                readings.update((token, self.rate_limited(token) if limited else self.unavailable(token))
+                                for token in page)
+                continue
+            try:
+                with self.lock:
+                    while self.batch_calls and start - self.batch_calls[0] >= 60:
+                        self.batch_calls.popleft()
+                    if len(self.batch_calls) >= 10 or start < self.cooldown:
+                        raise RateLimited()
+                    self.batch_calls.append(start)
+                    self.misses += len(page)
+                status, data = self._read('/api/bot/v1/check/batch', deadline, {'tokens': page})
+                if status == 429:
+                    raise RateLimited()
+                if status != 200 or not isinstance(data, dict) or not isinstance(data.get('results'), list):
+                    raise Unavailable()
+                by_address, duplicates = {}, set()
+                for item in data['results']:
+                    if not isinstance(item, dict) or not isinstance(item.get('token'), str):
+                        continue
+                    token = item['token'].lower()
+                    if token not in page:
+                        continue
+                    if token in by_address:
+                        duplicates.add(token)
+                    by_address[token] = item
+                for token in page:
+                    item = by_address.get(token)
+                    try:
+                        if item is None or token in duplicates or 'error' in item:
+                            raise Unavailable()
+                        readings[token] = self.project(token, item)
+                    except (Unavailable, KeyError, TypeError, ValueError, AttributeError, OverflowError):
+                        readings[token] = self.unavailable(token)
+            except RateLimited:
+                limited = True
+                readings.update((token, self.rate_limited(token)) for token in page)
+            except (Unavailable, KeyError, TypeError, ValueError, AttributeError, IndexError, OverflowError):
+                for token in page:
+                    if limited or self.clock() >= deadline:
+                        readings[token] = self.rate_limited(token) if limited else self.unavailable(token)
+                    else:
+                        readings[token] = self.lookup(token, deadline=deadline)
+                        limited = readings[token].state == 'rate_limited'
+            for token in page:
+                readings[token] = replace(readings[token], elapsed=max(0.0, self.clock() - start))
+        return readings
+
     def target_page(self, target=None, **kwargs):
         return self.page + '/token/' + target.lower() if ADDRESS.fullmatch(str(target)) else self.page
 
@@ -47,10 +122,14 @@ class Client(Keyless):
         if not ADDRESS.fullmatch(str(target)):
             return Reading(self.label, 'unlisted', '', asked=False)
         target = target.lower()
+        if self.clock() >= deadline:
+            raise Unavailable()
         # Bypass both cache reads and writes; retain only the projected line.
         with self.lock:
             self.misses += 1
         status, data = self._read('/api/bot/v1/check?token=' + target, deadline)
+        if status == 429:
+            raise RateLimited()
         if status != 200:
             raise Unavailable()
         return self.project(target, data)
@@ -114,7 +193,7 @@ class Client(Keyless):
             try:
                 url = urlsplit(candidate)
                 if (url.scheme == 'https' and url.netloc == 'trnch.fun' and
-                        url.path.lower() == '/token/' + target and
+                        url.path.startswith('/token/') and url.path[7:].lower() == target and
                         not url.query and not url.fragment and not any(c.isspace() for c in candidate)):
                     page = candidate
             except ValueError:

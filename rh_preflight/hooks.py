@@ -6,6 +6,7 @@ import threading
 import time
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone
+from dataclasses import replace
 
 from .extract import extract
 from .hey import Client
@@ -296,6 +297,12 @@ class Service:
             return []
         deadline = deadline if deadline is not None else time.monotonic() + settings.timeout
         placeholders = [Card(target, "identifier") for target in targets]
+        # When names resolve to token addresses, group them with literal tokens
+        # in one Trnch read after resolution, under the original deadline.
+        defer_trnch = (len(targets) > 1 and settings.sources.get('trnch', 'on') == 'on' and
+                       any(not addresses(target) for target in targets))
+        neighbour_settings = (replace(settings, sources={**settings.sources, 'trnch': 'off'})
+                              if defer_trnch else settings)
         def core(target):
             start = time.monotonic()
             if target.startswith("agent #") or POOL.fullmatch(target):
@@ -311,7 +318,7 @@ class Service:
             return card, max(0.0, time.monotonic() - start), True
         with Pool(max_workers=len(targets) + 1) as pool:
             cores = [pool.submit(core, target) for target in targets]
-            neighbours = pool.submit(self.network.enrich, placeholders, tool_name, args, settings,
+            neighbours = pool.submit(self.network.enrich, placeholders, tool_name, args, neighbour_settings,
                                      all_sources=all_sources, deadline=deadline)
             cards = [budget_result(future, deadline, (Card(target, 'unreachable'), 0.0, True))
                      for target, future in zip(targets, cores)]
@@ -319,13 +326,12 @@ class Service:
         result = []
         for (base, elapsed, asked), prepared in zip(cards, early):
             if not addresses(base.target) and base.kind == "agent":
-                enriched = self.network.enrich([base], tool_name, args, settings,
+                enriched = self.network.enrich([base], tool_name, args, neighbour_settings,
                                                all_sources=all_sources, deadline=deadline)[0]
                 result.append(Card(base.target, "network", {**enriched.data,
                     "hey_elapsed": elapsed, "hey_asked": asked}))
             else:
                 if self.network.is_offrouter(base) and settings.sources.get('offrouter', 'on') == 'on':
-                    from dataclasses import replace
                     start = time.monotonic()
                     own = self.network.clients['offrouter'].lookup(base.target, deadline=deadline)
                     own = replace(own, elapsed=max(0.0, time.monotonic() - start))
@@ -334,6 +340,15 @@ class Service:
                 result.append(Card(base.target, "network", {**prepared.data, "base": base, "sources": self.network.annotate(base, prepared.data['sources']),
                     "citation": citation, "hey_elapsed": elapsed, "hey_asked": asked,
                     "offrouter": self.network.is_offrouter(base)}))
+        if defer_trnch:
+            trnch_settings = replace(settings, sources={name: 'on' if name == 'trnch' else 'off'
+                                                        for name in self.network.clients})
+            trnch_cards = self.network.enrich([card.data['base'] for card in result], tool_name, args,
+                                               trnch_settings, all_sources=all_sources, deadline=deadline)
+            result = [Card(card.target, 'network', {**card.data, 'source_settings': settings.sources,
+                       'sources': self.network.annotate(card.data['base'], card.data['sources'] +
+                                                       trnch_card.data['sources'])})
+                      for card, trnch_card in zip(result, trnch_cards)]
         return result
 
     def card(self, target, project=None):
