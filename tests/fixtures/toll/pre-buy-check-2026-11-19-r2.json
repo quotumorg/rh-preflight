@@ -1,0 +1,47 @@
+{
+ "0x444ce8ede8e38e1ec18aeec45d415c1d298a8bcf": {
+  "elapsed_s": 0.35,
+  "response": {
+   "result": {
+    "content": [
+     {
+      "type": "text",
+      "text": "Decision: WAIT\nToken: 0x444ce8ede8e38e1ec18aeec45d415c1d298a8bcf (Robinhood Chain)\nReasons:\n- $HISS: part of the coin check could not be read yet (holders). Ask again in a minute for the whole check.\n- $HISS: 1 finding to read before buying (careful): the transfer history could not be read this time, so who holds it now was not read. The balances listed are for the 93 addresses we could see, each read from the chain just now.\n- $HISS: this is the last coin check we hold, read 2026-11-18T20:00:54.000Z; a newer read is running.\nNot read yet: the pool's first seconds, who holds it now, which top holders share a funder, what the launch wallets hold now, liquidity pulls in its pools. Call pre_buy_check again in 60 s for the whole answer.\nFacts read from the chain, not advice. ALLOW means nothing against was found in what was read, not a promise.\nNext: watch_coin {\"address\": \"0x444ce8ede8e38e1ec18aeec45d415c1d298a8bcf\", \"url\": \"<your https webhook>\"} sends your agent a signed event when this coin's check changes (needs a Toll key).\n\nFull report: https://t0ll.xyz/check/0x444ce8ede8e38e1ec18aeec45d415c1d298a8bcf?utm_source=mcp"
+     }
+    ]
+   },
+   "jsonrpc": "2.0",
+   "id": 1
+  }
+ },
+ "0x5fc5360d0400a0fd4f2af552add042d716f1d168": {
+  "elapsed_s": 13.59,
+  "response": {
+   "result": {
+    "content": [
+     {
+      "type": "text",
+      "text": "Decision: WAIT\nToken: 0x5fc5360d0400a0fd4f2af552add042d716f1d168 (Robinhood Chain)\nReasons:\n- $USDG: part of the coin check could not be read yet (holders). Ask again in a minute for the whole check.\n- $USDG: 2 findings to read before buying (careful): no trade in the pool in the first 8 h read; 108 of its 162 Uniswap v4 pools charge a 10% to 99% fee on every trade (the pool's own fee, not a tax in the token): a swap routed through one of them loses that share, and a price or tax read from them shows it.\nNot read yet: the older pools, who holds it now, which top holders share a funder, what the launch wallets hold now, the last 24 hours, liquidity pulls in its pools. Call pre_buy_check again in 60 s for the whole answer.\nFacts read from the chain, not advice. ALLOW means nothing against was found in what was read, not a promise.\nNext: watch_coin {\"address\": \"0x5fc5360d0400a0fd4f2af552add042d716f1d168\", \"url\": \"<your https webhook>\"} sends your agent a signed event when this coin's check changes (needs a Toll key).\n\nFull report: https://t0ll.xyz/check/0x5fc5360d0400a0fd4f2af552add042d716f1d168?utm_source=mcp"
+     }
+    ]
+   },
+   "jsonrpc": "2.0",
+   "id": 2
+  }
+ },
+ "0xedbf91223639800bcd5756815caf908df3b890be": {
+  "elapsed_s": 0.36,
+  "response": {
+   "result": {
+    "content": [
+     {
+      "type": "text",
+      "text": "Decision: WAIT\nToken: 0xedbf91223639800bcd5756815caf908df3b890be (Robinhood Chain)\nReasons:\n- $PRIORS: part of the coin check could not be read yet (dev). Ask again in a minute for the whole check.\n- $PRIORS: 3 findings to read before buying (careful): 32 wallets bought 38.6% of supply in the first 3 s (the dev and its declared wallets not counted); 4 wallets sold in the same tenth of a second by the same route, 5 min after launch: 3.3% of supply in one block. 4 of them moved together more than once; 7 wallets bought in the same tenth of a second by the same route, 5 min after launch: 7.21% of supply in one block. 4 of them moved together more than once.\nNot read yet: the dev's record, who holds the liquidity, liquidity pulls in its pools. Call pre_buy_check again in 60 s for the whole answer.\nFacts read from the chain, not advice. ALLOW means nothing against was found in what was read, not a promise.\nNext: watch_coin {\"address\": \"0xedbf91223639800bcd5756815caf908df3b890be\", \"url\": \"<your https webhook>\"} sends your agent a signed event when this coin's check changes (needs a Toll key).\n\nFull report: https://t0ll.xyz/check/0xedbf91223639800bcd5756815caf908df3b890be?utm_source=mcp"
+     }
+    ]
+   },
+   "jsonrpc": "2.0",
+   "id": 3
+  }
+ }
+}

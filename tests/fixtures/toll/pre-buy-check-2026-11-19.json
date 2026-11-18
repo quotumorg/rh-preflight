@@ -1,0 +1,62 @@
+{
+ "0x444ce8ede8e38e1ec18aeec45d415c1d298a8bcf": {
+  "elapsed_s": 14.89,
+  "response": {
+   "result": {
+    "content": [
+     {
+      "type": "text",
+      "text": "Decision: WAIT\nToken: 0x444ce8ede8e38e1ec18aeec45d415c1d298a8bcf (Robinhood Chain)\nStill reading this coin; the whole answer in about 3 s. Call pre_buy_check again in 3 s.\nNext: watch_coin {\"address\": \"0x444ce8ede8e38e1ec18aeec45d415c1d298a8bcf\", \"url\": \"<your https webhook>\"} sends your agent a signed event when this coin's check changes (needs a Toll key).\n\nFirst look (not the verdict, read in 0.0 s without the full check):\n- $HISS (Sir Hiss).\n- 1 pool listed on DexScreener, deepest $37k liquidity, market cap $117k.\n\nFacts read from the chain, not advice. ALLOW means nothing against was found in what was read, not a promise.\n\nFull report: https://t0ll.xyz/check/0x444ce8ede8e38e1ec18aeec45d415c1d298a8bcf?utm_source=mcp"
+     }
+    ]
+   },
+   "jsonrpc": "2.0",
+   "id": 1
+  }
+ },
+ "0x47b537f7c2c2183967fe5ba883291b8ada490db6": {
+  "elapsed_s": 14.85,
+  "response": {
+   "result": {
+    "content": [
+     {
+      "type": "text",
+      "text": "Decision: WARN\nToken: 0x47b537f7c2c2183967fe5ba883291b8ada490db6 (Robinhood Chain)\nThis coin can change: get told when it does. A Telegram message when its check moves between clear, careful and against, with what changed, 3 coins free: https://t.me/t0ll_bot?start=w_47b537f7c2c2183967fe5ba883291b8ada490db6_m\nReasons:\n- $OFFROUTER: part of the coin check could not be read yet (holders). Ask again in a minute for the whole check.\n- $OFFROUTER: 4 findings to read before buying (careful): 15 wallets bought 23.8% of supply in the first 3 s (the dev and its declared wallets not counted); 5 wallets sold in the same tenth of a second each straight to the curve (no shared router), 3 min after launch: 4.3% of supply in one block. 3 of them moved together more than once; 5 wallets bought in the same tenth of a second each straight to the curve (no shared router), 2 min after launch: 6.66% of supply in one block. 3 of them moved together more than once; ....\nMade from our last whole read, 9 s ago; a newer read is running. Call pre_buy_check again in a minute or two for a newer one.\nFacts read from the chain, not advice. ALLOW means nothing against was found in what was read, not a promise.\nNext: watch_coin {\"address\": \"0x47b537f7c2c2183967fe5ba883291b8ada490db6\", \"url\": \"<your https webhook>\"} sends your agent a signed event when this coin's check changes (needs a Toll key).\n\nFull report: https://t0ll.xyz/check/0x47b537f7c2c2183967fe5ba883291b8ada490db6?utm_source=mcp"
+     }
+    ]
+   },
+   "jsonrpc": "2.0",
+   "id": 2
+  }
+ },
+ "0x5fc5360d0400a0fd4f2af552add042d716f1d168": {
+  "elapsed_s": 14.87,
+  "response": {
+   "result": {
+    "content": [
+     {
+      "type": "text",
+      "text": "Decision: WAIT\nToken: 0x5fc5360d0400a0fd4f2af552add042d716f1d168 (Robinhood Chain)\nStill reading this coin; the whole answer in about 3 s. Call pre_buy_check again in 3 s.\nNext: watch_coin {\"address\": \"0x5fc5360d0400a0fd4f2af552add042d716f1d168\", \"url\": \"<your https webhook>\"} sends your agent a signed event when this coin's check changes (needs a Toll key).\n\nFirst look (not the verdict, read in 0.0 s without the full check):\n- No pool listed on DexScreener yet.\n\nFacts read from the chain, not advice. ALLOW means nothing against was found in what was read, not a promise.\n\nFull report: https://t0ll.xyz/check/0x5fc5360d0400a0fd4f2af552add042d716f1d168?utm_source=mcp"
+     }
+    ]
+   },
+   "jsonrpc": "2.0",
+   "id": 3
+  }
+ },
+ "0xedbf91223639800bcd5756815caf908df3b890be": {
+  "elapsed_s": 15.42,
+  "response": {
+   "result": {
+    "content": [
+     {
+      "type": "text",
+      "text": "Decision: WAIT\nToken: 0xedbf91223639800bcd5756815caf908df3b890be (Robinhood Chain)\nReasons:\n- $PRIORS: launched through a contract with 6 launches from 6 wallets, 1 of its 6 Pons launches graduated.\n- $PRIORS: part of the coin check could not be read yet (holders). Ask again in a minute for the whole check.\n- $PRIORS: 4 findings to read before buying (careful): 32 wallets bought 38.6% of supply in the first 3 s (the dev and its declared wallets not counted); 4 wallets sold in the same tenth of a second by the same route, 5 min after launch: 3.3% of supply in one block. 4 of them moved together more than once; 7 wallets bought in the same tenth of a second by the same route, 5 min after launch: 7.21% of supply in one block. 4 of them moved together more than once; ....\nNot read yet: who holds it now. Call pre_buy_check again in 20 s for the whole answer.\nFacts read from the chain, not advice. ALLOW means nothing against was found in what was read, not a promise.\nNext: watch_coin {\"address\": \"0xedbf91223639800bcd5756815caf908df3b890be\", \"url\": \"<your https webhook>\"} sends your agent a signed event when this coin's check changes (needs a Toll key).\n\nFull report: https://t0ll.xyz/check/0xedbf91223639800bcd5756815caf908df3b890be?utm_source=mcp"
+     }
+    ]
+   },
+   "jsonrpc": "2.0",
+   "id": 4
+  }
+ }
+}

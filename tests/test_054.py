@@ -46,14 +46,18 @@ def test_fixture_card_byte_stable_and_own_decision(case, expected):
     assert not WORDING.search(printed)
     assert 'careful' not in printed and 'drainer' not in printed
     assert 'source text omitted' not in printed
-    # Changing their classification and every warning message changes nothing.
+    # Their action changes only its informational line; warnings and policy retain their behavior.
     response = json.loads((FIXTURES / case / 'response.json').read_text())
     response['action'] = 'BLOCK' if expected == 'pass' else 'ALLOW'
     response['scanners'] = [{'verdict': 'BLOCK'}]
     for row in response['warnings']:
         row['message'] = 'not our card copy'
     intent = tx_intent(json.loads((FIXTURES / case / 'request.json').read_text()))[0]
-    assert project(local_card(intent), intent, response).data == card.data
+    changed = project(local_card(intent), intent, response)
+    strip_action = lambda data: {**data, 'lines': [line for line in data['lines']
+        if line not in {'Toll: ALLOW', 'Toll: WARN', 'Toll: BLOCK'}]}
+    assert strip_action(changed.data) == strip_action(card.data)
+    assert evaluate([changed], Settings()) == decision
 
 
 @pytest.mark.parametrize('shape', [lambda tx: tx, lambda tx: {'nested': [tx]},

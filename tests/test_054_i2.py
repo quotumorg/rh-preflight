@@ -52,7 +52,7 @@ def test_allowlist_matches_provider_list():
 
 @pytest.mark.parametrize('code', ['new-code', 'swap-fcfs-note', 'coin-read-stale', 'sim-reverted-new'])
 def test_unknown_codes_have_no_line_or_rule(code):
-    baseline = {'x-toll': {'simulation': {'status': 'success', 'block': 10}}}
+    baseline = {'action': 'BLOCK', 'x-toll': {'simulation': {'status': 'success', 'block': 10}}}
     changed = {**baseline, 'action': 'BLOCK', 'warnings': [
         {'code': code, 'severity': 'critical', 'message': 'remote message',
          'x-toll-evidence': {'token': C, 'spender': B, 'delegate': A}}]}

@@ -1,5 +1,6 @@
 go · no rule of yours fired
 unsigned transaction to 0xc2bc9a3fe6c4ce8c2f7eb4655b0869b01d8c93c9 on chain 4663
+Toll: ALLOW
 transaction uses third-party router 0xc2bc9a3fe6c4ce8c2f7eb4655b0869b01d8c93c9
 Toll: simulated at block 111933448
 simulated sender balance change: -0.000480569378599765 ETH

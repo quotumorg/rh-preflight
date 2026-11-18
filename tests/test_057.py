@@ -60,7 +60,8 @@ def with_take(take, response=None):
 def test_live_signature_samples(name, tmp_path):
     card, _, _, response = sample(name)
     printed = present(card, evaluate([card], Settings())).render()
-    assert 'Toll:' in printed and 'ALLOW' not in printed and not WORDING.search(printed)
+    assert 'Toll:' in printed and not WORDING.search(printed)
+    assert 'Toll: ' + response['action'] in printed
     assert '\x1b' not in printed and chr(0x2014) not in printed
     assert card.data['unchecked'] == (name in {'permit-zero-balance', 'personal-sign'})
     if name == 'permit-unlimited':
@@ -327,7 +328,7 @@ def test_personal_sign_and_not_read_keep_existing_behavior(on_unchecked, action)
     personal, _, _, response = sample('personal-sign')
     decision = evaluate([personal], Settings(on_unchecked=on_unchecked))
     assert decision.action == action and SIGNATURE_TAKE_REASON not in decision.rules
-    assert personal.data['lines'] == ['personal_sign request on chain 4663',
+    assert personal.data['lines'] == ['personal_sign request on chain 4663', 'Toll: ' + response['action'],
         'Toll: ' + response['x-toll']['take']['line'], 'Toll: not simulated', 'Toll · https://t0ll.xyz']
     _, request, response = pull_card()
     response['x-toll']['take'] = {'status': 'not-read', 'line': 'pull unavailable'}
