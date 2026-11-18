@@ -181,8 +181,10 @@ class Client(RPC):
             # Prefer API USD for size; use pool-local liquidity when USD is incomplete.
             sizes = values if all(value is not None for value in values) else [
                 lp_value(row.get('liquidity')) for row in rows]
-            largest = max(range(len(rows)), key=lambda i: sizes[i] if sizes[i] is not None else -1)
-            proof = rows[largest].get('proof')
+            # The proof link backs "first unlock": the earliest lock, the larger one on a tie.
+            first = min(range(len(rows)), key=lambda i: (
+                rows[i]['unlockTime'], -(sizes[i] if sizes[i] is not None else -1)))
+            proof = rows[first].get('proof')
             link = (f' · {proof}' if isinstance(proof, str) and re.fullmatch(
                 r'https://hoodlock\.tech/proof/position/[0-9]+', proof) else '')
             lines.append(f'HoodLock LP: {len(rows)} locked {plural(len(rows), "position")} in {symbols}{usd}'

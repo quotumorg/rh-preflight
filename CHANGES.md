@@ -1,7 +1,7 @@
 ## 0.5.9 (unreleased)
 
 read HoodLock's keyless LP API under the existing source switch, deadline and cache, preserving released token-lock paging and approval rules.
-print informational future locked v2/v3/v4 positions grouped by pool, API USD when complete, earliest unlock and the largest position's validated proof link.
+print informational future locked v2/v3/v4 positions grouped by pool, API USD when complete, earliest unlock and the validated proof link of the position that unlocks first.
 remove the LP-not-read caveat after successful complete or labelled partial reads; keep it when skipped, failed or timed out.
 accept v4's 32-byte pool ids and retain independent facts across malformed optional LP data, nested RPC responses and date failures.
 say how many locked positions are in range and, when the API's pool liquidity agrees, what share of the pool's active liquidity they hold (rounded down); a pool with none in range says so.

@@ -585,7 +585,7 @@ def test_hiss_v4_pools_keep_all_nine_positions_and_api_values(current_sample):
     assert lines == [
         'HoodLock LP: 6 locked positions in WETH/HISS, $35,537.08 locked,'
         ' 2 of 6 in range holding 100% of active pool liquidity, first unlock 2026-11-18'
-        ' · https://hoodlock.tech/proof/position/2',
+        ' · https://hoodlock.tech/proof/position/12',
         'HoodLock LP: 3 locked positions in HISS/USDG, $15,213.13 locked,'
         ' none in range, pool has no active liquidity, first unlock 2026-11-18'
         ' · https://hoodlock.tech/proof/position/4']
@@ -619,7 +619,7 @@ def test_invalid_proof_omits_link_without_losing_lp_facts(current_sample, proof)
         'HoodLock LP: 1 locked position in WETH/SHI, 1 of 1 in range holding 100% of active pool liquidity, first unlock 2027-10-05')
 
 
-def test_largest_position_proof_is_one_link_and_not_an_api_url(current_sample):
+def test_first_unlock_proof_is_one_link_and_not_an_api_url(current_sample):
     target = current_sample['locks'][-1]['token1']
     client, _, _ = wire(current_sample, target=target)
     line = client.lookup(target).line.splitlines()[-1]
@@ -729,3 +729,23 @@ def test_stale_api_snapshot_is_dated(current_sample):
     line = client.lookup(row['token1']).line.splitlines()[-1]
     assert '; API data from 2026-11-18 10:25Z' in line
     assert 'incomplete' not in line
+
+
+def test_proof_link_follows_earliest_unlock_not_position_order_or_size(current_sample):
+    base = current_sample['locks'][0]
+    now = current_sample['timestamp']
+    rows = []
+    for ident, days, usd in [(1, 900, 9000.0), (2, 700, 8000.0), (7, 30, 10.0), (5, 30, 20.0), (3, 400, 50.0)]:
+        rows.append(dict(base, lockId=ident, unlockTime=now + days * 86400, valueUsd=usd,
+                         proof=f'https://hoodlock.tech/proof/position/{ident}'))
+    current_sample['locks'] = rows
+    target = base['token1']
+    client, _, _ = wire(current_sample, target=target)
+    line = client.lookup(target).line.splitlines()[-1]
+    until = datetime.fromtimestamp(now + 30 * 86400, timezone.utc).strftime('%Y-%m-%d')
+    # earliest unlock wins over #1/#2 and the largest position; on a tie the larger lock links
+    assert f'first unlock {until}' in line
+    assert line.endswith(' · https://hoodlock.tech/proof/position/5')
+    current_sample['locks'] = list(reversed(rows))
+    client, _, _ = wire(current_sample, target=target)
+    assert client.lookup(target).line.endswith(' · https://hoodlock.tech/proof/position/5')
