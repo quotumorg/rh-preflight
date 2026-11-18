@@ -106,9 +106,48 @@ def lp_cards():
     return output
 
 
+def trnch_cards():
+    """Replay only supplied checks; other HISS/USDG facts retain capture dates."""
+    from rh_preflight.card import source_line
+    from rh_preflight.sources.trnch import Client
+    from unittest.mock import patch
+    root = Path(__file__).resolve().parents[1] / 'tests' / 'fixtures'
+    saved = root / 'trnch'
+    hiss = json.loads((saved / 'check-hiss-2026-11-19.json').read_text())
+    batches = json.loads((saved / 'batch-fixture-tokens-2026-11-19.json').read_text())
+    rows = [row for batch in batches for row in batch['results']]
+    samples = {'HISS': hiss,
+               'USDG': next(row for row in rows if row['token'].startswith('0x5fc5')),
+               'RUGGED': next(row for row in rows if row['rugged'])}
+    texts = {'HISS': lp_cards()['HISS']}
+    usdg = (root / 'hoodlock' / 'cards-058-lock-usdg-1118.txt').read_text()
+    texts['USDG'] = usdg.split('===== ' + samples['USDG']['token'] + '\n', 1)[1].rstrip() + '\n'
+    output = {}
+    # Fail closed if an offline replay ever tries to open a socket.
+    with patch('socket.socket', side_effect=AssertionError('offline replay: no sockets')):
+        for symbol, data in samples.items():
+            client = Client()
+            client._read = lambda *args, data=data: (200, data)
+            reading = client.lookup(data['token'])
+            if symbol in texts:
+                output[symbol] = '\n'.join(source_line(reading) if line.startswith('Trnch: ')
+                                            else line for line in texts[symbol].splitlines()) + '\n'
+            else:
+                # No full card for this token was supplied. Do not invent HEY
+                # or other source records to fill the missing observations.
+                settings = {name: 'off' for name in Network().clients if name != 'trnch'}
+                output[symbol] = Card(data['token'], 'network', {
+                    'base': Card(data['token'], 'unreachable', {'read_error':
+                        'HEY response for this token was not captured; no builder reading shown'}),
+                    'sources': [reading], 'hey_asked': False, 'source_settings': settings}).render() + '\n'
+    return output
+
+
 if __name__ == '__main__':
     import argparse
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('--lp', choices=('HISS', 'LOCK'), required=True)
+    group = parser.add_mutually_exclusive_group(required=True)
+    group.add_argument('--lp', choices=('HISS', 'LOCK'))
+    group.add_argument('--trnch', choices=('HISS', 'USDG', 'RUGGED'))
     args = parser.parse_args()
-    print(lp_cards()[args.lp], end='')
+    print(trnch_cards()[args.trnch] if args.trnch else lp_cards()[args.lp], end='')

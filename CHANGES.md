@@ -1,3 +1,9 @@
+## 0.5.10 (unreleased)
+
+relay Trnch's verified flag and one-line summary with a validated token-page link per its licence; retain first-seen dates, kept-out categories and independent rugged or dumped facts.
+keep the legacy line when new fields are absent; unknown stays unlisted even when verified. no approval rule changes.
+batch requested token checks in groups of twenty under the existing source switch and deadline, matched by address; fall back to single checks on a failed batch and stop remaining reads on a rate limit. keep Trnch uncached.
+
 ## 0.5.9
 
 read HoodLock's keyless LP API under the existing source switch, deadline and cache, preserving released token-lock paging and approval rules.

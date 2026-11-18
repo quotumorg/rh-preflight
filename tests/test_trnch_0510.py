@@ -322,3 +322,46 @@ def test_batch_real_transport_one_post_attempt_then_single_fallback():
     client._read_once = once
     result = client.lookup_many([r['token'] for r in rows])
     assert len(calls) == 3 and all(r.state == 'present' for r in result.values())
+
+
+def test_new_replays_are_socket_free_and_preserve_other_captured_lines():
+    from demo.r6_replay import trnch_cards, lp_cards
+    with patch('socket.socket', side_effect=AssertionError('no sockets')):
+        cards = trnch_cards()
+    assert set(cards) == {'HISS', 'USDG', 'RUGGED'}
+    assert HISS['summary'] in cards['HISS']
+    assert 'Trnch: Verified by trnch. · first seen ' in cards['USDG']
+    assert 'Trnch: Rugged: liquidity pulled.' in cards['RUGGED']
+    assert 'HEY response for this token was not captured' in cards['RUGGED']
+    assert [l for l in cards['HISS'].splitlines() if not l.startswith('Trnch: ')] == [
+        l for l in lp_cards()['HISS'].splitlines() if not l.startswith('Trnch: ')]
+
+
+def test_rate_limit_after_successful_page_keeps_completed_readings():
+    rows = token_rows(41)
+    def answer(path, deadline, payload):
+        if payload['tokens'][0] == rows[0]['token']:
+            return 200, {'results': rows[:20]}
+        return 429, {}
+    client, calls = batch_client(rows, answer)
+    result = client.lookup_many([r['token'] for r in rows])
+    assert len(calls) == 2
+    assert all(result[r['token']].state == 'present' for r in rows[:20])
+    assert all(result[r['token']].state == 'rate_limited' for r in rows[20:])
+
+
+def test_single_fallback_http_429_stops_without_exception_shape_dependency():
+    rows = token_rows(21)
+    client, calls = batch_client(rows, lambda path, deadline, payload: (500 if payload else 429, {}))
+    result = client.lookup_many([r['token'] for r in rows])
+    assert len(calls) == 2 and all(r.state == 'rate_limited' for r in result.values())
+
+
+def test_all_captured_batch_pages_keep_verified_rugged_and_unknown_facts():
+    client, calls = batch_client(ROWS)
+    readings = client.lookup_many([r['token'] for r in ROWS])
+    assert len(calls) == 3 and all(len(c[1]['tokens']) == 20 for c in calls)
+    assert readings[USDG['token']].verified is True
+    assert readings[ROWS[0]['token']].state == 'unlisted'
+    assert 'Rugged: liquidity pulled.' in source_line(readings[RUGGED['token']])
+    assert all(r.state in {'present', 'unlisted'} for r in readings.values())
