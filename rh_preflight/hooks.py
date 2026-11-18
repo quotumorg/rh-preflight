@@ -205,7 +205,7 @@ class Service:
                     reading = budget_result(codes[spender], builder_deadline - .005, None) if spender in codes else None
                     kinds[spender] = {'code': 'contract with code', 'no_code': 'no code'}.get(reading.state if reading else None, 'not read')
                 response = budget_result(simulation, deadline - .01, None) if simulation else None
-                bought = bought_address(intent, response)
+                bought = bought_address(intent) or bought_address(intent, response)
                 start_buy(bought)
                 if hookr_on:
                     for row in ((response or {}).get('x-toll') or {}).get('decoded') or []:

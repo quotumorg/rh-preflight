@@ -351,3 +351,18 @@ def test_stock_swap_does_not_start_before_buy(tmp_path):
     card = service._tx_cards(intents, [local_card(intents[0])], service.settings, time.monotonic() + 5)[0]
     assert 'Toll before buy:' not in card.render()
     assert len(calls) == 1
+
+
+def test_decoded_response_cannot_start_a_second_coin_read_for_one_swap(tmp_path):
+    service, calls = isolated(tmp_path, synthetic())
+    request = json.loads((FIXTURES / 'toll-tx/clean-swap/request.json').read_text())
+    intent = tx_intent(request)[0]
+    bought = bought_address(intent)
+    data = synthetic()
+    data['result']['content'][0]['text'] = data['result']['content'][0]['text'].replace(A, bought)
+    toll, calls = stub(data)
+    toll.check_tx = lambda *args: {'x-toll': {'decoded': [{'kind': 'swap', 'bought': [A]}]}}
+    service.network.clients['toll'] = toll
+    card = service._tx_cards([intent], [local_card(intent)], service.settings, time.monotonic() + 5)[0]
+    assert 'Toll before buy: BLOCK' in card.render()
+    assert [body['params']['arguments']['address'] for path, body in calls if path == '/mcp'] == [bought]
