@@ -1,0 +1,196 @@
+# Trnch
+
+> trnch (trnch.fun) is a non-custodial trading terminal for Robinhood Chain. Free for AI agents, no key, no wallet: rug and honeypot check of any token, wallet scan, top 24h, stats and quotes (https://trnch.fun/mcp). The Heat lists new tokens in real time, ranked live, and Trnch screens out bad actors: rugs, honeypots, scam contracts, heavy sell taxes and copycats are kept off the list or flagged High risk with a public risk category. Every swap is routed across eight routers (KyberSwap, LI.FI, Uniswap, 0x, SushiSwap, 1inch, Velora and Nordstern) and signed in your own wallet. Trnch has no token and is not Trencher.fun.
+
+## When to use Trnch (for AI agents)
+
+Free, no key, no wallet: trnch_check (rug and honeypot check of any token), trnch_scan_wallet, trnch_top_24h, trnch_stats and trnch_quote. Call these first; trading tools need a key and your own wallet.
+
+- Check a Robinhood Chain token for rugs and honeypots before buying: `trnch_check` (GET /api/bot/v1/check?token=0x..., no key). Returns { status, category, rugged, dumped }; "unknown" means not seen by Trnch, not a pass.
+- Check everything a wallet holds: `trnch_scan_wallet` (GET /api/bot/v1/scan?wallet=0x..., no key). Every ERC-20 with its Trnch verdict, flagged tokens first, `canSell`, and the sell call for flagged ones; up to 100 tokens returned (flagged first), cached 60 s. Get a signed webhook when a held token is newly flagged: `trnch_alerts_subscribe` (POST /api/bot/v1/alerts, API key, 3 per key).
+- Quote the best swap across eight routers, no key: `trnch_quote` (POST /quote) gives the best amount out; To trade and sign it yourself, `trnch_buy` and `trnch_sell` (POST /buy, /sell, API key) return a transaction for your wallet to sign. Trnch never holds funds; tokens Trnch keeps out are refused (409).
+- Find tokens launched seconds ago (API key): the Heat, `trnch_heat` (GET /api/bot/v1/heat, API key). New tokens ranked live and screened by Trnch; pass `nextSince` back as `since`.
+- Trading covers Robinhood Chain (and Elysium at trnch.fun/elysium); token-verdict also checks Base tokens. Do not use Trnch for custody or tokens the user did not choose.
+
+Install the MCP server (streamable HTTP, https://trnch.fun/mcp):
+
+```
+claude mcp add --transport http trnch https://trnch.fun/api/mcp
+codex mcp add trnch --url https://trnch.fun/api/mcp
+```
+
+## Ready-to-run agent strategy
+
+One example script per language with modules chosen by environment variables: ENTRY (heat, trending from /top, dip on a token list) and EXIT (tp_sl, trailing, ladder, time), plus an always-on guard that re-checks every held token by address with /check and sells if Trnch now keeps it out or its quoted value collapses. Every action is logged. Dry run by default (nothing is signed until DRY_RUN=0); all settings are environment variables. Not a recommendation: prices can fall to zero.
+
+```
+curl -s "https://trnch.fun/api/bot/v1/strategy?lang=ts" -o agent.ts   # or lang=py
+TRNCH_API_KEY=trnch_bot_... npx tsx agent.ts
+```
+
+Settings: ENTRY (heat), EXIT (tp_sl), BUY_USD (5), MAX_TOTAL_USD (0 = no cap, optional total spend cap), MAX_OPEN (3), SLIPPAGE_BPS (150), POLL_SECONDS (5), DRY_RUN (1); heat: MIN_SCORE (70), MIN_LIQUIDITY_USD (20000); trending: TREND_MIN_X, TREND_MAX_X, TREND_MAX_PULLBACK_PCT; dip: DIP_TOKENS, DIP_PCT (10), DIP_WINDOW_MINUTES (60); tp_sl: TAKE_PROFIT_PCT (50), STOP_LOSS_PCT (25); trailing: TRAILING_STOP_PCT (15); ladder: LADDER (50:30,100:30,200:40); time: MAX_HOLD_MINUTES (240); guard: GUARD_LIQUIDITY_DROP_PCT (60); also DIP_MAX_PCT (40), REENTRY_HOURS (6), QUOTE_BUDGET_PER_MIN (25). The guard and REENTRY_HOURS are new behaviour; with neither tp_sl nor trailing in EXIT a STOP_LOSS_PCT stop is added; the script keeps under the key's 30 quotes/buys/sells per minute and honours Retry-After once. Source and notes: https://trnch.fun/bot#starter-scripts
+
+## Main pages
+
+- [Heat](https://trnch.fun/heat): the live race of new and trending tokens on Robinhood Chain
+- [Trade](https://trnch.fun/trade): swap, best route across eight routers (KyberSwap, LI.FI, Uniswap, 0x, SushiSwap, 1inch, Velora, Nordstern)
+- [Bridge](https://trnch.fun/bridge): move ETH and USDG to and from Robinhood Chain via LI.FI, and between Solana and Robinhood Chain both ways (SOL, USDC, USDT)
+- [Tools](https://trnch.fun/tools): token analytics and approvals revoke
+- [Audit & Security](https://trnch.fun/security): Trnch holds no user funds; every major change goes through internal audit passes (Pashov Audit Group x-ray procedures) before release; the audits of each swap router
+- [Trnch track record](https://trnch.fun/tia): every token Trnch spotted, what Trnch decided and when, and which ones rugged, plus every rug on Robinhood Chain and how many Trnch flagged before the rug; frozen daily with a SHA-256 hash and a Merkle root, JSON, JSONL and CSV at https://trnch.fun/api/tia/v1/record; one page per frozen day at https://trnch.fun/tia/YYYY-MM-DD and an RSS feed of the last 30 days at https://trnch.fun/tia/rss.xml
+- [How it works](https://trnch.fun/how-it-works): the game and the swap, explained
+
+
+## Bridge Solana to Robinhood Chain (chain ID 4663)
+
+1. Open https://trnch.fun/bridge and pick Solana as the source chain.
+2. Enter SOL, USDC or USDT, choose ETH or USDG on Robinhood Chain, and read the quote (route, time, fees in dollars, minimum received).
+3. Connect an EVM wallet and a Solana wallet (Phantom, Backpack or Solflare), then sign once in the Solana wallet.
+4. Funds land in seconds to a few minutes. Flip the arrow to bridge back to Solana. Fees: route fee plus 0.25% for Trnch, shown before you sign.
+Guide: https://trnch.fun/blog/bridge-solana-to-robinhood-chain
+
+## Bot API and AI agents
+
+- [Trading bot API documentation](https://trnch.fun/bot): keys, endpoints, webhook, starter scripts (TypeScript, Python)
+- [Agent guide (skill.md)](https://trnch.fun/skill.md): get a key by signing with your wallet, no browser
+- OpenAPI spec: https://trnch.fun/openapi.json ; MCP server card: https://trnch.fun/.well-known/mcp.json
+- Network: Robinhood Chain, chainId 4663, RPC https://rpc.mainnet.chain.robinhood.com, USDG 0x5fc5360D0400a0Fd4f2af552ADD042D716F1d168 (6 decimals), explorer https://robinhoodchain.blockscout.com
+- MCP server page (install lines, tool list): https://trnch.fun/mcp ; ERC-8004 registration: https://trnch.fun/.well-known/agent-registration.json
+- A2A (Agent2Agent) server, JSON-RPC 2.0 over HTTP: https://trnch.fun/api/a2a ; agent card: https://trnch.fun/.well-known/agent-card.json (skills: rug-check and wallet-scan no key; heat, quote, buy, sell with an API key; unsigned transactions only)
+- Read-only discovery MCP server (rug check, wallet scan, top tokens of the last 24 hours, stats; no key, no trading): https://trnch.fun/api/mcp/discover
+- MCP server: https://trnch.fun/api/mcp (streamable HTTP, JSON): check (is this Robinhood Chain token a rug? no key), scan_wallet (every token a wallet holds with its Trnch verdict, no key), top_24h (best new tokens of the last 24 hours, no key), stats, register, heat, quote, buy, sell, confirm, alerts_subscribe, alerts_list, alerts_unsubscribe (webhook when a held token is flagged, API key); listed on the official MCP registry as `fun.trnch/trnch` and on Glama
+- Referral: 25% of the Trnch fee, for life, to the owner of the referral code set on a key (`ref` at registration)
+- Base URL: https://trnch.fun/api/bot/v1 (header `Authorization: Bearer trnch_bot_...`)
+- Versioning: /api/bot/v1 stays stable. A breaking change ships as /v2, announced at least 90 days ahead with Deprecation and Sunset headers on /v1.
+- GET /stats (no key): tokens spotted, kept out as High risk, rugs detected, median delay from a pool becoming tradable to the token showing up on Trnch (Trnch's decision follows; see https://trnch.fun/tia)
+- GET /register?wallet= then POST /register: an API key for a wallet that signs the message; optional `ref` (referral code) pays its owner 25% of the fees of that key's swaps, for life
+- GET /scan?wallet= (no key): every ERC-20 a wallet holds with the Trnch verdict of each, flagged first, `canSell`, a `sell` hint for flagged tokens; 100 tokens at most returned (`truncated`), 20 calls per minute per IP
+- POST /alerts {wallet, webhookUrl}, GET /alerts, DELETE /alerts?id= (API key, 3 per key): a signed webhook (https, public domain, port 443) when a token the wallet holds is newly flagged by Trnch (and once for tokens it already holds that Trnch keeps out), checked every 5 minutes
+- GET /heat: the Heat feed, only new entries with `since`. Each token is an opaque `id` with market numbers: no names or addresses, the `id` only works with Trnch /quote, /buy and /sell
+- POST /quote, /build, /buy, /sell, /confirm: swap transactions ready for your bot to sign
+- Rate limits: 60 calls per minute per key, 30 of them quotes, builds, buys or sells. Responses that need an API key (and /register) carry RateLimit-Limit, RateLimit-Remaining and RateLimit-Reset (seconds); a 429 adds Retry-After.
+- Fee through the Bot API or MCP server: 0.25% per swap (0.10% between major assets such as ETH and USDG, 0.05% between a Stock Token and a major asset, 0.50% for tokens under 24 h old or with no known launch time). Through the Bot API and the MCP server, Trnch refuses to build a swap into a token Trnch keeps out; selling one is allowed.
+- Fees on trnch.fun: 0.50% on a swap (0.10% between major assets such as ETH and USDG, 0.05% between a Stock Token and a major asset), 0.25% on a bridge, 1% on a token in the Heat, whatever the screen it is swapped from, and on Multi swap or Dust seller.
+
+## Pay-per-call tools (x402, USDC on Base, USDC on Solana or USDG on Robinhood Chain, no account or API key)
+
+- token-verdict, 0.02 USD: GET https://trnch.fun/api/x402/token-verdict?address=0x... . Token Verdict, the one call to make before you buy: verdict (no_risk_flagged, high_risk, kept_out or unknown), public risk categories, a one-line summary, origin (original contract, Stock Token, chain asset or copy), tokenUrl and cardUrl. Risk, origin and the check summary in one answer.
+- token-risk, 0.01 USD: GET https://trnch.fun/api/x402/token-risk?address=0x... . Pre-trade token risk check: does Trnch flag a risk on this token? Verdict no_risk_flagged, high_risk, kept_out or unknown, public risk categories, timestamp, caution.
+- wallet-risk, 0.03 USD: GET https://trnch.fun/api/x402/wallet-risk?address=0x... . Wallet risk scan: the held tokens Trnch flags, their count and, when prices are known, the share of the wallet value exposed. Check your own wallet, or another agent's wallet before you deal with it.
+- token-origin, 0.01 USD: GET https://trnch.fun/api/x402/token-origin?address=0x... . Token origin: original verified contract, official Stock Token, chain asset, or a copy of another token's name or ticker. Verified = original contract, it does not vouch for the project.
+- top-24h, 0.01 USD: GET https://trnch.fun/api/x402/top-24h?limit=10 . Top tokens of the last 24 hours that entered the Trnch Heat at least one hour ago, peak and current multiple since entry. Past results, not a prediction.
+- quote, 0.01 USD: GET https://trnch.fun/api/x402/quote?tokenIn=0x...&tokenOut=0x...&amountIn=1000000 . Best swap price across Trnch's routers: chosen router and net amount received. Builds no transaction.
+- Payment: x402 v2, scheme exact, three options in the 402 accepts, same price in dollars: USDC (6 decimals) on Base (eip155:8453), USDC (6 decimals) on Solana (solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp), or USDG (6 decimals) on Robinhood Chain (eip155:4663), settled by the Dexter facilitator (https://x402.dexter.cash). Call without payment to get HTTP 402 with the requirements in the PAYMENT-REQUIRED header; retry with the signed payment in the PAYMENT-SIGNATURE header. One payment serves one response. Discovery: https://trnch.fun/.well-known/x402
+- Chains: token-verdict, wallet-risk and quote take chain=robinhood|base (default robinhood). chain=base reads Base (8453): sell simulation, taxes, copies of known Base assets, owner privileges, liquidity; quotes across LI.FI, KyberSwap and 0x. Same price; the payment network is your choice either way.
+- Building a swap is free: POST /api/bot/v1/build with an API key (GET /api/bot/v1/register). Trnch earns its fee on the swap.
+- By paying, you accept the Trnch Terms: https://docs.trnch.fun/legal/terms
+- Signals, never guarantees. no_risk_flagged means no risk flagged, not that a token is sound; unknown means not seen by Trnch, not a pass.
+
+## Base (chainId 8453): token checks by API
+
+trnch has no trading terminal on Base. On Base, trnch scan answers by API, pay per call in USDC on Base with x402, no account or key. Guide: [Base token checker](https://trnch.fun/base-token-checker).
+
+- token-verdict, 0.02 USD: GET https://trnch.fun/api/x402/token-verdict?chain=base&address=0x... . Simulates a buy then a sell from a wallet on the token's deepest pool (Uniswap v3, Uniswap v4, Aerodrome, Aerodrome Slipstream), reads declared and measured taxes, copies of known Base assets (ETH, WETH, USDC, USDbC, USDT), owner privileges (owner, upgradeable proxy, mint, pause, blacklist, fee setters), liquidity, LP burn and age. Verdict no_risk_flagged, high_risk (CANNOT_SELL, HEAVY_SELL_TAX, COPYCAT, OTHER_RISK) or unknown; every check says tested, untested or not_applicable.
+- wallet-risk, 0.03 USD: GET https://trnch.fun/api/x402/wallet-risk?chain=base&address=0x... . The tokens a Base wallet holds that trnch scan flags.
+- quote, 0.01 USD: GET https://trnch.fun/api/x402/quote?chain=base&tokenIn=0x...&tokenOut=0x...&amountIn=<atomic> . Best price on Base across LI.FI, KyberSwap and 0x; builds no transaction.
+- no_risk_flagged requires a real buy and sell simulation that went through; without it the verdict is unknown. Signals, never guarantees.
+
+## Robinhood Chain guides (live numbers)
+
+- [What is Robinhood Chain](https://trnch.fun/robinhood-chain)
+- [Robinhood Chain meme coins: find and buy them](https://trnch.fun/robinhood-chain/meme-coins)
+- [How to find new tokens on Robinhood Chain](https://trnch.fun/robinhood-chain/new-tokens)
+- [Robinhood Chain rug checker: rugs and honeypots](https://trnch.fun/robinhood-chain/rug-checker)
+- [How to check if a token is a honeypot](https://trnch.fun/robinhood-chain/honeypot-checker)
+- [Robinhood Chain trading bot and API for AI agents](https://trnch.fun/robinhood-chain/trading-bot)
+- [Robinhood Chain MCP server for AI agents](https://trnch.fun/robinhood-chain/mcp-server)
+- [Robinhood Chain DEX aggregator: how swaps are routed](https://trnch.fun/robinhood-chain/dex)
+- [Solana to Robinhood Chain bridge, both ways](https://trnch.fun/robinhood-chain/solana-bridge)
+
+## Chinese pages (zh-Hans, 简体中文)
+
+- [Trnch：Robinhood Chain 土狗扫链、防跑路检测与 DEX 聚合器](https://trnch.fun/zh)
+- [Robinhood Chain 中文指南](https://trnch.fun/zh/robinhood-chain)
+- [Robinhood Chain 防跑路检测](https://trnch.fun/zh/robinhood-chain/rug-checker)
+- [Robinhood Chain 貔貅盘检测](https://trnch.fun/zh/robinhood-chain/honeypot-checker)
+- [Robinhood Chain MCP 服务器](https://trnch.fun/zh/robinhood-chain/mcp-server)
+- [Robinhood Chain 新币](https://trnch.fun/zh/robinhood-chain/new-tokens)
+- [Robinhood Chain Meme币](https://trnch.fun/zh/robinhood-chain/meme-coins)
+- [Robinhood Chain DEX 与兑换](https://trnch.fun/zh/robinhood-chain/dex)
+- [Robinhood Chain 交易机器人](https://trnch.fun/zh/robinhood-chain/trading-bot)
+- [Solana 与 Robinhood Chain 跨链桥](https://trnch.fun/zh/robinhood-chain/solana-bridge)
+- [TIA 公开战绩](https://trnch.fun/zh/tia)
+
+## More
+
+- [Full description for LLMs](https://trnch.fun/llms-full.txt)
+- [Docs](https://docs.trnch.fun): terms, privacy, risks, contact
+- [Guide: find new Robinhood Chain tokens early](https://docs.trnch.fun/guides/how-to-find-new-robinhood-chain-tokens-early)
+- [Guide: avoid rugs on Robinhood Chain](https://docs.trnch.fun/guides/how-to-avoid-rugs-on-robinhood-chain)
+- [Guide: DEX aggregators on Robinhood Chain](https://docs.trnch.fun/guides/dex-aggregators-on-robinhood-chain)
+
+## Blog
+
+- [What changed on Trnch](https://trnch.fun/blog/updates)
+- [How to spot a fake token or a copycat on Robinhood Chain](https://trnch.fun/blog/fake-tokens-copycats-robinhood-chain)
+- [How to check a token's sell tax on Robinhood Chain](https://trnch.fun/blog/robinhood-chain-sell-tax-check)
+- [How to build an X bot that scrapes contract addresses and checks them for rugs](https://trnch.fun/blog/x-bot-scrape-contract-addresses-rug-check)
+- [How to use trading bot on Telegram](https://trnch.fun/blog/how-to-use-a-trading-bot-on-telegram)
+- [Trnch has a new look](https://trnch.fun/blog/trnch-new-look)
+- [How to bridge to Robinhood Chain](https://trnch.fun/blog/bridge-ethereum-base-arbitrum-to-robinhood-chain)
+- [Points and airdrops on Robinhood Chain: what they are and how to avoid airdrop scams](https://trnch.fun/blog/points-airdrops-robinhood-chain)
+- [AI agents on Robinhood Chain: MCP, A2A and the Trnch agent toolkit](https://trnch.fun/blog/ai-agents-mcp-a2a-robinhood-chain)
+- [Copy trading on Robinhood Chain: how it works and what can go wrong](https://trnch.fun/blog/copy-trading-robinhood-chain)
+- [Sniper fleets and bot farms: why new tokens crash minutes after launch](https://trnch.fun/blog/sniper-fleets-bot-farms-robinhood-chain)
+- [How do tokenized stocks work](https://trnch.fun/blog/stock-tokens-robinhood-chain)
+- [From pump.fun to Robinhood Chain: a guide for Solana memecoin traders](https://trnch.fun/blog/pump-fun-solana-to-robinhood-chain)
+- [CEX vs DEX: self-custody trading on Robinhood Chain](https://trnch.fun/blog/cex-vs-dex-robinhood-chain)
+- [USDG on Robinhood Chain: the stablecoin, how to get it and how to use it](https://trnch.fun/blog/usdg-robinhood-chain)
+- [Trnch blocks the TraderTraitor Binance theft addresses](https://trnch.fun/blog/tradertraitor-blocked)
+- [How to spot a rug pull on Robinhood Chain before you buy](https://trnch.fun/blog/spot-a-rug-pull-robinhood-chain)
+- [Set up a wallet for Robinhood Chain](https://trnch.fun/blog/set-up-wallet-robinhood-chain)
+- [How to avoid rug pull](https://trnch.fun/blog/how-tia-keeps-rugs-out)
+- [How to buy memecoins on Robinhood Chain](https://trnch.fun/blog/trade-new-tokens-robinhood-chain-launchpads)
+- [How to bridge Solana to Robinhood Chain with Phantom](https://trnch.fun/blog/bridge-solana-to-robinhood-chain)
+- [Connect an AI agent to Robinhood Chain via MCP](https://trnch.fun/blog/robinhood-chain-mcp-server-tutorial)
+- [Build a Robinhood Chain trading bot with an API](https://trnch.fun/blog/robinhood-chain-trading-bot-api-tutorial)
+- [Can AI agents trade crypto](https://trnch.fun/blog/ai-agents-trade-robinhood-chain)
+- [Trnch roadmap: what is live and what comes next](https://trnch.fun/blog/roadmap)
+
+## Trnch track record, one page per frozen UTC day
+
+- [Trnch record, 2026-11-17](https://trnch.fun/tia/2026-11-17)
+- [Trnch record, 2026-11-16](https://trnch.fun/tia/2026-11-16)
+- [Trnch record, 2026-11-15](https://trnch.fun/tia/2026-11-15)
+- [Trnch record, 2026-11-14](https://trnch.fun/tia/2026-11-14)
+- [Trnch record, 2026-11-13](https://trnch.fun/tia/2026-11-13)
+- [Trnch record, 2026-11-12](https://trnch.fun/tia/2026-11-12)
+- [Trnch record, 2026-11-11](https://trnch.fun/tia/2026-11-11)
+- [Trnch record, 2026-11-10](https://trnch.fun/tia/2026-11-10)
+- [Trnch record, 2026-11-09](https://trnch.fun/tia/2026-11-09)
+- [Trnch record, 2026-11-08](https://trnch.fun/tia/2026-11-08)
+- [Trnch record, 2026-11-07](https://trnch.fun/tia/2026-11-07)
+- [Trnch record, 2026-11-06](https://trnch.fun/tia/2026-11-06)
+- [Trnch record, 2026-11-05](https://trnch.fun/tia/2026-11-05)
+- [Trnch record, 2026-11-04](https://trnch.fun/tia/2026-11-04)
+- [Trnch record, 2026-11-03](https://trnch.fun/tia/2026-11-03)
+- [Trnch record, 2026-11-02](https://trnch.fun/tia/2026-11-02)
+- [Trnch record, 2026-11-01](https://trnch.fun/tia/2026-11-01)
+- [Trnch record, 2026-10-31](https://trnch.fun/tia/2026-10-31)
+- Archive (Before the Oct 30 fixes): [2026-10-30](https://trnch.fun/tia/2026-10-30), [2026-10-29](https://trnch.fun/tia/2026-10-29), [2026-10-28](https://trnch.fun/tia/2026-10-28)
+
+## trnch research (monthly)
+
+- [trnch research](https://trnch.fun/research): monthly research on Robinhood Chain from trnch scan data (tradable launches, tokens kept out or flagged by public category, rugs detected and median detection time, repeat rug deployers, Stock Token lookalikes, top new tokens by volume, busiest day, change vs the previous month). Updated monthly.
+- [trnch research, November 2026 (month to date)](https://trnch.fun/research/2026-11)
+
+## Also on Elysium
+
+- [Trnch on Elysium](https://trnch.fun/elysium): the same non-custodial swap terminal on Elysium (chainId 99901, gas HYPE), each swap quoted across five routers (Uniswap, KyberSwap, LI.FI, Nordstern and 0x). Token pages there show facts read on chain, not a verdict; no Heat and no rug screen on Elysium.
+- AI agents on Elysium, free, no key, no wallet: token facts, wallet scan, top by volume, stats and quotes. MCP server https://trnch.fun/elysium/api/mcp (read-only: https://trnch.fun/elysium/api/mcp/discover), bot API https://trnch.fun/elysium/api/bot/v1, guide https://trnch.fun/elysium/skill.md, OpenAPI https://trnch.fun/elysium/openapi.json, https://trnch.fun/elysium/llms.txt
+- [What is Elysium: chain ID, RPC and HYPE gas](https://trnch.fun/elysium/blog/what-is-elysium-chain)
+- [Is this token a honeypot? How to check an Elysium token](https://trnch.fun/elysium/blog/check-token-before-buying-elysium)
+
+## Data use policy
+
+Trnch live data and methods (the Heat feed, Trnch signals, scores, rankings and flags) are protected by the rights of TrnchLabs and its affiliates under EU and US law (database and trade-secret rights) and are licensed only for trading through Trnch. Live data loads in your browser on trnch.fun; scraping, copying and AI extraction of the raw live data (the Heat feed and its rankings) are prohibited by the Terms of Use (https://docs.trnch.fun/legal/terms), and restricted access to it is logged. Quotes and swaps (/api/bot/v1/quote, /build, /buy, /sell and the MCP trading tools) carry no restriction on automated use. Public pages (the Robinhood Chain guides, the blog, the Trnch track record and the Chinese pages) may be read, verified and quoted with a link to trnch.fun. AI agents are welcome to trade on Trnch, for themselves or for a user, through the Trnch Bot API (https://trnch.fun/bot) or MCP server (https://trnch.fun/api/mcp): the restriction targets scraping and copying, not trading. Agents never use the website. Check results (/api/bot/v1/check and /api/bot/v1/check/batch) are free to display and relay with a link to the token page on trnch (tokenUrl). Exception: cluster data and the other data reserved by this licence may be provided to a partner under a written agreement with TrnchLabs, only through the partner endpoint and with a partner key; without that agreement the restrictions above apply. Requests for TRNCH data from outside trnch.fun, other than trading through the TRNCH Bot API, receive a restricted response carrying the full licence terms.

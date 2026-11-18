@@ -1,0 +1,2235 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Trnch API",
+    "version": "1.1.0",
+    "summary": "Free Robinhood Chain rug check, wallet scan and quotes for bots and AI agents",
+    "description": "Free, no key, no wallet: /check (rug and honeypot check of any Robinhood Chain token, chainId 4663), /scan (check everything a wallet holds), /top, /stats and /quote (best of eight routers). With an API key: the Heat feed, /buy and /sell. Trade new Robinhood Chain tokens through trnch: a live feed of launches screened by trnch (rugs, honeypots, scam contracts, heavy sell taxes and copycats are kept out and refused), and the best route across eight routers (KyberSwap, LI.FI, Uniswap, 0x, SushiSwap, 1inch, Velora, Nordstern). Non-custodial: every transaction is returned ready to sign and is sent by your own wallet. Fee 0.25% per swap (0.10% between major assets such as ETH and USDG, 0.05% between a Stock Token and a major asset, 0.50% for tokens under 24 h old or with no known launch time), already deducted from quotes. Selling a token Trnch keeps out is allowed; buying one is refused. Also available as an MCP server at https://trnch.fun/api/mcp. Quotes and swaps (/quote, /build, /buy, /sell) carry no restriction on automated use: agents are welcome to trade. Raw data (the Heat feed and rankings) is licensed only for trading through Trnch (https://docs.trnch.fun/legal/terms). Check results (/api/bot/v1/check and /api/bot/v1/check/batch) are free to display and relay with a link to the token page on trnch (tokenUrl).\n\nVersioning: /v1 stays stable. A breaking change ships as /v2, announced at least 90 days ahead with Deprecation and Sunset headers on /v1.\n\nPay-per-call tools (x402 v2, no key, no account): /api/x402/token-verdict, /api/x402/token-risk, /api/x402/wallet-risk, /api/x402/token-origin, /api/x402/top-24h, /api/x402/quote. Start with token-verdict ($0.02): verdict, risk categories, one-line summary, origin, tokenUrl and cardUrl in one call. token-verdict, wallet-risk and quote take chain (robinhood, base; default robinhood): chain=base reads Base (8453) at the same price. Each 402 offers three payment options at the same dollar price: USDC on Base (eip155:8453), USDC on Solana (solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp) or USDG on Robinhood Chain (eip155:4663), 6 decimals. Prices are in each operation. Building a swap is free (Bot API).",
+    "contact": {
+      "name": "TrnchLabs",
+      "url": "https://trnch.fun",
+      "email": "hello@trnch.fun"
+    },
+    "termsOfService": "https://docs.trnch.fun/legal/terms",
+    "x-guidance": "Two surfaces on https://trnch.fun. (1) Pay-per-call x402 tools, no key or account, start with GET /api/x402/token-verdict?address= ($0.02: verdict, risk categories, one-line summary, origin, tokenUrl and cardUrl for a Robinhood Chain token in one call). Also /token-risk?address= ($0.01), /token-origin?address= ($0.01), /wallet-risk?address= ($0.03), /top-24h ($0.01), /quote?tokenIn=&tokenOut=&amountIn= ($0.01). Add chain=base to token-verdict, wallet-risk or quote for a Base (8453) token or wallet, same price (chain values: robinhood, base; default robinhood). Call without payment to get HTTP 402 and the PAYMENT-REQUIRED header: accepts lists three options, pick one and retry with PAYMENT-SIGNATURE. Option 1: USDC on Base (eip155:8453, 6 decimals, EIP-3009). Option 2: USDC on Solana (solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp, 6 decimals, partially signed SPL TransferChecked, fee payer from extra.feePayer). Option 3: USDG on Robinhood Chain (eip155:4663, 6 decimals). Same price in dollars on all, the runtime 402 is authoritative. By paying you accept the Trnch Terms: https://docs.trnch.fun/legal/terms. (2) The free Bot API under /api/bot/v1 (check, scan, top, stats, quote need no key; heat, build, buy, sell, confirm and alerts need an API key sent as Authorization: Bearer trnch_bot_..., obtained from /api/bot/v1/register). Building a swap is free: Trnch earns its fee on the swap itself. Non-custodial: transactions are returned unsigned. Signals, never guarantees."
+  },
+  "externalDocs": {
+    "description": "Bot API guide",
+    "url": "https://trnch.fun/bot"
+  },
+  "servers": [
+    {
+      "url": "https://trnch.fun"
+    }
+  ],
+  "components": {
+    "securitySchemes": {
+      "bearer": {
+        "type": "apiKey",
+        "in": "header",
+        "name": "Authorization",
+        "description": "API key sent as `Authorization: Bearer trnch_bot_...` (get one from /api/bot/v1/register). Not a payment: the Bot API is free."
+      }
+    },
+    "schemas": {
+      "Error": {
+        "type": "object",
+        "required": [
+          "error"
+        ],
+        "properties": {
+          "error": {
+            "type": "string",
+            "description": "What went wrong, in plain English."
+          }
+        }
+      }
+    }
+  },
+  "paths": {
+    "/api/x402/token-verdict": {
+      "get": {
+        "operationId": "x402_token_verdict",
+        "summary": "token-verdict - Token Verdict for Robinhood Chain (4663), one call: verdict (no_risk_flagged, high_risk, kept_out, unknown), public risk categories, a one-line summary, origin (original, Stock Token, chain asset, copy), tokenUrl and cardUrl.",
+        "description": "Token Verdict for Robinhood Chain (4663), one call: verdict (no_risk_flagged, high_risk, kept_out, unknown), public risk categories, a one-line summary, origin (original, Stock Token, chain asset, copy), tokenUrl and cardUrl. chain=base reads Base (8453): buy and sell simulated on the deepest pool, taxes, copies, owner privileges, liquidity. Signals, never guarantees. $0.02 per call (USDC on Base or Solana, or USDG).",
+        "tags": [
+          "security"
+        ],
+        "x-payment-info": {
+          "price": {
+            "mode": "fixed",
+            "currency": "USD",
+            "amount": "0.02"
+          },
+          "protocols": [
+            {
+              "x402": {}
+            }
+          ]
+        },
+        "parameters": [
+          {
+            "name": "address",
+            "in": "query",
+            "required": true,
+            "description": "Token contract address (0x...) on the chosen chain.",
+            "example": "0x0000000000000000000000000000000000000001",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "chain",
+            "in": "query",
+            "required": false,
+            "description": "Chain to read: robinhood or base (default robinhood, chainId 4663; base = Base, chainId 8453). Independent of the payment network.",
+            "example": "robinhood",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "robinhood",
+                "base"
+              ],
+              "default": "robinhood"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "token": {
+                      "type": "string"
+                    },
+                    "chainId": {
+                      "type": "integer"
+                    },
+                    "verdict": {
+                      "type": "string"
+                    },
+                    "categories": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "summary": {
+                      "type": "string"
+                    },
+                    "verified": {
+                      "type": "boolean"
+                    },
+                    "origin": {
+                      "type": "string"
+                    },
+                    "imitates": {
+                      "type": "object",
+                      "properties": {
+                        "symbol": {
+                          "type": "string"
+                        },
+                        "officialAddress": {
+                          "type": "string"
+                        }
+                      }
+                    },
+                    "rugged": {
+                      "type": "boolean"
+                    },
+                    "dumped": {
+                      "type": "boolean"
+                    },
+                    "seenAt": {},
+                    "checkedAt": {
+                      "type": "string"
+                    },
+                    "creator": {},
+                    "tokenUrl": {
+                      "type": "string"
+                    },
+                    "cardUrl": {
+                      "type": "string"
+                    },
+                    "warning": {
+                      "type": "string"
+                    },
+                    "note": {
+                      "type": "string"
+                    },
+                    "license": {
+                      "type": "string"
+                    },
+                    "next": {
+                      "type": "object",
+                      "properties": {
+                        "mcp": {
+                          "type": "string"
+                        }
+                      }
+                    }
+                  }
+                },
+                "example": {
+                  "token": "0x0000000000000000000000000000000000000001",
+                  "chainId": 4663,
+                  "verdict": "kept_out",
+                  "categories": [
+                    "CANNOT_SELL"
+                  ],
+                  "summary": "Flagged: cannot sell.",
+                  "verified": false,
+                  "origin": "copy",
+                  "imitates": {
+                    "symbol": "TSLA",
+                    "officialAddress": "0x0000000000000000000000000000000000000002"
+                  },
+                  "rugged": false,
+                  "dumped": false,
+                  "seenAt": null,
+                  "checkedAt": "2026-11-10T09:05:00.000Z",
+                  "creator": null,
+                  "tokenUrl": "https://trnch.fun/token/0x0000000000000000000000000000000000000001",
+                  "cardUrl": "https://trnch.fun/api/og/token?address=0x0000000000000000000000000000000000000001",
+                  "warning": "Signals, never guarantees. Trnch flags what it sees; no_risk_flagged means no risk flagged, not that the token is sound. unknown means Trnch has not seen the token, which is not a pass. Not advice.",
+                  "note": "verified = original contract, it does not vouch for the project. unverified = no verified origin found, which is not a risk verdict.",
+                  "license": "Free to display and relay with a link to the token on trnch (tokenUrl). Attribution required. Terms: https://docs.trnch.fun/legal/terms",
+                  "next": {
+                    "mcp": "https://trnch.fun/api/mcp"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid parameters (only after a payment is sent; nothing is charged)"
+          },
+          "402": {
+            "description": "Payment Required"
+          }
+        }
+      }
+    },
+    "/api/x402/token-risk": {
+      "get": {
+        "operationId": "x402_token_risk",
+        "summary": "token-risk - Pre-trade token risk check for Robinhood Chain (4663).",
+        "description": "Pre-trade token risk check for Robinhood Chain (4663). Before you buy, does Trnch flag a risk on the token? Verdict no_risk_flagged, high_risk, kept_out or unknown, the public risk categories, a timestamp and a caution. Signals, never guarantees. $0.01 per call (USDC on Base or Solana, or USDG).",
+        "tags": [
+          "security"
+        ],
+        "x-payment-info": {
+          "price": {
+            "mode": "fixed",
+            "currency": "USD",
+            "amount": "0.01"
+          },
+          "protocols": [
+            {
+              "x402": {}
+            }
+          ]
+        },
+        "parameters": [
+          {
+            "name": "address",
+            "in": "query",
+            "required": true,
+            "description": "Robinhood Chain token contract address (0x...).",
+            "example": "0x0000000000000000000000000000000000000001",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "token": {
+                      "type": "string"
+                    },
+                    "chainId": {
+                      "type": "integer"
+                    },
+                    "verdict": {
+                      "type": "string"
+                    },
+                    "categories": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "rugged": {
+                      "type": "boolean"
+                    },
+                    "dumped": {
+                      "type": "boolean"
+                    },
+                    "seenAt": {},
+                    "checkedAt": {
+                      "type": "string"
+                    },
+                    "creator": {},
+                    "warning": {
+                      "type": "string"
+                    },
+                    "verified": {
+                      "type": "boolean"
+                    },
+                    "summary": {
+                      "type": "string"
+                    },
+                    "tokenUrl": {
+                      "type": "string"
+                    },
+                    "cardUrl": {
+                      "type": "string"
+                    },
+                    "license": {
+                      "type": "string"
+                    },
+                    "next": {
+                      "type": "object",
+                      "properties": {
+                        "origin": {
+                          "type": "string"
+                        },
+                        "mcp": {
+                          "type": "string"
+                        }
+                      }
+                    }
+                  }
+                },
+                "example": {
+                  "token": "0x0000000000000000000000000000000000000001",
+                  "chainId": 4663,
+                  "verdict": "kept_out",
+                  "categories": [
+                    "CANNOT_SELL"
+                  ],
+                  "rugged": false,
+                  "dumped": false,
+                  "seenAt": null,
+                  "checkedAt": "2026-11-10T09:05:00.000Z",
+                  "creator": null,
+                  "warning": "Signals, never guarantees. Trnch flags what it sees; no_risk_flagged means no risk flagged, not that the token is sound. unknown means Trnch has not seen the token, which is not a pass. Not advice.",
+                  "verified": false,
+                  "summary": "Flagged: cannot sell.",
+                  "tokenUrl": "https://trnch.fun/token/0x0000000000000000000000000000000000000001",
+                  "cardUrl": "https://trnch.fun/api/og/token?address=0x0000000000000000000000000000000000000001",
+                  "license": "Free to display and relay with a link to the token on trnch (tokenUrl). Attribution required. Terms: https://docs.trnch.fun/legal/terms",
+                  "next": {
+                    "origin": "GET https://trnch.fun/api/x402/token-origin?address=0x0000000000000000000000000000000000000001",
+                    "mcp": "https://trnch.fun/api/mcp"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid parameters (only after a payment is sent; nothing is charged)"
+          },
+          "402": {
+            "description": "Payment Required"
+          }
+        }
+      }
+    },
+    "/api/x402/wallet-risk": {
+      "get": {
+        "operationId": "x402_wallet_risk",
+        "summary": "wallet-risk - Wallet risk scan for Robinhood Chain (4663).",
+        "description": "Wallet risk scan for Robinhood Chain (4663). For a wallet address: the held tokens Trnch flags as risky, their count, and the share of the wallet value exposed when prices are known. Check your own wallet, or another agent's wallet before you deal with it. chain=base scans a Base (8453) wallet. Signals, never guarantees. $0.03 per call (USDC on Base or Solana, or USDG).",
+        "tags": [
+          "security"
+        ],
+        "x-payment-info": {
+          "price": {
+            "mode": "fixed",
+            "currency": "USD",
+            "amount": "0.03"
+          },
+          "protocols": [
+            {
+              "x402": {}
+            }
+          ]
+        },
+        "parameters": [
+          {
+            "name": "address",
+            "in": "query",
+            "required": true,
+            "description": "Wallet address (0x...) on the chosen chain.",
+            "example": "0x0000000000000000000000000000000000000001",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "chain",
+            "in": "query",
+            "required": false,
+            "description": "Chain to read: robinhood or base (default robinhood, chainId 4663; base = Base, chainId 8453). Independent of the payment network.",
+            "example": "robinhood",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "robinhood",
+                "base"
+              ],
+              "default": "robinhood"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "wallet": {
+                      "type": "string"
+                    },
+                    "chainId": {
+                      "type": "integer"
+                    },
+                    "checkedAt": {
+                      "type": "string"
+                    },
+                    "checked": {
+                      "type": "integer"
+                    },
+                    "flaggedCount": {
+                      "type": "integer"
+                    },
+                    "truncated": {
+                      "type": "boolean"
+                    },
+                    "exposure": {
+                      "type": "object",
+                      "properties": {
+                        "flaggedValueUsd": {
+                          "type": "number"
+                        },
+                        "totalValueUsd": {
+                          "type": "integer"
+                        },
+                        "flaggedShare": {
+                          "type": "number"
+                        },
+                        "unpricedTokens": {
+                          "type": "integer"
+                        }
+                      }
+                    },
+                    "flagged": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "address": {
+                            "type": "string"
+                          },
+                          "symbol": {
+                            "type": "string"
+                          },
+                          "valueUsd": {
+                            "type": "number"
+                          },
+                          "verdict": {
+                            "type": "string"
+                          },
+                          "categories": {
+                            "type": "array",
+                            "items": {
+                              "type": "string"
+                            }
+                          },
+                          "rugged": {
+                            "type": "boolean"
+                          },
+                          "dumped": {
+                            "type": "boolean"
+                          },
+                          "canSell": {
+                            "type": "boolean"
+                          }
+                        }
+                      }
+                    },
+                    "warning": {
+                      "type": "string"
+                    },
+                    "next": {
+                      "type": "object",
+                      "properties": {
+                        "exit": {
+                          "type": "string"
+                        },
+                        "mcp": {
+                          "type": "string"
+                        }
+                      }
+                    }
+                  }
+                },
+                "example": {
+                  "wallet": "0x0000000000000000000000000000000000000001",
+                  "chainId": 4663,
+                  "checkedAt": "2026-11-10T09:05:00.000Z",
+                  "checked": 12,
+                  "flaggedCount": 1,
+                  "truncated": false,
+                  "exposure": {
+                    "flaggedValueUsd": 3.5,
+                    "totalValueUsd": 120,
+                    "flaggedShare": 0.0292,
+                    "unpricedTokens": 0
+                  },
+                  "flagged": [
+                    {
+                      "address": "0x0000000000000000000000000000000000000002",
+                      "symbol": "EXMPL",
+                      "valueUsd": 3.5,
+                      "verdict": "kept_out",
+                      "categories": [
+                        "CANNOT_SELL"
+                      ],
+                      "rugged": false,
+                      "dumped": false,
+                      "canSell": false
+                    }
+                  ],
+                  "warning": "Signals, never guarantees. Trnch flags what it sees; no_risk_flagged means no risk flagged, not that the token is sound. unknown means Trnch has not seen the token, which is not a pass. Not advice.",
+                  "next": {
+                    "exit": "https://trnch.fun/trade",
+                    "mcp": "https://trnch.fun/api/mcp"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid parameters (only after a payment is sent; nothing is charged)"
+          },
+          "402": {
+            "description": "Payment Required"
+          }
+        }
+      }
+    },
+    "/api/x402/token-origin": {
+      "get": {
+        "operationId": "x402_token_origin",
+        "summary": "token-origin - Token origin check for Robinhood Chain (4663).",
+        "description": "Token origin check for Robinhood Chain (4663). Is this address the original verified contract, an official Stock Token, a chain asset (ETH, WETH, USDG), or a token that reuses the name or ticker of another (a copy)? verified = original contract, it does not vouch for the project. $0.01 per call (USDC on Base or Solana, or USDG).",
+        "tags": [
+          "security"
+        ],
+        "x-payment-info": {
+          "price": {
+            "mode": "fixed",
+            "currency": "USD",
+            "amount": "0.01"
+          },
+          "protocols": [
+            {
+              "x402": {}
+            }
+          ]
+        },
+        "parameters": [
+          {
+            "name": "address",
+            "in": "query",
+            "required": true,
+            "description": "Robinhood Chain token contract address (0x...).",
+            "example": "0x0000000000000000000000000000000000000001",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "token": {
+                      "type": "string"
+                    },
+                    "chainId": {
+                      "type": "integer"
+                    },
+                    "origin": {
+                      "type": "string"
+                    },
+                    "imitates": {
+                      "type": "object",
+                      "properties": {
+                        "symbol": {
+                          "type": "string"
+                        },
+                        "officialAddress": {
+                          "type": "string"
+                        }
+                      }
+                    },
+                    "checkedAt": {
+                      "type": "string"
+                    },
+                    "note": {
+                      "type": "string"
+                    },
+                    "next": {
+                      "type": "object",
+                      "properties": {
+                        "risk": {
+                          "type": "string"
+                        },
+                        "mcp": {
+                          "type": "string"
+                        }
+                      }
+                    }
+                  }
+                },
+                "example": {
+                  "token": "0x0000000000000000000000000000000000000001",
+                  "chainId": 4663,
+                  "origin": "copy",
+                  "imitates": {
+                    "symbol": "TSLA",
+                    "officialAddress": "0x0000000000000000000000000000000000000002"
+                  },
+                  "checkedAt": "2026-11-10T09:05:00.000Z",
+                  "note": "verified = original contract, it does not vouch for the project.",
+                  "next": {
+                    "risk": "GET https://trnch.fun/api/x402/token-risk?address=0x0000000000000000000000000000000000000001",
+                    "mcp": "https://trnch.fun/api/mcp"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid parameters (only after a payment is sent; nothing is charged)"
+          },
+          "402": {
+            "description": "Payment Required"
+          }
+        }
+      }
+    },
+    "/api/x402/top-24h": {
+      "get": {
+        "operationId": "x402_top_24h",
+        "summary": "top-24h - What performed on Robinhood Chain in the last 24 hours: the best tokens that entered the Trnch Heat at least one hour ago, with their peak and current multiple since entry.",
+        "description": "What performed on Robinhood Chain in the last 24 hours: the best tokens that entered the Trnch Heat at least one hour ago, with their peak and current multiple since entry. Past results, not a prediction. Rugged, dumped and flagged tokens are left out. $0.01 per call (USDC on Base or Solana, or USDG).",
+        "tags": [
+          "analytics"
+        ],
+        "x-payment-info": {
+          "price": {
+            "mode": "fixed",
+            "currency": "USD",
+            "amount": "0.01"
+          },
+          "protocols": [
+            {
+              "x402": {}
+            }
+          ]
+        },
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "description": "How many tokens, 1 to 20 (default 10).",
+            "example": "10",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "chainId": {
+                      "type": "integer"
+                    },
+                    "window": {
+                      "type": "string"
+                    },
+                    "tokens": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "token": {
+                            "type": "string"
+                          },
+                          "symbol": {
+                            "type": "string"
+                          },
+                          "peakSinceEntry": {
+                            "type": "string"
+                          },
+                          "latestSinceEntry": {
+                            "type": "string"
+                          },
+                          "url": {
+                            "type": "string"
+                          }
+                        }
+                      }
+                    },
+                    "note": {
+                      "type": "string"
+                    },
+                    "next": {
+                      "type": "object",
+                      "properties": {
+                        "risk": {
+                          "type": "string"
+                        },
+                        "mcp": {
+                          "type": "string"
+                        }
+                      }
+                    }
+                  }
+                },
+                "example": {
+                  "chainId": 4663,
+                  "window": "tokens that entered the Trnch Heat in the last 24 hours, at least 1 hour ago",
+                  "tokens": [
+                    {
+                      "token": "0x0000000000000000000000000000000000000001",
+                      "symbol": "EXMPL",
+                      "peakSinceEntry": "x2.4",
+                      "latestSinceEntry": "x1.8",
+                      "url": "https://trnch.fun/trade?token=0x0000000000000000000000000000000000000001"
+                    }
+                  ],
+                  "note": "Past results from the Heat entry price, not a prediction or advice. Rugged, dumped and flagged tokens are left out. Live Heat: https://trnch.fun/heat",
+                  "next": {
+                    "risk": "GET https://trnch.fun/api/x402/token-risk?address=<token>",
+                    "mcp": "https://trnch.fun/api/mcp"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid parameters (only after a payment is sent; nothing is charged)"
+          },
+          "402": {
+            "description": "Payment Required"
+          }
+        }
+      }
+    },
+    "/api/x402/quote": {
+      "get": {
+        "operationId": "x402_quote",
+        "summary": "quote - Best swap price on Robinhood Chain (4663) across the routers Trnch queries: the chosen router and the net amount received after the Trnch fee.",
+        "description": "Best swap price on Robinhood Chain (4663) across the routers Trnch queries: the chosen router and the net amount received after the Trnch fee. It builds no transaction. To execute, build the swap with the free Trnch bot API or sign on trnch.fun. chain=base: best price on Base (8453) across LI.FI, KyberSwap and 0x. $0.01 per call (USDC on Base or Solana, or USDG).",
+        "tags": [
+          "trading"
+        ],
+        "x-payment-info": {
+          "price": {
+            "mode": "fixed",
+            "currency": "USD",
+            "amount": "0.01"
+          },
+          "protocols": [
+            {
+              "x402": {}
+            }
+          ]
+        },
+        "parameters": [
+          {
+            "name": "tokenIn",
+            "in": "query",
+            "required": true,
+            "description": "Token sold (contract address).",
+            "example": "0x0000000000000000000000000000000000000001",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "tokenOut",
+            "in": "query",
+            "required": true,
+            "description": "Token bought (contract address).",
+            "example": "0x0000000000000000000000000000000000000002",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "amountIn",
+            "in": "query",
+            "required": true,
+            "description": "Amount sold, in the smallest unit of tokenIn.",
+            "example": "1000000",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "decimalsIn",
+            "in": "query",
+            "required": false,
+            "description": "Decimals of tokenIn (default 18).",
+            "example": "6",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "decimalsOut",
+            "in": "query",
+            "required": false,
+            "description": "Decimals of tokenOut (default 18).",
+            "example": "18",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "slippage",
+            "in": "query",
+            "required": false,
+            "description": "Fraction, 0.01 = 1% (default 0.01, max 0.5).",
+            "example": "0.01",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "chain",
+            "in": "query",
+            "required": false,
+            "description": "Chain to read: robinhood or base (default robinhood, chainId 4663; base = Base, chainId 8453). Independent of the payment network.",
+            "example": "robinhood",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "robinhood",
+                "base"
+              ],
+              "default": "robinhood"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "chainId": {
+                      "type": "integer"
+                    },
+                    "tokenIn": {
+                      "type": "string"
+                    },
+                    "tokenOut": {
+                      "type": "string"
+                    },
+                    "amountIn": {
+                      "type": "string"
+                    },
+                    "router": {
+                      "type": "string"
+                    },
+                    "amountOut": {
+                      "type": "string"
+                    },
+                    "amountOutUsd": {
+                      "type": "number"
+                    },
+                    "feeBps": {
+                      "type": "integer"
+                    },
+                    "unjudged": {
+                      "type": "boolean"
+                    },
+                    "warning": {},
+                    "quotedAt": {
+                      "type": "string"
+                    },
+                    "next": {
+                      "type": "object",
+                      "properties": {
+                        "build": {
+                          "type": "string"
+                        },
+                        "trade": {
+                          "type": "string"
+                        },
+                        "mcp": {
+                          "type": "string"
+                        }
+                      }
+                    }
+                  }
+                },
+                "example": {
+                  "chainId": 4663,
+                  "tokenIn": "0x0000000000000000000000000000000000000001",
+                  "tokenOut": "0x0000000000000000000000000000000000000002",
+                  "amountIn": "1000000",
+                  "router": "kyberswap",
+                  "amountOut": "123456789",
+                  "amountOutUsd": 0.98,
+                  "feeBps": 25,
+                  "unjudged": false,
+                  "warning": null,
+                  "quotedAt": "2026-11-10T09:05:00.000Z",
+                  "next": {
+                    "build": "POST https://trnch.fun/api/bot/v1/build (free, API key from https://trnch.fun/api/bot/v1/register)",
+                    "trade": "https://trnch.fun/trade?token=0x0000000000000000000000000000000000000002",
+                    "mcp": "https://trnch.fun/api/mcp"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid parameters (only after a payment is sent; nothing is charged)"
+          },
+          "402": {
+            "description": "Payment Required"
+          }
+        }
+      }
+    },
+    "/api/bot/v1/check": {
+      "get": {
+        "summary": "Free, no key: is this token a rug? Trnch check",
+        "description": "Check any Robinhood Chain token for rugs, honeypots, scams and copycats before you buy. Returns status (kept_out, in_heat, seen, unknown), a public risk category, rugged and dumped, plus creator { history, tokensInHeat } or null (launch history of the token's creator, bucketed, context only, not part of the verdict), and builder or null (what HEY Research reports about the team's shipping, per HEY, separate from the verdict; not a rating), verified (true for tokens verified by trnch and official assets), summary (one line to post as is), tokenUrl and cardUrl (the token page and its share image). No key. 120 calls per minute per IP. A signal, never a guarantee.",
+        "parameters": [
+          {
+            "name": "token",
+            "in": "query",
+            "required": true,
+            "description": "Token contract address on Robinhood Chain (chainId 4663)",
+            "schema": {
+              "type": "string",
+              "pattern": "^0x[0-9a-fA-F]{40}$"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error: { error }. 400 invalid parameters, 401 missing or invalid key, 409 token not tradable through Trnch (kept out by Trnch) or key limit, 429 rate or build limit (retry-after)"
+          },
+          "4XX": {
+            "description": "Client error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [],
+        "operationId": "checkToken"
+      }
+    },
+    "/api/bot/v1/scan": {
+      "get": {
+        "summary": "Free, no key: scan a wallet, every token it holds with its Trnch verdict",
+        "description": "Every ERC-20 a Robinhood Chain wallet holds: address, symbol, balance (raw and decimals), valueUsd when known, the same Trnch verdict as /check (status, category, rugged, dumped), creator (launch history of the token's creator, bucketed, context only, not part of the verdict; null when unknown), flagged, canSell (false only for a confirmed honeypot) and, for a flagged token that can be sold, a sell hint (the POST /sell call and a trnch.fun/trade link). Flagged tokens first. ETH, WETH, USDG and official assets are listed as official, without a check. At most 100 other tokens are returned, flagged first, then tokens with no known price, then the most valuable (truncated: true when more are held). Cached 60 s per wallet. No key. 20 calls per minute per IP. A signal, never a guarantee.",
+        "parameters": [
+          {
+            "name": "wallet",
+            "in": "query",
+            "required": true,
+            "description": "Wallet address on Robinhood Chain (chainId 4663)",
+            "schema": {
+              "type": "string",
+              "pattern": "^0x[0-9a-fA-F]{40}$"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error: { error }. 400 invalid wallet, 429 rate limited (retry-after, per IP or global), 503 holdings unavailable"
+          },
+          "4XX": {
+            "description": "Client error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [],
+        "operationId": "scanWallet"
+      }
+    },
+    "/api/bot/v1/top": {
+      "get": {
+        "summary": "Free, no key: top Robinhood Chain tokens of the last 24 hours",
+        "description": "Best tokens that entered the Trnch Heat in the last 24 hours (at least 1 hour ago), with peak and current multiple since entry. Rugged, dumped and flagged tokens are left out. Past performance, not a prediction. No key.",
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "description": "1 to 20, default 10",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 20
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error: { error }. 400 invalid parameters, 401 missing or invalid key, 409 token not tradable through Trnch (kept out by Trnch) or key limit, 429 rate or build limit (retry-after)"
+          },
+          "4XX": {
+            "description": "Client error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [],
+        "operationId": "getTop24h"
+      }
+    },
+    "/api/bot/v1/stats": {
+      "get": {
+        "summary": "Free, no key: live public numbers",
+        "description": "Last 24 hours: tokens spotted, tokens in the Heat, kept out as High risk, rugs detected, median detection delay, routers, bot fee. No key.",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error: { error }. 400 invalid parameters, 401 missing or invalid key, 409 token not tradable through Trnch (kept out by Trnch) or key limit, 429 rate or build limit (retry-after)"
+          },
+          "4XX": {
+            "description": "Client error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [],
+        "operationId": "getStats"
+      }
+    },
+    "/api/bot/v1/quote": {
+      "post": {
+        "summary": "Free, no key: quote a swap",
+        "description": "Best quote across eight routers, net of the Trnch fee. amountIn in the token's smallest unit. The response carries feeBps, the fee rate for the pair in basis points.",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "feeBps": {
+                      "type": "integer",
+                      "description": "Fee rate for this pair, in basis points (25 standard, 10 between major assets, 50 for tokens under 24 h old or with no known launch time)"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error: { error }. 400 invalid parameters, 401 missing or invalid key, 409 token not tradable through Trnch (kept out by Trnch) or key limit, 429 rate or build limit (retry-after)"
+          },
+          "4XX": {
+            "description": "Client error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          },
+          {}
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "tokenIn",
+                  "tokenOut",
+                  "amountIn"
+                ],
+                "properties": {
+                  "tokenIn": {
+                    "type": "string",
+                    "description": "A 0x token address or an opaque id from GET /heat"
+                  },
+                  "tokenOut": {
+                    "type": "string",
+                    "description": "A 0x token address or an opaque id from GET /heat"
+                  },
+                  "amountIn": {
+                    "type": "string",
+                    "pattern": "^[0-9]+$"
+                  },
+                  "decimalsIn": {
+                    "type": "integer"
+                  },
+                  "decimalsOut": {
+                    "type": "integer"
+                  },
+                  "slippage": {
+                    "type": "number",
+                    "minimum": 0.001,
+                    "maximum": 0.5
+                  },
+                  "fast": {
+                    "type": "boolean",
+                    "description": "Return the first clean quote after about 250 ms instead of waiting for the best price. May return a slightly worse price (partial: true when a slower router was cut). Default false."
+                  }
+                }
+              }
+            }
+          }
+        },
+        "operationId": "postQuote"
+      }
+    },
+    "/api/bot/v1/check/batch": {
+      "post": {
+        "summary": "Free, no key: check up to 20 tokens in one call",
+        "description": "Same answer as /check for each token, for bots that read contract addresses on X: verdict fields plus verified, summary, tokenUrl and cardUrl. Body { tokens: [0x...] }, 1 to 20 addresses; duplicates (any case) are removed. Returns { results } in input order; a token that cannot be checked returns { token, error }. No key. Robinhood Chain: 20 addresses per call, 10 calls per minute per IP. Elysium: 5 addresses per call, sharing the 20 per minute per IP of /check. Body over 8 KB: 413. A signal, never a guarantee.",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "results"
+                  ],
+                  "properties": {
+                    "results": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "description": "The /check answer for one token, or { token, error } when it cannot be checked.",
+                        "additionalProperties": true
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid body: tokens must be 1 to 20 0x addresses (5 on Elysium)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Body over 8 KB",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit (retry-after)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [],
+        "operationId": "checkTokens",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "tokens"
+                ],
+                "additionalProperties": false,
+                "properties": {
+                  "tokens": {
+                    "type": "array",
+                    "minItems": 1,
+                    "maxItems": 20,
+                    "items": {
+                      "type": "string",
+                      "pattern": "^0x[0-9a-fA-F]{40}$"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/badge/token/{address}": {
+      "get": {
+        "summary": "Free, no key: embeddable SVG badge with the trnch check verdict",
+        "description": "A small SVG pill (about 200x28) for launchpads, lock checkers and token sites: left \"trnch scan\", right the same verdict as /check: Verified, No red flag, Flagged: <category>, Rugged, Dumped or Not seen yet (never \"safe\"). Embed: <a href=\"https://trnch.fun/token/0x...\"><img src=\"https://trnch.fun/api/badge/token/0x....svg\" alt=\"trnch scan verdict\" height=\"28\"></a>. The address may end in .svg. Free to display with a link to the token page on trnch (cached 5 min, 120 calls per minute per IP). Invalid address: 400 with an \"invalid token\" image; check unavailable: an \"unavailable\" image cached 30 s. A signal, never a guarantee.",
+        "parameters": [
+          {
+            "name": "address",
+            "in": "path",
+            "required": true,
+            "description": "Token contract address, optionally followed by .svg",
+            "schema": {
+              "type": "string",
+              "pattern": "^0x[0-9a-fA-F]{40}(\\.svg)?$"
+            }
+          },
+          {
+            "name": "theme",
+            "in": "query",
+            "required": false,
+            "description": "Left part colors. Default dark.",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "dark",
+                "light"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The badge",
+            "content": {
+              "image/svg+xml": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid address (an SVG reading invalid token)",
+            "content": {
+              "image/svg+xml": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        },
+        "operationId": "tokenBadge",
+        "security": []
+      }
+    },
+    "/api/bot/v1/register": {
+      "get": {
+        "summary": "Message to sign",
+        "description": "Step 1 of 2 to get an API key without a browser: returns { message }, valid 10 minutes. No funds move.",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error: { error }. 400 invalid parameters, 401 missing or invalid key, 409 token not tradable through Trnch (kept out by Trnch) or key limit, 429 rate or build limit (retry-after)"
+          },
+          "4XX": {
+            "description": "Client error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [],
+        "parameters": [
+          {
+            "name": "wallet",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^0x[0-9a-fA-F]{40}$"
+            }
+          }
+        ],
+        "operationId": "getRegister"
+      },
+      "post": {
+        "summary": "Create an API key",
+        "description": "Step 2: the wallet signs the message (personal_sign). Returns { key, prefix, wallet } with status 201; the key is shown once. Up to 3 keys per wallet. Up to 10 new keys per IP per day; 120 calls per minute per IP across keys. Optional ref: a referral code whose owner earns 25% of the Trnch fee on this key's swaps.",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error: { error }. 400 invalid parameters, 401 missing or invalid key, 409 token not tradable through Trnch (kept out by Trnch) or key limit, 429 rate or build limit (retry-after)"
+          },
+          "4XX": {
+            "description": "Client error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "wallet",
+                  "message",
+                  "signature"
+                ],
+                "properties": {
+                  "wallet": {
+                    "type": "string",
+                    "pattern": "^0x[0-9a-fA-F]{40}$"
+                  },
+                  "message": {
+                    "type": "string"
+                  },
+                  "signature": {
+                    "type": "string"
+                  },
+                  "label": {
+                    "type": "string",
+                    "maxLength": 24
+                  },
+                  "ref": {
+                    "type": "string",
+                    "maxLength": 40
+                  }
+                },
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "operationId": "postRegister"
+      }
+    },
+    "/api/bot/v1/heat": {
+      "get": {
+        "summary": "The Heat feed",
+        "description": "heat: tokens screened by Trnch, ranked live (opaque id, rank, heatScore, momentum, priceUsd, liquidityUsd, status, enteredHeatAt). new: just-spotted tokens, not yet screened. Pass nextSince back as since to get only new entries. Ids only work with Trnch /quote, /build, /buy and /sell.",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error: { error }. 400 invalid parameters, 401 missing or invalid key, 409 token not tradable through Trnch (kept out by Trnch) or key limit, 429 rate or build limit (retry-after)"
+          },
+          "4XX": {
+            "description": "Client error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "since",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "nextSince of the previous call (ms or ISO)"
+          }
+        ],
+        "operationId": "getHeat"
+      }
+    },
+    "/api/bot/v1/build": {
+      "post": {
+        "summary": "Build a swap on a given router",
+        "description": "Same body as /quote plus router; returns the transaction to sign (and an approval if needed). The swap always pays the key's wallet.",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "router": {
+                      "type": "string"
+                    },
+                    "feeBps": {
+                      "type": "integer",
+                      "description": "Fee rate applied to this swap, in basis points (25 standard, 10 between major assets, 50 for tokens under 24 h old or with no known launch time)"
+                    },
+                    "quote": {
+                      "type": "object",
+                      "description": "amountOut (net of the Trnch fee), inUsd, outUsd, gasUsd, routesAsked"
+                    },
+                    "approval": {
+                      "type": [
+                        "object",
+                        "null"
+                      ],
+                      "description": "Send first when not null: { to, data }"
+                    },
+                    "tx": {
+                      "type": "object",
+                      "properties": {
+                        "to": {
+                          "type": "string",
+                          "pattern": "^0x[0-9a-fA-F]{40}$"
+                        },
+                        "data": {
+                          "type": "string"
+                        },
+                        "value": {
+                          "type": "string"
+                        },
+                        "gas": {
+                          "type": [
+                            "string",
+                            "null"
+                          ],
+                          "description": "Gas limit: the router estimate plus 30%. Send it as is."
+                        }
+                      }
+                    },
+                    "chainId": {
+                      "type": "integer",
+                      "const": 4663
+                    },
+                    "from": {
+                      "type": "string",
+                      "pattern": "^0x[0-9a-fA-F]{40}$"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error: { error }. 400 invalid parameters, 401 missing or invalid key, 409 token not tradable through Trnch (kept out by Trnch) or key limit, 429 rate or build limit (retry-after)"
+          },
+          "4XX": {
+            "description": "Client error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "router",
+                  "tokenIn",
+                  "tokenOut",
+                  "amountIn"
+                ],
+                "properties": {
+                  "router": {
+                    "type": "string",
+                    "enum": [
+                      "0x",
+                      "kyberswap",
+                      "lifi",
+                      "uniswap",
+                      "sushi",
+                      "1inch",
+                      "direct"
+                    ]
+                  },
+                  "tokenIn": {
+                    "type": "string",
+                    "description": "A 0x token address or an opaque id from GET /heat"
+                  },
+                  "tokenOut": {
+                    "type": "string",
+                    "description": "A 0x token address or an opaque id from GET /heat"
+                  },
+                  "amountIn": {
+                    "type": "string"
+                  },
+                  "decimalsIn": {
+                    "type": "integer"
+                  },
+                  "decimalsOut": {
+                    "type": "integer"
+                  },
+                  "slippage": {
+                    "type": "number"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "operationId": "postBuild"
+      }
+    },
+    "/api/bot/v1/buy": {
+      "post": {
+        "summary": "Buy a token",
+        "description": "One call: best route across eight routers, paid in USDG by default. Give tokenId or token, and amountUsd or amountIn (+ tokenIn).",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "router": {
+                      "type": "string"
+                    },
+                    "feeBps": {
+                      "type": "integer",
+                      "description": "Fee rate applied to this swap, in basis points (25 standard, 10 between major assets, 50 for tokens under 24 h old or with no known launch time)"
+                    },
+                    "quote": {
+                      "type": "object",
+                      "description": "amountOut (net of the Trnch fee), inUsd, outUsd, gasUsd, routesAsked"
+                    },
+                    "approval": {
+                      "type": [
+                        "object",
+                        "null"
+                      ],
+                      "description": "Send first when not null: { to, data }"
+                    },
+                    "tx": {
+                      "type": "object",
+                      "properties": {
+                        "to": {
+                          "type": "string",
+                          "pattern": "^0x[0-9a-fA-F]{40}$"
+                        },
+                        "data": {
+                          "type": "string"
+                        },
+                        "value": {
+                          "type": "string"
+                        },
+                        "gas": {
+                          "type": [
+                            "string",
+                            "null"
+                          ],
+                          "description": "Gas limit: the router estimate plus 30%. Send it as is."
+                        }
+                      }
+                    },
+                    "chainId": {
+                      "type": "integer",
+                      "const": 4663
+                    },
+                    "from": {
+                      "type": "string",
+                      "pattern": "^0x[0-9a-fA-F]{40}$"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error: { error }. 400 invalid parameters, 401 missing or invalid key, 409 token not tradable through Trnch (kept out by Trnch) or key limit, 429 rate or build limit (retry-after)"
+          },
+          "4XX": {
+            "description": "Client error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "tokenId": {
+                    "type": "string"
+                  },
+                  "token": {
+                    "type": "string",
+                    "pattern": "^0x[0-9a-fA-F]{40}$"
+                  },
+                  "amountUsd": {
+                    "type": "number",
+                    "maximum": 50000
+                  },
+                  "amountIn": {
+                    "type": "string"
+                  },
+                  "tokenIn": {
+                    "type": "string",
+                    "pattern": "^0x[0-9a-fA-F]{40}$"
+                  },
+                  "slippageBps": {
+                    "type": "integer",
+                    "minimum": 10,
+                    "maximum": 5000
+                  }
+                }
+              }
+            }
+          }
+        },
+        "operationId": "postBuy"
+      }
+    },
+    "/api/bot/v1/sell": {
+      "post": {
+        "summary": "Sell a token for USDG",
+        "description": "One call: percent of the wallet balance or an exact amount, best route across eight routers.",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "router": {
+                      "type": "string"
+                    },
+                    "feeBps": {
+                      "type": "integer",
+                      "description": "Fee rate applied to this swap, in basis points (25 standard, 10 between major assets, 50 for tokens under 24 h old or with no known launch time)"
+                    },
+                    "quote": {
+                      "type": "object",
+                      "description": "amountOut (net of the Trnch fee), inUsd, outUsd, gasUsd, routesAsked"
+                    },
+                    "approval": {
+                      "type": [
+                        "object",
+                        "null"
+                      ],
+                      "description": "Send first when not null: { to, data }"
+                    },
+                    "tx": {
+                      "type": "object",
+                      "properties": {
+                        "to": {
+                          "type": "string",
+                          "pattern": "^0x[0-9a-fA-F]{40}$"
+                        },
+                        "data": {
+                          "type": "string"
+                        },
+                        "value": {
+                          "type": "string"
+                        },
+                        "gas": {
+                          "type": [
+                            "string",
+                            "null"
+                          ],
+                          "description": "Gas limit: the router estimate plus 30%. Send it as is."
+                        }
+                      }
+                    },
+                    "chainId": {
+                      "type": "integer",
+                      "const": 4663
+                    },
+                    "from": {
+                      "type": "string",
+                      "pattern": "^0x[0-9a-fA-F]{40}$"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error: { error }. 400 invalid parameters, 401 missing or invalid key, 409 token not tradable through Trnch (kept out by Trnch) or key limit, 429 rate or build limit (retry-after)"
+          },
+          "4XX": {
+            "description": "Client error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "tokenId": {
+                    "type": "string"
+                  },
+                  "token": {
+                    "type": "string",
+                    "pattern": "^0x[0-9a-fA-F]{40}$"
+                  },
+                  "percent": {
+                    "type": "number",
+                    "maximum": 100
+                  },
+                  "amount": {
+                    "type": "string"
+                  },
+                  "slippageBps": {
+                    "type": "integer",
+                    "minimum": 10,
+                    "maximum": 5000
+                  }
+                }
+              }
+            }
+          }
+        },
+        "operationId": "postSell"
+      }
+    },
+    "/api/bot/v1/confirm": {
+      "post": {
+        "summary": "Report a sent swap",
+        "description": "Optional: the hash of a swap you sent, so its volume counts for your Trnch account once checked on-chain. Idempotent.",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error: { error }. 400 invalid parameters, 401 missing or invalid key, 409 token not tradable through Trnch (kept out by Trnch) or key limit, 429 rate or build limit (retry-after)"
+          },
+          "4XX": {
+            "description": "Client error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "txHash"
+                ],
+                "properties": {
+                  "txHash": {
+                    "type": "string",
+                    "pattern": "^0x[0-9a-fA-F]{64}$"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "operationId": "postConfirm"
+      }
+    },
+    "/api/bot/v1/alerts": {
+      "get": {
+        "summary": "List wallet alert subscriptions",
+        "description": "The wallet alert subscriptions of this key: id, wallet, webhookUrl, failures in a row, disabled, lastDelivery (delivered or failed) and lastDeliveryAt. No HTTP status or failure detail, and the secret is never returned again.",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error: { error }. 401 missing or invalid key, 429 rate limited (retry-after), 503 alerts unavailable"
+          },
+          "4XX": {
+            "description": "Client error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "operationId": "listAlerts"
+      },
+      "post": {
+        "summary": "Subscribe a webhook to Trnch alerts for a wallet",
+        "description": "Every 5 minutes, a token the wallet holds that Trnch newly flagged is sent as one signed JSON POST { event: wallet.flag, id, initial, wallet, token, verdict, canSell, sell } (X-TRNCH-Signature, HMAC-SHA256 of t.body with the secret returned once here). The first time a subscription is read, each token the wallet already holds that Trnch keeps out is sent once with initial: true. A failed delivery is retried on the next run, up to 3 attempts per token. The URL must be https, a public domain name, port 443; IPs, localhost, private ranges and internal names are refused, and the name is resolved at each send and the connection is pinned to the checked address. 3 subscriptions per key, 5 active per wallet across its keys, 20 per destination host; the same wallet again replaces its URL; 10 failed deliveries in a row disable the subscription.",
+        "responses": {
+          "201": {
+            "description": "Created: the subscription and its secret, shown once",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error: { error }. 400 invalid parameters (including a webhookUrl that is not https, not a public domain name or not port 443), 401 missing or invalid key, 409 limit reached (3 alerts per key, 5 active per wallet across its keys, 20 per destination host), 429 rate limited (retry-after), 503 alerts unavailable"
+          },
+          "4XX": {
+            "description": "Client error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "wallet",
+                  "webhookUrl"
+                ],
+                "properties": {
+                  "wallet": {
+                    "type": "string",
+                    "pattern": "^0x[0-9a-fA-F]{40}$",
+                    "description": "Wallet to watch (any address)"
+                  },
+                  "webhookUrl": {
+                    "type": "string",
+                    "maxLength": 300,
+                    "description": "https URL on a public domain name, port 443"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "operationId": "subscribeAlert"
+      },
+      "delete": {
+        "summary": "Remove a wallet alert subscription",
+        "description": "Remove one subscription of this key by id. 404 if it does not exist.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "query",
+            "required": true,
+            "description": "Subscription id from GET /alerts",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK: { removed: true, id }",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error: { error }. 400 invalid id, 401 missing or invalid key, 404 alert not found, 429 rate limited (retry-after), 503 alerts unavailable"
+          },
+          "4XX": {
+            "description": "Client error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "operationId": "deleteAlert"
+      }
+    }
+  }
+}

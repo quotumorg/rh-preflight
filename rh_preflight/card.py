@@ -31,6 +31,9 @@ def source_line(reading):
             re.fullmatch(r'Agent Wormhole has not observed this token; that is not a verdict'
                          r' · https://dashboard\.agentwormhole\.com/t/4663/0x[0-9a-fA-F]{40}', reading.line)):
         return reading.line
+    if (isinstance(reading, TrnchReading) and reading.source == 'Trnch' and
+            reading.summary_line is not None and reading.line == reading.summary_line):
+        return reading.line
     attributed = (isinstance(reading, TrnchReading) and reading.source == 'Trnch'
                   and _trnch_attribution(reading.line))
     return text(reading.line, _trnch=attributed) if WORDING.search(reading.line) else reading.line
