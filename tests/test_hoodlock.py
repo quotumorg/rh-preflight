@@ -6,6 +6,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import json
 from pathlib import Path
 import threading
+import time
 
 import pytest
 
@@ -20,6 +21,8 @@ from rh_preflight.sources import chain, hoodlock
 SAMPLE = Path(__file__).parent / 'fixtures' / 'hoodlock' / 'lp-locks-2026-11-13.json'
 TOKEN = '0x' + '12' * 20
 SCOPE = 'token locks and vesting only; other lockers not read'
+# deeper than any supported CPython json decoder accepts; 600 decodes everywhere
+DEEP = 100_000
 
 
 def abi(*values):
@@ -32,7 +35,8 @@ def sample():
 
 
 def wire(sample, count=0, target=TOKEN, withdrawn=0):
-    ticks, calls = [100.0], []
+    # start on the real monotonic clock: Network's own deadline and budget use it
+    ticks, calls = [time.monotonic()], []
     client = hoodlock.Client(clock=lambda: ticks[0], wall_clock=lambda: sample['timestamp'])
     client.verify = lambda deadline: None
 
@@ -312,11 +316,11 @@ def test_lp_http_get_cache_and_cooldown_preserve_token_facts(sample, server, sta
     assert not any('payment' in key for key in headers)
 
 
-@pytest.mark.parametrize('depth', [600, 1500])
+@pytest.mark.parametrize('depth', [600, DEEP])
 @pytest.mark.parametrize('through_network', [False, True])
 def test_nested_lp_http_and_cached_json_preserve_token_facts(sample, server, depth, through_network):
     origin, state = server
-    # The decoder rejects 1500 levels. At 600 it succeeds, but the cache's
+    # The decoder rejects DEEP levels. At 600 it succeeds, but the cache's
     # defensive deepcopy exceeds the recursion limit on the second lookup.
     raw = (json.dumps(sample).encode()[:-1] + b', "unused":' + b'[' * depth
            + b'0' + b']' * depth + b'}')
@@ -351,7 +355,7 @@ def test_nested_lp_http_and_cached_json_preserve_token_facts(sample, server, dep
 
 
 @pytest.mark.parametrize('stage', ['verify', 'index', 'details'])
-@pytest.mark.parametrize('depth', [600, 1500])
+@pytest.mark.parametrize('depth', [600, DEEP])
 @pytest.mark.parametrize('through_network', [False, True])
 def test_nested_token_rpc_keeps_lp_independent(sample, rpc_server, monkeypatch, stage, depth, through_network):
     origin, state = rpc_server
@@ -460,7 +464,7 @@ def test_lp_distinct_positions_in_same_pool_keep_aggregate(sample):
 def test_concurrent_lp_reads_collapse_and_release_cache_lock(sample, server, blocked, malformed):
     origin, state = server
     target = sample['locks'][0]['token1']
-    raw = b'{"unused":' + b'[' * 1500 + b'0' + b']' * 1500 + b'}' if malformed else sample
+    raw = b'{"unused":' + b'[' * DEEP + b'0' + b']' * DEEP + b'}' if malformed else sample
     state['overrides'][hoodlock.LP_PATH] = (200, raw, {})
     client, _, _ = wire(sample, count=1, target=target)
     client.lp_http = hoodlock.LPHTTP(base_url=origin, clock=client.clock)
