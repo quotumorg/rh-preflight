@@ -118,7 +118,7 @@ def trnch_cards():
     rows = [row for batch in batches for row in batch['results']]
     samples = {'HISS': hiss,
                'USDG': next(row for row in rows if row['token'].startswith('0x5fc5')),
-               'RUGGED': next(row for row in rows if row['rugged'])}
+               'PULLED': next(row for row in rows if row['token'] == '0x47b537f7c2c2183967fe5ba883291b8ada490db6')}
     texts = {'HISS': lp_cards()['HISS']}
     usdg = (root / 'hoodlock' / 'cards-058-lock-usdg-1118.txt').read_text()
     texts['USDG'] = usdg.split('===== ' + samples['USDG']['token'] + '\n', 1)[1].rstrip() + '\n'
@@ -148,6 +148,6 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description=__doc__)
     group = parser.add_mutually_exclusive_group(required=True)
     group.add_argument('--lp', choices=('HISS', 'LOCK'))
-    group.add_argument('--trnch', choices=('HISS', 'USDG', 'RUGGED'))
+    group.add_argument('--trnch', choices=('HISS', 'USDG', 'PULLED'))
     args = parser.parse_args()
     print(trnch_cards()[args.trnch] if args.trnch else lp_cards()[args.lp], end='')

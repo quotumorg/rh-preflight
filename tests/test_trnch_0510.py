@@ -328,11 +328,11 @@ def test_new_replays_are_socket_free_and_preserve_other_captured_lines():
     from demo.r6_replay import trnch_cards, lp_cards
     with patch('socket.socket', side_effect=AssertionError('no sockets')):
         cards = trnch_cards()
-    assert set(cards) == {'HISS', 'USDG', 'RUGGED'}
+    assert set(cards) == {'HISS', 'USDG', 'PULLED'}
     assert HISS['summary'] in cards['HISS']
     assert 'Trnch: Verified by trnch. · first seen ' in cards['USDG']
-    assert 'Trnch: Rugged: liquidity pulled.' in cards['RUGGED']
-    assert 'HEY response for this token was not captured' in cards['RUGGED']
+    assert 'Trnch: Rugged: liquidity pulled.' in cards['PULLED']
+    assert 'HEY response for this token was not captured' in cards['PULLED']
     assert [l for l in cards['HISS'].splitlines() if not l.startswith('Trnch: ')] == [
         l for l in lp_cards()['HISS'].splitlines() if not l.startswith('Trnch: ')]
 
