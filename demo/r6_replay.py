@@ -29,6 +29,9 @@ def answer(name, path, payload=None):
     if name == 'borro':
         return 200, capture({'/markets.json': 'borro-markets.json', '/prices.json': 'borro-prices.json'}[path])
     if name == 'hoodlock':
+        if path == hoodlock.LP_PATH:
+            # No LP answer was captured on 2026-11-09.
+            raise Unavailable()
         if isinstance(payload, dict):
             return 200, {'jsonrpc': '2.0', 'id': payload['id'], 'result': '0x1237'}
         first = payload[0]['params'][0]['data']

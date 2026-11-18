@@ -21,6 +21,8 @@ def recorded_locker():
     requests = []
 
     def read(path, deadline, payload=None):
+        if path == hoodlock.LP_PATH:
+            raise hoodlock.Unavailable()
         requests.append(payload)
         if isinstance(payload, list) and payload[0]['params'][0]['data'].startswith('0xf4dadc61'):
             saved = capture('hoodlock-rpc-delta-locks.json')

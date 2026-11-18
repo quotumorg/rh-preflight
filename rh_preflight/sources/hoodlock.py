@@ -1,20 +1,26 @@
-"""HoodLock-only token locks and vesting indices over the public RPC."""
+"""HoodLock token locks over RPC and informational v2/v3/v4 LP API records."""
+from dataclasses import replace
 from datetime import datetime, timezone
-from decimal import Decimal
+from decimal import Decimal, DecimalException
+import math
 import re
 import time
 from ..extract import ADDRESS
 from .chain import Client as RPC, call, results
-from .common import plural, Reading
+from .common import Absent, Keyless, Unavailable, Refused, RateLimited, field, money, plural, Reading
 
 LOCKER = '0xd0f7d8c6e9f6d80c297bebe4f7fd1b9c8125c32f'
-# The saved ABI returns complete ID arrays. Page the detail eth_calls,
-# without inventing an index pagination method or a vesting-detail selector.
+# Keep the released token-lock page and item bounds.
 PAGE_SIZE = 20
 MAX_PAGES = 10
 MAX_ITEMS = 200
 
 VESTING = '0x910e19bcC4bce46999994Ed7297E0Fc4431ec72E'
+LP_PATH = '/api/v1/lp-locks'
+
+
+class LPHTTP(Keyless):
+    origin = 'https://hoodlock.tech'
 
 
 def words(raw):
@@ -32,6 +38,17 @@ def ids(raw):
     return row[2:]
 
 
+def lp_value(raw):
+    try:
+        value = Decimal(str(raw))
+        # keep USD formatting bounded to the finite JSON float range.
+        if value.is_finite() and value >= 0 and math.isfinite(float(value)):
+            return value
+    except (DecimalException, ValueError, OverflowError):
+        pass
+    return None
+
+
 class Client(RPC):
     label = 'HoodLock'
     page = 'https://hoodlock.tech/lock-checker'
@@ -39,6 +56,91 @@ class Client(RPC):
     def __init__(self, *args, wall_clock=time.time, **kwargs):
         super().__init__(*args, **kwargs)
         self.wall_clock = wall_clock
+        self.lp_http = LPHTTP(base_url=self.base_url if self.base_url != self.origin else None,
+                              timeout=self.timeout, clock=self.clock)
+
+    def _read(self, path, deadline, payload=None):
+        if path == LP_PATH:
+            return self.lp_http._read(path, deadline)
+        return super()._read(path, deadline, payload)
+
+    def lookup(self, target, deadline=None, **kwargs):
+        # Leave time to assemble the partial card before Network's collection cut.
+        end = self.clock() + self.timeout
+        end = (min(deadline, end) if deadline is not None else end) - .01
+        try:
+            reading = super().lookup(target, deadline=end, **kwargs)
+        except (OSError, RecursionError):
+            # platform dates and hostile RPC nesting must not block LP facts.
+            reading = self.unavailable(target, **kwargs)
+        if (not ADDRESS.fullmatch(str(target)) or self.clock() >= end
+                or reading.state in ('payment_required', 'refused', 'rate_limited')):
+            return reading
+        try:
+            lines = self.lp_lines(target, self.read(LP_PATH, end))
+        except (Absent, Unavailable, KeyError, TypeError, ValueError, AttributeError,
+                IndexError, OverflowError, OSError, DecimalException, RecursionError):
+            # An optional LP read must not erase the independent token-lock facts.
+            return reading
+        token_line = reading.line.replace(
+            "token locks and vesting only; LP locks in HoodLock's Liquidity Locker and other lockers not read",
+            'token locks and vesting only; other lockers not read')
+        return replace(reading, line='\n'.join(filter(None, [token_line, *lines])))
+
+    def lp_lines(self, target, data):
+        if (not isinstance(data, dict) or data.get('chainId') != 4663
+                or type(data.get('complete')) is not bool or not isinstance(data.get('locks'), list)):
+            raise ValueError()
+        pools = {}
+        lock_ids = set()
+        now = self.wall_clock()
+        for row in data['locks']:
+            if not isinstance(row, dict):
+                raise ValueError()
+            if row.get('version') not in ('v2', 'v3', 'v4') or row.get('status') != 'locked':
+                continue
+            tokens = (row.get('token0'), row.get('token1'))
+            if not all(isinstance(token, str) and ADDRESS.fullmatch(token) for token in tokens):
+                raise ValueError()
+            if target.lower() not in (token.lower() for token in tokens):
+                continue
+            unlock = row.get('unlockTime')
+            if type(unlock) is not int:
+                raise ValueError()
+            if unlock <= now:
+                continue
+            pool = row.get('pool')
+            pool_pattern = r'0x[0-9a-fA-F]{64}' if row['version'] == 'v4' else ADDRESS
+            if not isinstance(pool, str) or not re.fullmatch(pool_pattern, pool):
+                raise ValueError()
+            ident = row.get('lockId')
+            if type(ident) is not int or ident < 0 or ident in lock_ids:
+                raise ValueError()
+            lock_ids.add(ident)
+            rows = pools.setdefault(pool.lower(), [])
+            if rows and tuple(token.lower() for token in tokens) != tuple(
+                    rows[0]['token' + str(i)].lower() for i in (0, 1)):
+                raise ValueError()
+            rows.append(row)
+        lines = []
+        partial = '; incomplete API result' if not data['complete'] else ''
+        for rows in pools.values():
+            symbols = '/'.join(field(rows[0].get('symbol' + str(i))) for i in (0, 1))
+            values = [lp_value(row.get('valueUsd')) for row in rows]
+            usd = (f', ${money(sum(values))} locked'
+                   if all(value is not None for value in values) else '')
+            until = datetime.fromtimestamp(min(row['unlockTime'] for row in rows), timezone.utc).strftime('%Y-%m-%d')
+            # Prefer API USD for size; use pool-local liquidity when USD is incomplete.
+            sizes = values if all(value is not None for value in values) else [
+                lp_value(row.get('liquidity')) for row in rows]
+            largest = max(range(len(rows)), key=lambda i: sizes[i] if sizes[i] is not None else -1)
+            proof = rows[largest].get('proof')
+            link = (f' · {proof}' if isinstance(proof, str) and re.fullmatch(
+                r'https://hoodlock\.tech/proof/position/[0-9]+', proof) else '')
+            lines.append(f'HoodLock LP: {len(rows)} locked {plural(len(rows), "position")} in {symbols}{usd} until {until}{partial}{link}')
+        if partial and not lines:
+            lines.append('HoodLock LP: incomplete API result')
+        return lines
 
     def target_page(self, target=None, **kwargs):
         return self.page

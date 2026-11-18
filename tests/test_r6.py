@@ -27,6 +27,8 @@ def wire(module, mode='present', clock=time.monotonic):
     client = module.Client(clock=clock)
     calls = []
     def read(path, deadline, payload=None):
+        if path == hoodlock.LP_PATH:
+            raise hoodlock.Unavailable()
         calls.append((path, payload, deadline))
         if mode == '402':
             raise Refused(402)

@@ -1,0 +1,556 @@
+"""Offline HoodLock pagination and the saved 2026-11-13 LP API response."""
+from copy import deepcopy
+from concurrent.futures import ThreadPoolExecutor
+from datetime import datetime, timezone
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+import json
+from pathlib import Path
+import threading
+
+import pytest
+
+from rh_preflight.card import Card
+from rh_preflight.hey import Refused, RateLimited, TemporaryUnavailable, Unavailable
+from rh_preflight.network import Network
+from rh_preflight.policy import evaluate
+from rh_preflight.settings import Settings
+from rh_preflight.sources import chain, hoodlock
+
+
+SAMPLE = Path(__file__).parent / 'fixtures' / 'hoodlock' / 'lp-locks-2026-11-13.json'
+TOKEN = '0x' + '12' * 20
+SCOPE = 'token locks and vesting only; other lockers not read'
+
+
+def abi(*values):
+    return '0x' + ''.join(format(value, '064x') for value in values)
+
+
+@pytest.fixture
+def sample():
+    return json.loads(SAMPLE.read_text())
+
+
+def wire(sample, count=0, target=TOKEN, withdrawn=0):
+    ticks, calls = [100.0], []
+    client = hoodlock.Client(clock=lambda: ticks[0], wall_clock=lambda: sample['timestamp'])
+    client.verify = lambda deadline: None
+
+    def read(path, deadline, payload=None):
+        calls.append((path, payload, deadline))
+        if path == hoodlock.LP_PATH:
+            return 200, deepcopy(sample)
+        if payload[0]['params'][0]['data'].startswith('0x03091773'):
+            return 200, [{'id': 1, 'result': abi(32, count, *range(1, count + 1))},
+                         {'id': 2, 'result': abi(1000)},
+                         {'id': 3, 'result': abi(32, 0)}, {'id': 4, 'result': '0x123'}]
+        return 200, [{'id': row['id'], 'result': abi(1, int(target, 16), 10,
+                      sample['timestamp'] + int(row['params'][0]['data'][10:], 16) * 86400,
+                      int(int(row['params'][0]['data'][10:], 16) <= withdrawn))}
+                     for row in payload]
+
+    client._read = read
+    return client, calls, ticks
+
+
+def details(calls):
+    return [payload for path, payload, _ in calls if path != hoodlock.LP_PATH
+            and payload[0]['params'][0]['data'].startswith('0xf4dadc61')]
+
+
+def test_saved_sample_missing_value_and_aggregate_before_rounding(sample):
+    shi = sample['locks'][0]['token1']
+    client, _, _ = wire(sample, target=shi)
+    row = client.lookup(shi)
+    assert row.line.splitlines()[1] == ('HoodLock LP: 1 locked position in WETH/SHI until 2027-10-05'
+                                      ' · https://hoodlock.tech/proof/position/1')
+    lock = sample['locks'][-1]['token1']
+    client, _, _ = wire(sample, target=lock)
+    assert client.lookup(lock).line.splitlines()[1] == (
+        'HoodLock LP: 3 locked positions in WETH/LOCK, $0.02 locked until 2026-12-11'
+        ' · https://hoodlock.tech/proof/position/14')
+
+
+def test_multiple_pools_are_separate_and_addresses_match_case_insensitively(sample):
+    weth = sample['locks'][0]['token0'].upper().replace('0X', '0x')
+    client, _, _ = wire(sample, target=weth)
+    lines = client.lookup(weth).line.splitlines()[1:]
+    assert len(lines) == 3
+    assert '1 locked position in WETH/SHI' in lines[0]
+    assert '6 locked positions in WETH/HISS' in lines[1]
+    assert '3 locked positions in WETH/LOCK' in lines[2]
+
+
+@pytest.mark.parametrize('mutation', ['v5', 'withdrawn', 'past', 'now', 'other', 'empty'])
+def test_only_matching_future_locked_v2_v3_positions(sample, mutation):
+    row = deepcopy(sample['locks'][0])
+    target = row['token1']
+    if mutation == 'v5':
+        row['version'] = 'v5'
+    elif mutation == 'withdrawn':
+        row['status'] = 'withdrawn'
+    elif mutation in ('past', 'now'):
+        row['unlockTime'] = sample['timestamp'] - (mutation == 'past')
+    elif mutation == 'other':
+        row['token1'] = TOKEN
+    sample['locks'] = [] if mutation == 'empty' else [row]
+    client, _, _ = wire(sample, target=target)
+    assert 'HoodLock LP:' not in client.lookup(target).line
+
+
+def test_v2_and_incomplete_api_are_informational(sample):
+    sample['locks'] = [sample['locks'][0]]
+    sample['locks'][0].update(version='v2', valueUsd=1234.56)
+    sample['complete'] = False
+    target = sample['locks'][0]['token1']
+    client, _, _ = wire(sample, target=target)
+    row = client.lookup(target)
+    assert ('HoodLock LP: 1 locked position in WETH/SHI, $1,234.56 locked until 2027-10-05'
+            '; incomplete API result') in row.line
+    assert row.token_lock is False
+    base = Card(target, 'identifier')
+    with_lp = Card(target, 'network', {'base': base, 'sources': [row]})
+    assert evaluate([with_lp], Settings()) == evaluate([base], Settings())
+    assert 'HoodLock LP: 1 locked position' in with_lp.render().splitlines()[-1]
+    assert client.lookup(TOKEN).line.splitlines()[-1] == (
+        'HoodLock LP: incomplete API result')
+
+
+@pytest.mark.parametrize('bad', [None, [], {}, {'chainId': 1, 'complete': True, 'locks': []},
+                               {'chainId': 4663, 'complete': 'false', 'locks': []},
+                               {'chainId': 4663, 'complete': True, 'locks': {}},
+                               {'chainId': 4663, 'complete': True, 'locks': [None]}])
+def test_malformed_api_preserves_token_line(sample, bad):
+    client, _, _ = wire(sample)
+    original = client._read
+    client._read = lambda path, deadline, payload=None: ((200, bad) if path == hoodlock.LP_PATH
+                                                       else original(path, deadline, payload))
+    row = client.lookup(TOKEN)
+    assert row.state == 'present' and 'holds no token lock or vesting' in row.line
+    assert 'HoodLock LP:' not in row.line
+
+
+@pytest.mark.parametrize('key,value', [('unlockTime', 'soon'), ('unlockTime', True),
+                                      ('unlockTime', 10**17),
+                                      ('pool', None), ('token0', '0x12')])
+def test_malformed_matched_position_is_not_reported(sample, key, value):
+    sample['locks'] = [sample['locks'][0]]
+    target = sample['locks'][0]['token1']
+    sample['locks'][0][key] = value
+    client, _, _ = wire(sample, target=target)
+    assert 'HoodLock LP:' not in client.lookup(target).line
+
+
+def test_lp_timestamp_os_error_preserves_completed_token_facts(sample, monkeypatch):
+    sample['locks'] = [sample['locks'][0]]
+    target = sample['locks'][0]['token1']
+    client, _, _ = wire(sample, count=1, target=target)
+    timestamp = datetime.fromtimestamp
+
+    class Dates:
+        @staticmethod
+        def fromtimestamp(value, tz):
+            if value == sample['locks'][0]['unlockTime']:
+                raise OSError('timestamp outside platform range')
+            return timestamp(value, tz)
+
+    monkeypatch.setattr(hoodlock, 'datetime', Dates)
+    row = client.lookup(target)
+    assert row.state == 'present' and '1.00% of supply locked' in row.line
+    assert row.token_lock is True and 'HoodLock LP:' not in row.line
+
+
+@pytest.mark.parametrize('value', [None, 'NaN', 'Infinity', -1, True])
+def test_unknown_value_is_omitted(sample, value):
+    sample['locks'] = [sample['locks'][0]]
+    sample['locks'][0]['valueUsd'] = value
+    target = sample['locks'][0]['token1']
+    client, _, _ = wire(sample, target=target)
+    line = client.lookup(target).line.splitlines()[-1]
+    assert line.startswith('HoodLock LP: 1 locked position') and '$' not in line
+
+
+def test_api_cache_is_shared_across_targets_and_expires_after_sixty_seconds(sample):
+    client, calls, ticks = wire(sample)
+    client.lookup(TOKEN)
+    ticks[0] += 59
+    client.lookup(sample['locks'][0]['token1'])
+    assert sum(path == hoodlock.LP_PATH for path, _, _ in calls) == 1
+    ticks[0] += 2
+    client.lookup(TOKEN)
+    assert sum(path == hoodlock.LP_PATH for path, _, _ in calls) == 2
+
+
+@pytest.mark.parametrize('failure', [Unavailable(), Refused(402), Refused(403), RateLimited()])
+def test_lp_failure_preserves_token_facts(sample, failure):
+    client, _, _ = wire(sample, count=1)
+    original = client._read
+
+    def read(path, deadline, payload=None):
+        if path == hoodlock.LP_PATH:
+            raise failure
+        return original(path, deadline, payload)
+
+    client._read = read
+    row = client.lookup(TOKEN)
+    assert row.state == 'present' and '1.00% of supply locked' in row.line
+    assert 'HoodLock LP:' not in row.line
+
+
+def test_lp_http_404_preserves_token_facts_including_cached_404(sample):
+    client, calls, _ = wire(sample, count=1)
+    original = client._read
+    client._read = lambda path, deadline, payload=None: ((404, {}) if path == hoodlock.LP_PATH
+                                                       else original(path, deadline, payload))
+    for _ in range(2):
+        row = client.lookup(TOKEN)
+        assert row.state == 'present' and '1.00% of supply locked' in row.line
+        assert 'HoodLock LP:' not in row.line
+
+
+def test_lp_transport_uses_hoodlock_origin_and_same_deadline(monkeypatch):
+    client = hoodlock.Client(clock=lambda: 100)
+    calls = []
+    monkeypatch.setattr(client.lp_http, '_read', lambda path, deadline: calls.append(
+        (client.lp_http.base_url + path, deadline)) or (200, {}))
+    assert client._read(hoodlock.LP_PATH, 101) == (200, {})
+    assert calls == [('https://hoodlock.tech/api/v1/lp-locks', 101)]
+
+
+def test_source_switch_disables_both_rpc_and_http(sample):
+    network = Network()
+    client, calls, _ = wire(sample)
+    network.clients['hoodlock'] = client
+    settings = Settings(sources={name: 'off' for name in network.clients})
+    base = Card(TOKEN, 'identifier')
+    network.enrich([base], 'read', {}, settings)
+    assert not calls
+    settings.sources['hoodlock'] = 'on'
+    target = sample['locks'][0]['token1']
+    enriched = network.enrich([Card(target, 'identifier')], 'read', {}, settings)[0]
+    assert any(path == hoodlock.LP_PATH for path, _, _ in calls)
+    assert 'HoodLock LP: 1 locked position in WETH/SHI' in enriched.render()
+    assert evaluate([enriched], settings) == evaluate([base], settings)
+
+
+def test_non_address_does_not_read_rpc_or_api(sample):
+    client, calls, _ = wire(sample)
+    assert client.lookup('SHI').state == 'unlisted'
+    assert not calls
+
+
+@pytest.mark.parametrize('timestamp_error', [None, OSError, ValueError, OverflowError])
+def test_unrenderable_token_date_keeps_lp_read_independent(sample, monkeypatch, timestamp_error):
+    sample['locks'] = [sample['locks'][0]]
+    target = sample['locks'][0]['token1']
+    client, calls, _ = wire(sample, count=21, target=target, withdrawn=20)
+    original = client._read
+
+    def read(path, deadline, payload=None):
+        status, data = original(path, deadline, payload)
+        if (payload and payload[0]['params'][0]['data'].startswith('0xf4dadc61')
+                and len(payload) == 1):
+            data[0]['result'] = abi(1, int(target, 16), 10, 10**17, 0)
+        return status, data
+
+    class Dates:
+        @staticmethod
+        def fromtimestamp(value, tz):
+            if value == 10**17 and timestamp_error:
+                raise timestamp_error('timestamp outside platform range')
+            return datetime.fromtimestamp(value, tz)
+
+    client._read = read
+    monkeypatch.setattr(hoodlock, 'datetime', Dates)
+    row = client.lookup(target)
+    assert [len(batch) for batch in details(calls)] == [20, 1]
+    assert row.state == 'unreachable' and row.token_lock is None
+    assert row.line.splitlines()[0] == f'HoodLock could not be reached · {client.page}'
+    assert 'HoodLock LP: 1 locked position in WETH/SHI' in row.line
+
+
+@pytest.mark.parametrize('value', ['9e999999', '1e9999999999999999999', 10**400])
+def test_out_of_range_lp_values_keep_positions_and_token_facts(sample, value):
+    position = deepcopy(sample['locks'][0])
+    position['valueUsd'] = value
+    # distinct positions in the same pool exercise aggregation as well as parsing.
+    sample['locks'] = [position, dict(position, lockId=100, tokenId='100')]
+    target = position['token1']
+    client, _, _ = wire(sample, count=1, target=target)
+    row = client.lookup(target)
+    assert row.state == 'present' and row.token_lock is True
+    assert '1.00% of supply locked' in row.line
+    assert row.line.splitlines()[-1] == (
+        'HoodLock LP: 2 locked positions in WETH/SHI until 2027-10-05'
+        ' · https://hoodlock.tech/proof/position/1')
+
+
+@pytest.mark.parametrize('status', [200, 429])
+def test_lp_http_get_cache_and_cooldown_preserve_token_facts(sample, server, status):
+    origin, state = server
+    state['overrides'][hoodlock.LP_PATH] = (status, sample, {'Retry-After': '60'})
+    client, _, _ = wire(sample)
+    client.lp_http = hoodlock.LPHTTP(base_url=origin, clock=client.clock)
+    original = client._read
+
+    def read(path, deadline, payload=None):
+        if path == hoodlock.LP_PATH:
+            return hoodlock.Client._read(client, path, deadline, payload)
+        return original(path, deadline, payload)
+
+    client._read = read
+    for target in (TOKEN, sample['locks'][0]['token1']):
+        row = client.lookup(target)
+        assert row.state == 'present' and row.token_lock is False
+        assert 'holds no token lock or vesting' in row.line
+        assert ('HoodLock LP: 1 locked position' in row.line) == (status == 200 and target != TOKEN)
+    assert len(state['requests']) == 1
+    path, headers = state['requests'][0]
+    assert path == hoodlock.LP_PATH
+    headers = {key.lower(): value for key, value in headers.items()}
+    assert not {'authorization', 'x-api-key', 'x-hey-integration'} & headers.keys()
+    assert not any('payment' in key for key in headers)
+
+
+@pytest.mark.parametrize('depth', [600, 1500])
+@pytest.mark.parametrize('through_network', [False, True])
+def test_nested_lp_http_and_cached_json_preserve_token_facts(sample, server, depth, through_network):
+    origin, state = server
+    # The decoder rejects 1500 levels. At 600 it succeeds, but the cache's
+    # defensive deepcopy exceeds the recursion limit on the second lookup.
+    raw = (json.dumps(sample).encode()[:-1] + b', "unused":' + b'[' * depth
+           + b'0' + b']' * depth + b'}')
+    assert len(raw) < 2_000_000
+    state['overrides'][hoodlock.LP_PATH] = (200, raw, {})
+    target = sample['locks'][0]['token1']
+    client, _, _ = wire(sample, count=1, target=target)
+    client.lp_http = hoodlock.LPHTTP(base_url=origin, clock=client.clock)
+    original = client._read
+
+    def read(path, deadline, payload=None):
+        if path == hoodlock.LP_PATH:
+            return hoodlock.Client._read(client, path, deadline, payload)
+        return original(path, deadline, payload)
+
+    client._read = read
+    network = Network()
+    network.clients['hoodlock'] = client
+    settings = Settings(sources={name: 'off' for name in network.clients})
+    settings.sources['hoodlock'] = 'on'
+    for index in range(2):
+        if through_network:
+            card = network.enrich([Card(target, 'identifier')], 'read', {}, settings)[0]
+            row, = card.data['sources']
+            assert '1.00% of supply locked' in card.render()
+        else:
+            row = client.lookup(target)
+        assert row.state == 'present' and row.token_lock is True
+        assert '1.00% of supply locked' in row.line
+        assert ('HoodLock LP: 1 locked position in WETH/SHI' in row.line) == (index == 0 and depth == 600)
+    assert len(state['requests']) == (1 if depth == 600 else 2)
+
+
+@pytest.mark.parametrize('stage', ['verify', 'index', 'details'])
+@pytest.mark.parametrize('depth', [600, 1500])
+@pytest.mark.parametrize('through_network', [False, True])
+def test_nested_token_rpc_keeps_lp_independent(sample, rpc_server, monkeypatch, stage, depth, through_network):
+    origin, state = rpc_server
+    target = sample['locks'][0]['token1']
+    client, _, _ = wire(sample, count=1, target=target)
+    original = client._read
+    if stage == 'verify':
+        response = {'id': 1, 'result': '0x1237'}
+        monkeypatch.setattr(chain, 'VERIFIED', set())
+        client.verify = hoodlock.RPC.verify.__get__(client)
+        raw = json.dumps(response).encode()[:-1] + b', "unused":' + b'[' * depth + b'0' + b']' * depth + b'}'
+    else:
+        if stage == 'index':
+            response = [{'id': 1, 'result': abi(32, 1, 1)}, {'id': 2, 'result': abi(1000)},
+                        {'id': 3, 'result': abi(32, 0)}, {'id': 4, 'result': '0x123'}]
+        else:
+            response = [{'id': 1, 'result': abi(1, int(target, 16), 10, sample['timestamp'] + 86400, 0)}]
+        raw = json.dumps(response).encode()[:-2] + b', "unused":' + b'[' * depth + b'0' + b']' * depth + b'}]'
+    assert len(raw) < 2_000_000
+    state['raw'] = raw
+    transport = hoodlock.RPC(base_url=origin, clock=client.clock)
+
+    def read(path, deadline, payload=None):
+        is_stage = (isinstance(payload, dict) if stage == 'verify' else
+                    bool(payload) and payload[0]['params'][0]['data'].startswith(
+                        '0x03091773' if stage == 'index' else '0xf4dadc61'))
+        if path != hoodlock.LP_PATH and is_stage:
+            return transport._read(path, deadline, payload)
+        return original(path, deadline, payload)
+
+    client._read = read
+    network = Network()
+    network.clients['hoodlock'] = client
+    settings = Settings(sources={name: 'off' for name in network.clients})
+    settings.sources['hoodlock'] = 'on'
+    for index in range(2):
+        if stage == 'verify':
+            # reverify so both decoder and cached-copy paths are read.
+            chain.VERIFIED.clear()
+        if through_network:
+            card = network.enrich([Card(target, 'identifier')], 'read', {}, settings)[0]
+            row, = card.data['sources']
+            assert 'HoodLock LP: 1 locked position in WETH/SHI' in card.render()
+        else:
+            row = client.lookup(target)
+        assert 'HoodLock LP: 1 locked position in WETH/SHI' in row.line
+        if index == 0 and depth == 600:
+            assert row.state == 'present' and row.token_lock is True
+            assert '1.00% of supply locked' in row.line
+        else:
+            assert row.state == 'unreachable' and row.token_lock is None
+            assert '%' not in row.line
+    assert len(state['requests']) == (1 if depth == 600 else 2)
+    # both failure paths must release the cache stripe and HTTP capacity.
+    for _ in range(3):
+        assert transport.slots.acquire(blocking=False)
+    for _ in range(3):
+        transport.slots.release()
+    client.cache.clear()
+    if stage == 'verify':
+        chain.VERIFIED.clear()
+    state['raw'] = json.dumps(response).encode()
+    row = client.lookup(target)
+    assert row.state == 'present' and row.token_lock is True
+    assert '1.00% of supply locked' in row.line
+
+
+@pytest.mark.parametrize('mutation', ['duplicate', 'duplicate_other_pool', 'other_pair',
+                                      'missing_id', 'boolean_id', 'string_id', 'negative_id'])
+def test_lp_identity_errors_do_not_invent_pool_totals(sample, mutation):
+    position = deepcopy(sample['locks'][0])
+    position['valueUsd'] = 125
+    target = position['token0']
+    second = dict(position, lockId=100, tokenId='100', valueUsd=75)
+    if mutation.startswith('duplicate'):
+        second['lockId'] = position['lockId']
+        if mutation == 'duplicate_other_pool':
+            second['pool'] = '0x' + '34' * 20
+    elif mutation == 'other_pair':
+        second['token1'] = TOKEN
+    elif mutation == 'missing_id':
+        del second['lockId']
+    else:
+        second['lockId'] = {'boolean_id': True, 'string_id': '100', 'negative_id': -1}[mutation]
+    sample['locks'] = [position, second]
+    client, _, _ = wire(sample, count=1, target=target)
+    for _ in range(2):
+        row = client.lookup(target)
+        assert row.state == 'present' and row.token_lock is True
+        assert '1.00% of supply locked' in row.line
+        assert 'HoodLock LP:' not in row.line
+
+
+def test_lp_distinct_positions_in_same_pool_keep_aggregate(sample):
+    position = deepcopy(sample['locks'][0])
+    position['valueUsd'] = 125
+    second = dict(position, lockId=100, tokenId='100', valueUsd=75,
+                  pool=position['pool'].upper().replace('0X', '0x'),
+                  token0=position['token0'].upper().replace('0X', '0x'))
+    sample['locks'] = [position, second]
+    client, _, _ = wire(sample, target=position['token0'])
+    assert 'HoodLock LP: 2 locked positions in WETH/SHI, $200.00 locked until 2027-10-05' in client.lookup(position['token0']).line
+
+
+@pytest.mark.parametrize('malformed', [False, True])
+def test_concurrent_lp_reads_collapse_and_release_cache_lock(sample, server, blocked, malformed):
+    origin, state = server
+    target = sample['locks'][0]['token1']
+    raw = b'{"unused":' + b'[' * 1500 + b'0' + b']' * 1500 + b'}' if malformed else sample
+    state['overrides'][hoodlock.LP_PATH] = (200, raw, {})
+    client, _, _ = wire(sample, count=1, target=target)
+    client.lp_http = hoodlock.LPHTTP(base_url=origin, clock=client.clock)
+    original_read, original_transport = client.read, client._read
+    arriving, arrivals_lock, arrivals = threading.Event(), threading.Lock(), []
+
+    def read(path, deadline, **kwargs):
+        if path == hoodlock.LP_PATH:
+            with arrivals_lock:
+                arrivals.append(path)
+                if len(arrivals) == 2:
+                    arriving.set()
+        return original_read(path, deadline, **kwargs)
+
+    def transport(path, deadline, payload=None):
+        if path == hoodlock.LP_PATH:
+            return hoodlock.Client._read(client, path, deadline, payload)
+        return original_transport(path, deadline, payload)
+
+    client.read, client._read = read, transport
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        with blocked() as (gate, entered, _):
+            state['response_gates'] = {hoodlock.LP_PATH: gate}
+            first = pool.submit(client.lookup, target)
+            assert entered.wait(2)
+            second = pool.submit(client.lookup, target)
+            assert arriving.wait(2)
+        for future in (first, second):
+            row = future.result(timeout=3)
+            assert row.state == 'present' and row.token_lock is True
+            assert '1.00% of supply locked' in row.line
+            assert ('HoodLock LP: 1 locked position in WETH/SHI' in row.line) is not malformed
+    assert len(state['requests']) == (2 if malformed else 1)
+    # a decoder failure is not cached, and a new valid reply must be readable.
+    state['overrides'][hoodlock.LP_PATH] = (200, sample, {})
+    assert 'HoodLock LP: 1 locked position in WETH/SHI' in client.lookup(target).line
+
+
+@pytest.mark.parametrize('status', [200, 403, 404, 429])
+def test_oversized_lp_body_preserves_facts_and_releases_slots(sample, server, status):
+    origin, state = server
+    state['overrides'][hoodlock.LP_PATH] = (status, b'{"unused":"' + b'x' * 2_000_000 + b'"}', {})
+    target = sample['locks'][0]['token1']
+    client, _, ticks = wire(sample, count=1, target=target)
+    client.lp_http = hoodlock.LPHTTP(base_url=origin, clock=client.clock)
+    original = client._read
+
+    def read(path, deadline, payload=None):
+        if path == hoodlock.LP_PATH:
+            return hoodlock.Client._read(client, path, deadline, payload)
+        return original(path, deadline, payload)
+
+    client._read = read
+    row = client.lookup(target)
+    assert row.state == 'present' and row.token_lock is True
+    assert '1.00% of supply locked' in row.line and 'HoodLock LP:' not in row.line
+    assert len(state['requests']) == 1
+    for _ in range(3):
+        assert client.lp_http.slots.acquire(blocking=False)
+    for _ in range(3):
+        client.lp_http.slots.release()
+    ticks[0] += 61  # expire a 429 cooldown before testing recovery.
+    state['overrides'][hoodlock.LP_PATH] = (200, sample, {})
+    assert 'HoodLock LP: 1 locked position in WETH/SHI' in client.lookup(target).line
+
+
+@pytest.fixture
+def rpc_server():
+    state = {'raw': b'{}', 'requests': []}
+
+    class Handler(BaseHTTPRequestHandler):
+        def log_message(self, *args):
+            pass
+
+        def do_POST(self):
+            state['requests'].append(json.loads(self.rfile.read(int(self.headers['Content-Length']))))
+            raw = state['raw']
+            self.send_response(200)
+            self.send_header('Content-Type', 'application/json')
+            self.send_header('Content-Length', str(len(raw)))
+            self.end_headers()
+            self.wfile.write(raw)
+
+    server = ThreadingHTTPServer(('127.0.0.1', 0), Handler)
+    server.daemon_threads = True
+    thread = threading.Thread(target=lambda: server.serve_forever(poll_interval=0.02), daemon=True)
+    thread.start()
+    try:
+        yield f'http://127.0.0.1:{server.server_port}', state
+    finally:
+        server.shutdown()
+        server.server_close()
+        thread.join(timeout=1)
