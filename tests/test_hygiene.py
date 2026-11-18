@@ -61,6 +61,9 @@ def test_all_authored_user_facing_strings_follow_wording_rule():
                 # Hookr's numeric API field is not authored card wording.
                 if path.name == 'hookr.py' and node.value == 'score':
                     continue
+                # HoodLock's hookStatus enum value is matched, never printed.
+                if path.name == 'hoodlock.py' and node.value == 'safe':
+                    continue
                 if path.name == 'wormhole.py' and node.value in {
                     'verdict', ' has not observed this token; that is not a verdict · '}:
                     continue

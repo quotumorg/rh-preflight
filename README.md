@@ -316,7 +316,7 @@ The plugin never answers an approval prompt. Interactive checks return the host'
 
 ## Sources
 
-Each source publishes its own records. Additional lines carry public source links when available; HoodLock LP lines omit invalid or missing proof links. The answer is first, coverage second, then the full list when two or more rules fire, followed by the source readings in the order below. A single rule already shown in the answer is not repeated. The fixed detected-cron stop keeps its reason below coverage. The catalog covers HEY Research Lab plus ten Robinhood Chain projects; OffRouter is scoped to its own project and infrastructure is listed separately.
+Each source publishes its own records. Additional lines carry public source links when available; HoodLock LP lines omit invalid or missing proof links, say how many positions are in range and their share of active pool liquidity, and name an unreviewed v4 hook. The answer is first, coverage second, then the full list when two or more rules fire, followed by the source readings in the order below. A single rule already shown in the answer is not repeated. The fixed detected-cron stop keeps its reason below coverage. The catalog covers HEY Research Lab plus ten Robinhood Chain projects; OffRouter is scoped to its own project and infrastructure is listed separately.
 
 | Source | Keyless URL or read | What its line answers |
 | :--- | :--- | :--- |

@@ -16,6 +16,10 @@ MAX_PAGES = 10
 MAX_ITEMS = 200
 
 VESTING = '0x910e19bcC4bce46999994Ed7297E0Fc4431ec72E'
+LP_LOCKER = '0x91aa2da1956c77f8448e18dcaf53383bcc658e67'
+# HoodLock's own hook classes; anything else is shown, never treated as safe.
+QUIET_HOOKS = ('none', 'verified', 'safe')
+STALE_SECONDS = 3600
 LP_PATH = '/api/v1/lp-locks'
 
 
@@ -47,6 +51,38 @@ def lp_value(raw):
     except (DecimalException, ValueError, OverflowError):
         pass
     return None
+
+
+def amount(raw):
+    if not isinstance(raw, str) or not re.fullmatch(r'[0-9]{1,78}', raw):
+        return None
+    return int(raw)
+
+
+def in_range(rows):
+    flags = [row.get('inRange') for row in rows]
+    if not all(type(flag) is bool for flag in flags):
+        return ''
+    inside = [row for row in rows if row['inRange']]
+    active = {amount(row.get('poolActiveLiquidity')) for row in rows}
+    if len(active) != 1 or None in active:
+        return f', {len(inside)} of {len(rows)} in range'
+    active = active.pop()
+    if not inside:
+        return ', none in range' + (', pool has no active liquidity' if active == 0 else '')
+    held = [amount(row.get('liquidity')) for row in inside]
+    if None in held or not active or sum(held) > active:
+        return f', {len(inside)} of {len(rows)} in range'
+    # floor so a share just under the pool never reads as all of it
+    share = math.floor(Decimal(sum(held)) * 1000 / Decimal(active)) / Decimal(10)
+    return f', {len(inside)} of {len(rows)} in range holding {share}% of active pool liquidity'
+
+
+def hook_note(rows):
+    states = {row.get('hookStatus') for row in rows}
+    if 'unverified' in states:
+        return ', hook not reviewed by HoodLock and can act when liquidity is removed'
+    return ', hook status not recognised' if states - set(QUIET_HOOKS) else ''
 
 
 class Client(RPC):
@@ -94,6 +130,9 @@ class Client(RPC):
         if (not isinstance(data, dict) or data.get('chainId') != 4663
                 or type(data.get('complete')) is not bool or not isinstance(data.get('locks'), list)):
             raise ValueError()
+        contracts = data.get('contracts')
+        if isinstance(contracts, dict) and str(contracts.get('lpLocker', LP_LOCKER)).lower() != LP_LOCKER:
+            raise ValueError()
         pools = {}
         lock_ids = set()
         now = self.wall_clock()
@@ -101,6 +140,9 @@ class Client(RPC):
             if not isinstance(row, dict):
                 raise ValueError()
             if row.get('version') not in ('v2', 'v3', 'v4') or row.get('status') != 'locked':
+                continue
+            # a position not held by the Liquidity Locker is not a HoodLock lock
+            if 'holder' in row and str(row['holder']).lower() != LP_LOCKER:
                 continue
             tokens = (row.get('token0'), row.get('token1'))
             if not all(isinstance(token, str) and ADDRESS.fullmatch(token) for token in tokens):
@@ -127,6 +169,9 @@ class Client(RPC):
             rows.append(row)
         lines = []
         partial = '; incomplete API result' if not data['complete'] else ''
+        stamp = data.get('timestamp')
+        if type(stamp) is int and now - stamp > STALE_SECONDS:
+            partial += '; API data from ' + datetime.fromtimestamp(stamp, timezone.utc).strftime('%Y-%m-%d %H:%MZ')
         for rows in pools.values():
             symbols = '/'.join(field(rows[0].get('symbol' + str(i))) for i in (0, 1))
             values = [lp_value(row.get('valueUsd')) for row in rows]
@@ -140,8 +185,9 @@ class Client(RPC):
             proof = rows[largest].get('proof')
             link = (f' · {proof}' if isinstance(proof, str) and re.fullmatch(
                 r'https://hoodlock\.tech/proof/position/[0-9]+', proof) else '')
-            lines.append(f'HoodLock LP: {len(rows)} locked {plural(len(rows), "position")} in {symbols}{usd}, first unlock {until}{partial}{link}')
-        if partial and not lines:
+            lines.append(f'HoodLock LP: {len(rows)} locked {plural(len(rows), "position")} in {symbols}{usd}'
+                         f'{in_range(rows)}, first unlock {until}{hook_note(rows)}{partial}{link}')
+        if not data['complete'] and not lines:
             lines.append('HoodLock LP: incomplete API result')
         return lines
 

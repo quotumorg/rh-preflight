@@ -62,12 +62,12 @@ def test_saved_sample_missing_value_and_aggregate_before_rounding(sample):
     shi = sample['locks'][0]['token1']
     client, _, _ = wire(sample, target=shi)
     row = client.lookup(shi)
-    assert row.line.splitlines()[1] == ('HoodLock LP: 1 locked position in WETH/SHI, first unlock 2027-10-05'
+    assert row.line.splitlines()[1] == ('HoodLock LP: 1 locked position in WETH/SHI, 1 of 1 in range holding 100% of active pool liquidity, first unlock 2027-10-05'
                                       ' · https://hoodlock.tech/proof/position/1')
     lock = sample['locks'][-1]['token1']
     client, _, _ = wire(sample, target=lock)
     assert client.lookup(lock).line.splitlines()[1] == (
-        'HoodLock LP: 3 locked positions in WETH/LOCK, $0.02 locked, first unlock 2026-12-11'
+        'HoodLock LP: 3 locked positions in WETH/LOCK, $0.02 locked, none in range, first unlock 2026-12-11'
         ' · https://hoodlock.tech/proof/position/14')
 
 
@@ -105,7 +105,7 @@ def test_v2_and_incomplete_api_are_informational(sample):
     target = sample['locks'][0]['token1']
     client, _, _ = wire(sample, target=target)
     row = client.lookup(target)
-    assert ('HoodLock LP: 1 locked position in WETH/SHI, $1,234.56 locked, first unlock 2027-10-05'
+    assert ('HoodLock LP: 1 locked position in WETH/SHI, $1,234.56 locked, 1 of 1 in range holding 100% of active pool liquidity, first unlock 2027-10-05'
             '; incomplete API result') in row.line
     assert row.token_lock is False
     base = Card(target, 'identifier')
@@ -281,7 +281,7 @@ def test_out_of_range_lp_values_keep_positions_and_token_facts(sample, value):
     assert row.state == 'present' and row.token_lock is True
     assert '1.00% of supply locked' in row.line
     assert row.line.splitlines()[-1] == (
-        'HoodLock LP: 2 locked positions in WETH/SHI, first unlock 2027-10-05'
+        'HoodLock LP: 2 locked positions in WETH/SHI, 2 of 2 in range, first unlock 2027-10-05'
         ' · https://hoodlock.tech/proof/position/1')
 
 
@@ -403,7 +403,7 @@ def test_nested_token_rpc_keeps_lp_independent(sample, rpc_server, monkeypatch, 
             assert '1.00% of supply locked' in row.line
         else:
             assert row.state == 'unreachable' and row.token_lock is None
-            assert '%' not in row.line
+            assert 'of supply locked' not in row.line
     assert len(state['requests']) == (1 if depth == 600 else 2)
     # both failure paths must release the cache stripe and HTTP capacity.
     for _ in range(3):
@@ -453,7 +453,7 @@ def test_lp_distinct_positions_in_same_pool_keep_aggregate(sample):
                   token0=position['token0'].upper().replace('0X', '0x'))
     sample['locks'] = [position, second]
     client, _, _ = wire(sample, target=position['token0'])
-    assert 'HoodLock LP: 2 locked positions in WETH/SHI, $200.00 locked, first unlock 2027-10-05' in client.lookup(position['token0']).line
+    assert 'HoodLock LP: 2 locked positions in WETH/SHI, $200.00 locked, 2 of 2 in range, first unlock 2027-10-05' in client.lookup(position['token0']).line
 
 
 @pytest.mark.parametrize('malformed', [False, True])
@@ -579,11 +579,13 @@ def test_hiss_v4_pools_keep_all_nine_positions_and_api_values(current_sample):
     client, _, _ = wire(current_sample, target=target)
     lines = client.lookup(target).line.splitlines()[1:]
     assert lines == [
-        'HoodLock LP: 6 locked positions in WETH/HISS, $35,537.08 locked, first unlock 2026-11-18'
+        'HoodLock LP: 6 locked positions in WETH/HISS, $35,537.08 locked,'
+        ' 2 of 6 in range holding 100% of active pool liquidity, first unlock 2026-11-18'
         ' · https://hoodlock.tech/proof/position/2',
-        'HoodLock LP: 3 locked positions in HISS/USDG, $15,213.13 locked, first unlock 2026-11-18'
+        'HoodLock LP: 3 locked positions in HISS/USDG, $15,213.13 locked,'
+        ' none in range, pool has no active liquidity, first unlock 2026-11-18'
         ' · https://hoodlock.tech/proof/position/4']
-    # Neither out-of-range liquidity nor hook metadata is an exclusion.
+    # Out-of-range positions stay counted and are named, not dropped.
     assert any(not r['inRange'] for r in current_sample['locks'] if target in (r['token0'], r['token1']))
 
 
@@ -610,14 +612,14 @@ def test_invalid_proof_omits_link_without_losing_lp_facts(current_sample, proof)
     target = current_sample['locks'][0]['token1']
     client, _, _ = wire(current_sample, target=target)
     assert client.lookup(target).line.splitlines()[-1] == (
-        'HoodLock LP: 1 locked position in WETH/SHI, first unlock 2027-10-05')
+        'HoodLock LP: 1 locked position in WETH/SHI, 1 of 1 in range holding 100% of active pool liquidity, first unlock 2027-10-05')
 
 
 def test_largest_position_proof_is_one_link_and_not_an_api_url(current_sample):
     target = current_sample['locks'][-1]['token1']
     client, _, _ = wire(current_sample, target=target)
     line = client.lookup(target).line.splitlines()[-1]
-    assert line == ('HoodLock LP: 3 locked positions in WETH/LOCK, $0.01 locked, first unlock 2026-12-11'
+    assert line == ('HoodLock LP: 3 locked positions in WETH/LOCK, $0.01 locked, none in range, first unlock 2026-12-11'
                     ' · https://hoodlock.tech/proof/position/14')
     assert line.count('https://') == 1 and '/api/' not in line
     current_sample['locks'].reverse()
@@ -651,3 +653,75 @@ def test_offline_cards_keep_captured_non_hoodlock_bytes():
         assert unchanged(cards[symbol]) == unchanged(original)
         assert 'LP locks in HoodLock' not in cards[symbol]
         assert 'HoodLock LP:' in cards[symbol]
+
+
+def lp_line(sample, target):
+    client, _, _ = wire(sample, target=target)
+    return client.lookup(target).line.splitlines()[-1]
+
+
+@pytest.mark.parametrize('status, note', [
+    ('unverified', ', hook not reviewed by HoodLock and can act when liquidity is removed'),
+    ('rugged', ', hook status not recognised'),
+    (None, ', hook status not recognised'),
+    ('none', ''), ('verified', ''), ('safe', '')])
+def test_hook_status_from_hoodlock_is_shown_unless_quiet(current_sample, status, note):
+    row = dict(current_sample['locks'][0], hookStatus=status)
+    current_sample['locks'] = [row]
+    line = lp_line(current_sample, row['token1'])
+    assert line.startswith('HoodLock LP: 1 locked position in WETH/SHI')
+    assert line.endswith('first unlock 2027-10-05' + note + ' · https://hoodlock.tech/proof/position/1')
+
+
+def test_unverified_hook_in_one_position_marks_the_pool(current_sample):
+    target = '0x444ce8ede8e38e1ec18aeec45d415c1d298a8bcf'
+    rows = [r for r in current_sample['locks'] if r['symbol0'] == 'WETH' and r['symbol1'] == 'HISS']
+    rows[-1]['hookStatus'] = 'unverified'
+    client, _, _ = wire(current_sample, target=target)
+    weth, usdg = client.lookup(target).line.splitlines()[1:]
+    assert 'hook not reviewed by HoodLock' in weth and 'hook' not in usdg
+
+
+@pytest.mark.parametrize('holder', ['0x' + '12' * 20, '', None])
+def test_position_not_held_by_liquidity_locker_is_not_counted(current_sample, holder):
+    row = current_sample['locks'][0]
+    current_sample['locks'] = [dict(row, holder=holder), dict(row, lockId=99, holder=row['holder'].upper().replace('0X', '0x'))]
+    line = lp_line(current_sample, row['token1'])
+    assert line.startswith('HoodLock LP: 1 locked position in WETH/SHI')
+
+
+def test_api_naming_another_lp_locker_drops_lp_lines_but_keeps_token_facts(current_sample):
+    current_sample['contracts']['lpLocker'] = '0x' + '12' * 20
+    client, _, _ = wire(current_sample, count=1)
+    reading = client.lookup(TOKEN)
+    assert '1.00% of supply locked' in reading.line and 'HoodLock LP:' not in reading.line
+
+
+@pytest.mark.parametrize('liquidity, pool, text', [
+    ('50', '200', ', 1 of 1 in range holding 25% of active pool liquidity'),
+    ('1999', '2000', ', 1 of 1 in range holding 99.9% of active pool liquidity'),
+    ('201', '200', ', 1 of 1 in range'),
+    ('-1', '200', ', 1 of 1 in range'),
+    ('50', 'x', ', 1 of 1 in range'),
+    ('50', '0', ', 1 of 1 in range')])
+def test_active_share_is_floored_and_omitted_when_inconsistent(current_sample, liquidity, pool, text):
+    row = dict(current_sample['locks'][0], liquidity=liquidity, poolActiveLiquidity=pool)
+    current_sample['locks'] = [row]
+    assert text + ', first unlock' in lp_line(current_sample, row['token1'])
+
+
+def test_missing_in_range_flags_omit_range_text(current_sample):
+    row = dict(current_sample['locks'][0])
+    del row['inRange']
+    current_sample['locks'] = [row]
+    line = lp_line(current_sample, row['token1'])
+    assert 'in range' not in line and 'first unlock 2027-10-05' in line
+
+
+def test_stale_api_snapshot_is_dated(current_sample):
+    row = current_sample['locks'][0]
+    client, _, _ = wire(current_sample, target=row['token1'])
+    client.wall_clock = lambda: current_sample['timestamp'] + 7200
+    line = client.lookup(row['token1']).line.splitlines()[-1]
+    assert '; API data from 2026-11-18 10:25Z' in line
+    assert 'incomplete' not in line
