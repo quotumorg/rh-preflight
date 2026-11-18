@@ -1,8 +1,9 @@
 """Toll project reads and optional unsigned transaction simulation."""
 import json
-from dataclasses import replace
+from dataclasses import dataclass, replace
 import threading
 import re
+import unicodedata
 from urllib.parse import quote
 from .common import plural, Absent, Keyless, Reading, field, money
 from ..card import link
@@ -18,6 +19,76 @@ COIN_TTL = 600
 BUDGET_MIN_MS, BUDGET_MAX_MS = 300, 30000
 # Left out of the budget for the request and the reply to cross the network.
 BUDGET_ROUND_TRIP = .4
+BUY_BUDGET_MAX_MS = 25000
+
+
+@dataclass(frozen=True)
+class BeforeBuyReading(Reading):
+    """Only the validated, Toll-attributed before-buy projection may carry prose."""
+    decision: str = ''
+
+
+def parse_before_buy(data, target):
+    result = data['result']
+    if result.get('isError'):
+        raise ValueError()
+    blocks = result['content']
+    if not isinstance(blocks, list):
+        raise ValueError()
+    body = '\n'.join(b['text'] for b in blocks if b.get('type') == 'text')
+    if any(c != '\n' and (not c.isprintable() or unicodedata.category(c).startswith('C')) for c in body):
+        raise ValueError()
+    lines = body.split('\n')
+    decisions = [line for line in lines if line.lstrip().startswith('Decision:')]
+    tokens = [line for line in lines if line.lstrip().startswith('Token:')]
+    if len(decisions) != 1 or not re.fullmatch(r'Decision: (BLOCK|WARN|ALLOW|WAIT)', decisions[0]):
+        raise ValueError()
+    if len(tokens) != 1 or not re.fullmatch(r'Token: ' + re.escape(target) + r'(?: \(Robinhood Chain\))?', tokens[0], re.I):
+        raise ValueError()
+    word = decisions[0].split(': ')[1]
+    reasons = []
+    if lines.count('Reasons:') > 1:
+        raise ValueError()
+    in_reasons = False
+    for line in lines:
+        if line == 'Reasons:':
+            if in_reasons or reasons:
+                raise ValueError()
+            in_reasons = True
+        elif in_reasons and line.startswith('- '):
+            reason = line[2:]
+            if not reason or re.search(r'https?://|www\.', reason, re.I):
+                raise ValueError()
+            reason = re.sub(r'\s*[\u2013\u2014]\s*', ', ', reason)
+            reasons.append(reason if len(reason) <= 160 else reason[:159].rstrip() + '…')
+        else:
+            in_reasons = False
+    if len(reasons) > 3 or (word in {'WARN', 'BLOCK'} and not reasons):
+        raise ValueError()
+    if word == 'WAIT':
+        waits = re.findall(r'Call pre_buy_check again in ([0-9]{1,8}) s\b', body)
+        detail = 'still reading' + (f', ask again in {waits[0]} s' if len(waits) == 1 else '')
+    elif word == 'ALLOW':
+        detail = 'nothing against was found in what was read'
+    else:
+        detail = reasons[0] + (f' · +{len(reasons) - 1} more' if len(reasons) > 1 else '')
+    ages = [line for line in lines if line.startswith('Made from our last whole read, ')]
+    if len(ages) > 1:
+        raise ValueError()
+    if ages:
+        age = re.fullmatch(r'Made from our last whole read, ([0-9]{1,8}) (s|min) ago(?:[.;].*)?', ages[0])
+        if not age:
+            raise ValueError()
+        detail += f' · from a read {age[1]} {age[2]} ago'
+    reports = [line for line in lines if line.startswith('Full report:')]
+    if len(reports) > 1:
+        raise ValueError()
+    if reports:
+        page = re.fullmatch(r'Full report: (https://t0ll\.xyz/check/' + re.escape(target) + r')(?:\?[^\s#]*)?', reports[0], re.I)
+        if not page or not reports[0].startswith('Full report: https://t0ll.xyz/check/'):
+            raise ValueError()
+        detail += ' · https://t0ll.xyz/check/' + target.lower()
+    return BeforeBuyReading('Toll', 'present', f'Toll before buy: {word} · {detail}', decision=word)
 
 
 def toll_key():
@@ -44,7 +115,8 @@ class Client(Keyless):
         # Send the optional partner key only on the exact production host
         # and check route.
         from urllib.parse import urlsplit
-        if path != '/api/tx/check' or urlsplit(self.base_url).hostname != 't0ll.xyz':
+        if (path not in {'/api/tx/check', '/mcp'} or urlsplit(self.base_url).hostname != 't0ll.xyz'
+                or path == '/mcp' and not hasattr(self.tx_headers, 'key_header')):
             return {}
         key = toll_key()
         if key:
@@ -52,6 +124,9 @@ class Client(Keyless):
         return {}
 
     def _read(self, path, deadline, payload=None):
+        if path == '/mcp' and isinstance(payload, dict) and (payload.get('params') or {}).get('name') == 'pre_buy_check':
+            # One full-deadline attempt, including cooldown and Retry-After.
+            return self._read_once(path, deadline, payload)
         if path != '/api/tx/check':
             return super()._read(path, deadline, payload)
         from ..hey import TemporaryUnavailable
@@ -125,7 +200,7 @@ class Client(Keyless):
     def reader_path(target):
         return '/api/markets/stock/' + quote(target, safe='')
 
-    def fetch(self, target, deadline, kind='stock', coin_findings='silent'):
+    def fetch(self, target, deadline, kind='stock', coin_findings='silent', before_buy=False, key_header='x-toll-pass'):
         if kind == 'stock':
             if not isinstance(target, str) or not re.fullmatch(r'[A-Za-z0-9.]{1,60}|0x[0-9a-fA-F]{40}', target):
                 return Reading(self.label, 'unlisted', '')
@@ -137,7 +212,12 @@ class Client(Keyless):
                 if not ADDRESS.fullmatch(target):
                     raise
                 # Not a Stock Token: Toll's free coin check, fixed Figures lines only.
-                return self.coin(target, deadline) if coin_findings == 'line' else Reading(self.label, 'unlisted', '')
+                coin = self.coin(target, deadline) if coin_findings == 'line' else Reading(self.label, 'unlisted', '')
+                if before_buy:
+                    buy = self.before_buy(target, deadline, key_header)
+                    if buy.line:
+                        return replace(buy, line='\n'.join(line for line in (coin.line, buy.line) if line))
+                return coin
             return self.stock(data, target)
         tool, argument = TOOLS[kind]
         if kind == 'hook' and not ADDRESS.fullmatch(str(target)):
@@ -148,6 +228,60 @@ class Client(Keyless):
                    'params': {'name': tool, 'arguments': {argument: int(target) if kind == 'agent' else target}}}
         data = self.read('/mcp', deadline, payload=payload)
         return self.parse(data, kind)
+
+    def before_buy(self, target, deadline, key_header='x-toll-pass'):
+        """The caller has established a non-stock 404 under this deadline."""
+        silent = Reading(self.label, 'unlisted', '')
+        if not isinstance(target, str) or not ADDRESS.fullmatch(target):
+            return silent
+        target = target.lower()
+        stripe = self.coin_stripes[hash(target) % len(self.coin_stripes)]
+        if not stripe.acquire(timeout=max(0, deadline - self.clock())):
+            return silent
+        try:
+            with self.lock:
+                kept = getattr(self, '_before_buys', {}).get(target)
+                if kept and self.clock() - kept[0] < COIN_TTL:
+                    elapsed = int(max(0, self.clock() - kept[0]))
+                    def age(match):
+                        seconds = int(match[1]) * (60 if match[2] == 'min' else 1) + elapsed
+                        return f'from a read {seconds // 60} min ago' if seconds >= 60 else f'from a read {seconds} s ago'
+                    return replace(kept[1], line=re.sub(r'from a read ([0-9]+) (s|min) ago', age, kept[1].line))
+            left = (deadline - self.clock() - BUDGET_ROUND_TRIP) * 1000
+            if self.clock() >= deadline or left != left:
+                return silent
+            budget = max(BUDGET_MIN_MS, round(min(BUY_BUDGET_MAX_MS, left)))
+            payload = {'jsonrpc': '2.0', 'id': 1, 'method': 'tools/call',
+                       'params': {'name': 'pre_buy_check', 'arguments': {'address': target, 'budget_ms': budget}}}
+            self.tx_headers.key_header = key_header
+            status, data = self._read('/mcp', deadline, payload)
+            if status != 200:
+                return silent
+            reading = parse_before_buy(data, target)
+            if self.clock() >= deadline:
+                return silent
+            if reading.decision != 'WAIT':
+                with self.lock:
+                    cache = self.__dict__.setdefault('_before_buys', {})
+                    cache[target] = (self.clock(), reading)
+                    while len(cache) > 512:
+                        cache.pop(next(iter(cache)))
+            return reading
+        except (Unavailable, Absent, KeyError, TypeError, ValueError, AttributeError, IndexError, OverflowError):
+            return silent
+        finally:
+            self.tx_headers.__dict__.pop('key_header', None)
+            stripe.release()
+
+    def buy_check(self, target, deadline, key_header='x-toll-pass'):
+        """Establish non-stock membership first; failures add no extra line."""
+        try:
+            reading = self.fetch(target, deadline, before_buy=True, key_header=key_header)
+            if isinstance(reading, BeforeBuyReading):
+                return reading
+        except (Unavailable, Absent, KeyError, TypeError, ValueError, AttributeError, IndexError, OverflowError):
+            pass
+        return Reading(self.label, 'unlisted', '')
 
     def stock(self, data, target):
         address = data.get('address')

@@ -25,6 +25,9 @@ def _trnch_attribution(value):
 
 def source_line(reading):
     from .sources.trnch import TrnchReading
+    from .sources.toll import BeforeBuyReading
+    if isinstance(reading, BeforeBuyReading) and reading.source == 'Toll':
+        return reading.line
     # Preserve only Wormhole's established fixed absence sentence, with no
     # external prose able to share its exception.
     if (reading.source == 'Agent Wormhole' and reading.state == 'missing' and

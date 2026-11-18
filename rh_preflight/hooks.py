@@ -20,7 +20,7 @@ from .network import Network, identifiers, POOL, MODULES
 from .extract import chain_context, addresses, objects, ADDRESS
 from .hookr_swap import decode as decode_hookr, ROUTER
 from .card import Card, text, plain
-from .transactions import tx_intents, local_card, project
+from .transactions import tx_intents, local_card, project, bought_address
 from .stock_swap import annotate as annotate_stock_swap, restrict_transactions
 from .budget import Pool, result as budget_result
 
@@ -191,6 +191,13 @@ class Service:
                      approval['spender'], deadline=builder_deadline)
                      for card in local for approval in card.data['approvals']
                      if settings.sources.get('chain', 'on') == 'on'}
+            before_buys = {}
+            def start_buy(target):
+                if target and settings.sources.get('toll', 'on') == 'on' and target not in before_buys:
+                    before_buys[target] = pool.submit(self.network.clients['toll'].buy_check,
+                                                     target, deadline, settings.toll_key_header)
+            for intent in intents:
+                start_buy(bought_address(intent))
             for intent, card, simulation, trade, spec in zip(intents, local, simulations, trades, specs):
                 kinds = {}
                 for approval in card.data['approvals']:
@@ -198,6 +205,8 @@ class Service:
                     reading = budget_result(codes[spender], builder_deadline - .005, None) if spender in codes else None
                     kinds[spender] = {'code': 'contract with code', 'no_code': 'no code'}.get(reading.state if reading else None, 'not read')
                 response = budget_result(simulation, deadline - .01, None) if simulation else None
+                bought = bought_address(intent, response)
+                start_buy(bought)
                 if hookr_on:
                     for row in ((response or {}).get('x-toll') or {}).get('decoded') or []:
                         hook = row.get('hook') or {}
@@ -250,6 +259,12 @@ class Service:
                 if settings.tx_check == 'off':
                     composed = Card(composed.target, composed.kind, {**composed.data,
                         'unchecked': False, 'lines': [line for line in composed.data['lines'] if not line.startswith('Toll')] + ['transaction simulation switched off']})
+                if bought in before_buys:
+                    reading = budget_result(before_buys[bought], deadline - .005, None)
+                    if reading and reading.line:
+                        lines = composed.data['lines']
+                        index = lines.index('Toll · https://t0ll.xyz') if 'Toll · https://t0ll.xyz' in lines else len(lines)
+                        lines.insert(index, reading.line)
                 cards.append(composed)
         return cards
 

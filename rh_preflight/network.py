@@ -50,6 +50,8 @@ class Network:
             start = time.monotonic()
             if name == 'toll' and kwargs.get('kind', 'stock') == 'stock':
                 kwargs['coin_findings'] = settings.toll_coin_findings
+                kwargs['before_buy'] = all_sources
+                kwargs['key_header'] = settings.toll_key_header
             reading = self.clients[name].lookup(target, deadline=deadline, **kwargs)
             return replace(reading, elapsed=max(0.0, time.monotonic() - start))
 

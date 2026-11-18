@@ -40,6 +40,10 @@ def cards():
     service = Service.__new__(Service)
     service.network = type('OfflineNetwork', (), {'clients': {'hookr': replay_client()}})()
     class Toll:
+        def buy_check(self, *args):
+            # No before-buy answer was captured for this historical tx replay.
+            from rh_preflight.sources.common import Reading
+            return Reading('Toll', 'unlisted', '')
         def check_tx(self, *args):
             return self.response
     toll = service.network.clients['toll'] = Toll()

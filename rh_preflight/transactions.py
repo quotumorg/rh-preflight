@@ -537,6 +537,8 @@ def project(card, intent, response=None, kinds=None, hookr=None, coin_findings="
     kinds = kinds or {}
     response = response if isinstance(response, dict) else {}
     x = response.get('x-toll') or {}
+    if response.get('action') in ('ALLOW', 'WARN', 'BLOCK'):
+        d['lines'].append('Toll: ' + response['action'])
     warnings = [w for w in response.get('warnings', [])
                 if isinstance(w, dict) and w.get('code') in TOLL_CODES]
     codes = {w['code'] for w in warnings}
@@ -719,3 +721,20 @@ def project(card, intent, response=None, kinds=None, hookr=None, coin_findings="
         if intent.get('stock_swap_supported') is False:
             d['swap_sides'] = [{**token, 'raw': None} for token in d['swap_sides']]
     return Card(card.target, card.kind, d)
+
+
+def bought_address(intent, response=None):
+    """One explicit bought side from a detected swap, never a balance delta."""
+    from .stock_swap import argument_sides, transaction_sides
+    if intent.get('typed_scope') or intent.get('typed') or (intent.get('payload') or {}).get('rpc', {}).get('method') in SIGN_RPC:
+        return None
+    if intent.get('shape_kind') == 'swap':
+        sides = argument_sides(intent.get('shape') or {})
+    else:
+        sides = transaction_sides(intent, response or {}, {}, {})
+    targets = {addr(row.get('address')) for row in sides if row.get('direction') == 'bought'}
+    if len(targets) == 1:
+        target = targets.pop()
+        if target not in {None, '0x' + '0' * 40, '0x' + 'e' * 40}:
+            return target
+    return None
