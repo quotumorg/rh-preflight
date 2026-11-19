@@ -4,6 +4,8 @@ rh-preflight by [quotum](https://quotum.org) with [HEY Research Lab](https://hey
 
 ![rh-preflight](docs/banner.png)
 
+<!-- mcp-name: io.github.quotumorg/rh-preflight -->
+
 no keys required · never signs or pays · read-only RPC and API reads · runs without a wallet
 
 [![tests](https://github.com/quotumorg/rh-preflight/actions/workflows/tests.yml/badge.svg)](https://github.com/quotumorg/rh-preflight/actions/workflows/tests.yml)
@@ -164,7 +166,7 @@ set your own `TOLL_API_KEY` in the server environment only if you have toll part
 
 stdio uses one utf-8 json-rpc message per line. logs and help use stderr. initialize, send `notifications/initialized`, then call `tools/list` or `tools/call`; `ping` also works before initialization. supported revisions: `2025-11-25`, `2025-06-18`, `2025-03-26`, `2024-11-05`. tools are read-only. revisions `2025-06-18` and `2025-11-25` get `structuredContent` as well as the same serialized json in text content; older revisions get text content. unsupported revisions negotiate to `2025-11-25`. tool failures set `isError`; malformed protocol requests use json-rpc errors. requests run serially, no background tasks or batch messages. each frame is limited to 1 mib. closing stdin ends the process after any active bounded check.
 
-`server.json` is an unsubmitted registry draft for `io.github.quotumorg/rh-preflight`. its prospective pypi package `rh-preflight-mcp` is a placeholder, not a claim that it is published. its version matches the release. the registry entry and the pypi package are not published yet. streamable http is deferred; there is no hosted endpoint.
+`server.json` is the official mcp registry entry `io.github.quotumorg/rh-preflight`; its version matches the release. the publish workflow, run by hand for a release tag, uploads the pypi package `rh-preflight-mcp` and then this registry entry, both through github oidc with no stored tokens. streamable http is deferred; there is no hosted endpoint.
 
 ## Quickstart
 
@@ -496,7 +498,7 @@ The ledger uses `plugins.plugin_storage.plugin_data_dir` to locate durable state
 
 HEY Research Lab plus ten Robinhood Chain project integrations are implemented and covered by offline tests. The historical survey totals in `docs/SOURCES.md` are author-reported and the complete survey dataset is not bundled. Saved responses verify parsing, not present source availability. Detection is limited to the tools and literal arguments described above; this is not a universal transaction interceptor. Full Desktop rendering still needs visual verification in a running host.
 
-Package and manifest version are `0.5.12`, with `requires_hermes: ">=0.23.0"`. A catalog submission must repeat that floor and version, declare `builder_card` and the three hooks from `plugin.yaml`, and pin both code and banner URL to the final reviewed forty-character commit SHA. There is no catalog entry in this repository yet. Public repository access, joint review, the catalog PR, demo video and entry form remain release steps.
+Package and manifest version are `0.5.13`, with `requires_hermes: ">=0.23.0"`. A catalog submission must repeat that floor and version, declare `builder_card` and the three hooks from `plugin.yaml`, and pin both code and banner URL to the final reviewed forty-character commit SHA. There is no catalog entry in this repository yet. Public repository access, joint review, the catalog PR, demo video and entry form remain release steps.
 
 ## Offline checks
 
