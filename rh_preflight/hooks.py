@@ -25,8 +25,12 @@ from .stock_swap import annotate as annotate_stock_swap, restrict_transactions
 from .budget import Pool, result as budget_result
 
 
-# Hermes stops a pre_tool_call callback at 30 s; the whole hook path stays below this.
+# Hermes stops a pre_tool_call callback at 30 s; the whole hook path stays below
+# HOOK_LIMIT. Network reads end by HOOK_NETWORK and the ledger waits at most
+# LEDGER_WAIT, ending a second before the limit.
 HOOK_LIMIT = 25.0
+HOOK_NETWORK = 20.0
+LEDGER_WAIT = 2.0
 
 # A bounded dispatcher also contains a custom source that ignores its deadline.
 CHECKS = ThreadPoolExecutor(max_workers=8, thread_name_prefix="rh-preflight")
@@ -68,7 +72,8 @@ class Service:
         settings = settings or self._settings()
         # Leave a margin below Hermes's fail-closed 30-second hook limit.
         started = self.clock()
-        deadline = started + min(settings.timeout, HOOK_LIMIT)
+        limit = HOOK_NETWORK if hook else HOOK_LIMIT
+        deadline = started + min(settings.timeout, limit)
         intents = tx_intents(args, settings.assume_chain, tool_name)
         local = [local_card(intent) for intent in intents]
         # A failed detector pass has no complete targets. Do not re-enter
@@ -107,11 +112,11 @@ class Service:
                       and any(intent['payload'] is not None for intent in intents))
         hookr_enabled = (settings.tx_check == 'on' and settings.sources.get('hookr', 'on') == 'on'
                          and any(str((i.get('payload') or {}).get('to', '')).lower() == ROUTER for i in intents))
-        tx_deadline = started + settings.tx_timeout - margin if tx_enabled or hookr_enabled else read_deadline
+        tx_deadline = started + min(settings.tx_timeout, limit) - margin if tx_enabled or hookr_enabled else read_deadline
         hook_deadline = max(deadline, tx_deadline + margin)
         if hook:
             # A Toll WAIT retry inside a Hermes hook ends with the hook budget.
-            ceiling = max(0.0, started + HOOK_LIMIT - hook_deadline)
+            ceiling = max(0.0, started + limit - hook_deadline)
             settings = replace(settings, toll_wait_max_seconds=min(settings.toll_wait_max_seconds, ceiling))
         reads = self.executor.submit(self._read_cards, wanted, tool_name, check_args, settings, required=required, deadline=read_deadline) if wanted else None
         buy_waiting = threading.Event()
@@ -145,6 +150,7 @@ class Service:
         return cards, decision
 
     def pre_tool_call(self, tool_name, args, **kwargs):
+        entered = self.clock()
         try:
             settings = self._settings()
             checked = self.check(tool_name, args, settings, hook=True)
@@ -156,7 +162,8 @@ class Service:
                                  if rule == SIGNATURE_TAKE_REASON else rule
                                  for rule in decision.rules)
             check_id = self.ledger.add(kwargs.get("session_id") or kwargs.get("task_id", ""),
-                                       tool_name, cards, ledger_rules, settings.mode, decision.action)
+                                       tool_name, cards, ledger_rules, settings.mode, decision.action,
+                                       timeout=max(0.0, min(LEDGER_WAIT, entered + HOOK_LIMIT - 1 - self.clock())))
             with self.lock:
                 self.pending[self._key(tool_name, args, kwargs)] = message
                 while len(self.pending) > 512:

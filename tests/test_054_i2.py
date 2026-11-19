@@ -142,8 +142,9 @@ def test_slow_toll_and_parallel_builder_budget_with_injected_clock(tmp_path, del
     service = Service(settings=Settings(tx_timeout=limit), ledger=Ledger(tmp_path),
                       presence=lambda: False, clock=lambda: ticks[0], executor=Executor(), wait=wait)
     directive = service.pre_tool_call('swap', REQUEST)
-    assert len(submitted) == 2 and waits == [4, limit]
-    assert ticks[0] == (14 if simulated else 25)
+    # The hook ends network reads at 20 s, below Hermes's 30-second cutoff.
+    assert len(submitted) == 2 and waits == [4, min(limit, 20)]
+    assert ticks[0] == (14 if simulated else 20)
     output = service.ledger.rows()[0]['cards'][0]['card']
     assert ('Toll: simulated at block 10' in output) == simulated
     assert ('Toll: not simulated' in output) != simulated

@@ -107,11 +107,11 @@ def test_main_uses_only_temporary_ledger_and_restores_clocks(tmp_path, monkeypat
     monkeypatch.setattr(replay.Settings, 'from_context', replay.forbidden)
     connect = ledger.Ledger._connect
     directories = []
-    def temporary_connect(self):
+    def temporary_connect(self, timeout=5):
         assert self.directory is not None
         assert self.directory.resolve().is_relative_to(tmp_path.resolve())
         directories.append(self.directory)
-        return connect(self)
+        return connect(self, timeout)
     monkeypatch.setattr(ledger.Ledger, '_connect', temporary_connect)
     replay.main()
     assert directories and len(set(directories)) == 1

@@ -17,10 +17,10 @@ class Ledger:
         # Resolve the active profile on every operation, not once at import time.
         self.directory = Path(directory) if directory is not None else None
 
-    def _connect(self):
+    def _connect(self, timeout=5):
         directory = self.directory if self.directory is not None else data_dir()
         directory.mkdir(parents=True, exist_ok=True)
-        conn = sqlite3.connect(directory / "checks.db", timeout=5)
+        conn = sqlite3.connect(directory / "checks.db", timeout=timeout)
         conn.row_factory = sqlite3.Row
         conn.execute("PRAGMA journal_mode=WAL")
         conn.execute("""CREATE TABLE IF NOT EXISTS checks (
@@ -30,13 +30,13 @@ class Ledger:
         )""")
         return conn
 
-    def add(self, session, tool_name, cards, rules, mode, disposition):
+    def add(self, session, tool_name, cards, rules, mode, disposition, timeout=5):
         from .stock_swap import PREFIX, RULE
         rules = [RULE + ': ' + rule if rule.startswith(PREFIX) else rule for rule in rules]
         from .take import PREFIX as TAKE_PREFIX, RULE as TAKE_RULE
         rules = [TAKE_RULE + ': ' + rule if rule.startswith(TAKE_PREFIX) else rule for rule in rules]
         check_id = uuid.uuid4().hex
-        conn = self._connect()
+        conn = self._connect(timeout)
         try:
             with conn:
                 conn.execute("INSERT INTO checks VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", (
