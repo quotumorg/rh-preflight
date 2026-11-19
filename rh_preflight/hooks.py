@@ -25,6 +25,9 @@ from .stock_swap import annotate as annotate_stock_swap, restrict_transactions
 from .budget import Pool, result as budget_result
 
 
+# Hermes stops a pre_tool_call callback at 30 s; the whole hook path stays below this.
+HOOK_LIMIT = 25.0
+
 # A bounded dispatcher also contains a custom source that ignores its deadline.
 CHECKS = ThreadPoolExecutor(max_workers=8, thread_name_prefix="rh-preflight")
 
@@ -60,12 +63,12 @@ class Service:
                 call_id = str(id(args))
         return (kw.get("session_id", ""), kw.get("task_id", ""), call_id, tool_name)
 
-    def check(self, tool_name, args, settings=None):
+    def check(self, tool_name, args, settings=None, hook=False):
         """Read and present a decision, without approvals or ledger writes."""
         settings = settings or self._settings()
         # Leave a margin below Hermes's fail-closed 30-second hook limit.
         started = self.clock()
-        deadline = started + min(settings.timeout, 25.0)
+        deadline = started + min(settings.timeout, HOOK_LIMIT)
         intents = tx_intents(args, settings.assume_chain, tool_name)
         local = [local_card(intent) for intent in intents]
         # A failed detector pass has no complete targets. Do not re-enter
@@ -106,6 +109,10 @@ class Service:
                          and any(str((i.get('payload') or {}).get('to', '')).lower() == ROUTER for i in intents))
         tx_deadline = started + settings.tx_timeout - margin if tx_enabled or hookr_enabled else read_deadline
         hook_deadline = max(deadline, tx_deadline + margin)
+        if hook:
+            # A Toll WAIT retry inside a Hermes hook ends with the hook budget.
+            ceiling = max(0.0, started + HOOK_LIMIT - hook_deadline)
+            settings = replace(settings, toll_wait_max_seconds=min(settings.toll_wait_max_seconds, ceiling))
         reads = self.executor.submit(self._read_cards, wanted, tool_name, check_args, settings, required=required, deadline=read_deadline) if wanted else None
         buy_waiting = threading.Event()
         txs = self.executor.submit(self._tx_cards, intents, local, settings, tx_deadline, read_deadline,
@@ -140,7 +147,7 @@ class Service:
     def pre_tool_call(self, tool_name, args, **kwargs):
         try:
             settings = self._settings()
-            checked = self.check(tool_name, args, settings)
+            checked = self.check(tool_name, args, settings, hook=True)
             if checked is None:
                 return None
             cards, decision = checked
