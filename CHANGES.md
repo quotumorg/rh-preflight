@@ -1,6 +1,6 @@
 ## 0.5.14
 
-the Hermes Agent hook now stays under 25 seconds, below the host's 30-second cutoff, so one slow answer no longer blocks later tool calls: network reads and any toll before-buy WAIT end within 20 seconds of hook entry, and the ledger waits for a busy sqlite writer at most 2 seconds and never past 24. `builder_card` and the mcp server keep the full `toll_wait_max_seconds`. `builder_card` rejects an `address` that is not 40 hex characters instead of reading it as a project name, and the tls warning names the unreadable `SSL_CERT_FILE` or `REQUESTS_CA_BUNDLE` variable without printing its path.
+the Hermes Agent hook now stays under 25 seconds, below the host's 30-second cutoff, so one slow answer no longer blocks later tool calls: network reads and any toll before-buy WAIT end within 20 seconds of hook entry, and the ledger waits for a busy sqlite writer at most 2 seconds and never past 24; a ledger still locked skips the history row and keeps the decision. `builder_card` and the mcp server keep the full `toll_wait_max_seconds`. `builder_card` rejects an `address` that is not 40 hex characters instead of reading it as a project name, and the tls warning names the unreadable `SSL_CERT_FILE` or `REQUESTS_CA_BUNDLE` variable without printing its path.
 
 ## 0.5.13
 

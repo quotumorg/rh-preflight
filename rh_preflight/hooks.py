@@ -2,8 +2,10 @@
 
 import hashlib
 import json
+import sqlite3
 import threading
 import time
+import uuid
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone
 from dataclasses import replace
@@ -72,6 +74,7 @@ class Service:
         settings = settings or self._settings()
         # Leave a margin below Hermes's fail-closed 30-second hook limit.
         started = self.clock()
+        # In a hook, check() starts right after hook entry.
         limit = HOOK_NETWORK if hook else HOOK_LIMIT
         deadline = started + min(settings.timeout, limit)
         intents = tx_intents(args, settings.assume_chain, tool_name)
@@ -161,9 +164,13 @@ class Service:
             ledger_rules = tuple(SIGNATURE_TAKE_RULE + ': ' + rule
                                  if rule == SIGNATURE_TAKE_REASON else rule
                                  for rule in decision.rules)
-            check_id = self.ledger.add(kwargs.get("session_id") or kwargs.get("task_id", ""),
-                                       tool_name, cards, ledger_rules, settings.mode, decision.action,
-                                       timeout=max(0.0, min(LEDGER_WAIT, entered + HOOK_LIMIT - 1 - self.clock())))
+            try:
+                check_id = self.ledger.add(kwargs.get("session_id") or kwargs.get("task_id", ""),
+                                           tool_name, cards, ledger_rules, settings.mode, decision.action,
+                                           timeout=max(0.0, min(LEDGER_WAIT, entered + HOOK_LIMIT - 1 - self.clock())))
+            except sqlite3.OperationalError:
+                # A busy ledger skips the history row; the decision still stands.
+                check_id = uuid.uuid4().hex
             with self.lock:
                 self.pending[self._key(tool_name, args, kwargs)] = message
                 while len(self.pending) > 512:

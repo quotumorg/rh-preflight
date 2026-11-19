@@ -20,6 +20,8 @@ def handler(service, args, **kwargs):
     try:
         if not any(args.get(k) for k in ("address", "repo_url", "project")) or args.get("address") and args.get("repo_url"):
             raise ValueError("Provide an address, repository URL or project")
+        if args.get("address") is not None and not re.fullmatch(r"0x[0-9a-fA-F]{40}", args["address"]):
+            raise ValueError("invalid address")
         target = args.get("address") or args.get("repo_url") or args["project"]
         project = args.get("project")
         # Display names and tickers use q; a plain slug uses project.

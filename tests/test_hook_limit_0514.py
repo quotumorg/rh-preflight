@@ -4,6 +4,7 @@ import time
 import pytest
 
 from rh_preflight.card import Card
+import json
 import sqlite3
 
 from rh_preflight.hooks import Service, HOOK_LIMIT, HOOK_NETWORK
@@ -103,7 +104,7 @@ def test_ledger_wait_ends_before_the_hook_limit(tmp_path, spent, expected):
     assert waits == [pytest.approx(expected)]
 
 
-def test_locked_ledger_blocks_without_waiting_past_the_limit(tmp_path):
+def test_locked_ledger_keeps_the_decision_without_waiting_past_the_limit(tmp_path):
     clock = Clock()
     service = Service(Settings(timeout=4), ledger=Ledger(tmp_path), presence=lambda: False, clock=clock)
     service.ledger.rows()
@@ -120,5 +121,14 @@ def test_locked_ledger_blocks_without_waiting_past_the_limit(tmp_path):
     finally:
         holder.rollback()
         holder.close()
-    assert result['action'] == 'block' and 'could not complete' in result['message']
-    assert elapsed < 1
+    assert result['action'] == 'approve' and result['rule_key'].startswith('rh-preflight:')
+    assert elapsed < 1 and service.ledger.rows() == []
+
+
+@pytest.mark.parametrize('address', ['pons', '0xNOTHEX', '0x' + 'a' * 39, '0x' + 'a' * 41, ''])
+def test_builder_tool_rejects_a_non_address_before_any_read(address):
+    from rh_preflight import tools
+    class Service:
+        def card(self, *args, **kwargs):
+            raise AssertionError('no read for an invalid address')
+    assert 'error' in json.loads(tools.handler(Service(), {'address': address, 'project': 'pons'}))
