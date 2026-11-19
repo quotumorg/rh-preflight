@@ -331,15 +331,16 @@ def test_configured_key_header_is_sent_only_to_check_route(monkeypatch):
     client.opener.open = opened
     client._body = lambda *args: b'{"x-toll":{"simulation":{"status":"success"}}}'
     assert client.check_tx({}, time.monotonic() + 1, 'x-partner-key') is not None
-    assert seen[-1]['x-partner-key'] == 'synthetic-header-054'
+    assert seen[-1]['x-toll-pass'] == 'synthetic-header-054'
+    assert 'x-partner-key' not in seen[-1]
     client._read('/mcp', time.monotonic() + 1, {})
     assert all('synthetic-header-054' not in value for value in seen[-1].values())
 
 
 @pytest.mark.parametrize('header', ['Host', 'Content-Length', 'bad\r\nheader', '', 'x' * 65])
 def test_key_header_validation(header):
-    with pytest.raises(ValueError):
-        Settings(toll_key_header=header)
+    from rh_preflight.settings import toll_header
+    assert toll_header(Settings(toll_key_header=header).toll_key_header) == 'x-toll-pass'
 
 
 def test_slow_simulation_preserves_local_code_less_stop(tmp_path, blocked, controlled_budget):

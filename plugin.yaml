@@ -55,8 +55,12 @@ config_schema:
     description: on or off; Toll transaction simulation, local signature checks stay enabled
   toll_key_header:
     type: str
-    default: x-api-key
-    description: Optional Toll environment-key header; the default awaits provider confirmation
+    default: x-toll-pass
+    description: x-toll-pass or Authorization (Bearer); other values use x-toll-pass and doctor says so
+  toll_wait_max_seconds:
+    type: float
+    default: 30.0
+    description: Extra time for Toll before-buy WAIT retries, from 0 to 120 seconds; 0 disables, at most three calls
   ask_payout_other:
     type: bool
     default: true

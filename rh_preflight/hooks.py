@@ -107,14 +107,20 @@ class Service:
             tx_deadline = started + settings.tx_timeout - margin if tx_enabled or hookr_enabled else read_deadline
             hook_deadline = max(deadline, tx_deadline + margin)
             reads = self.executor.submit(self._read_cards, wanted, tool_name, check_args, settings, required=required, deadline=read_deadline) if wanted else None
-            txs = self.executor.submit(self._tx_cards, intents, local, settings, tx_deadline, read_deadline, check_args) if intents else None
+            buy_waiting = threading.Event()
+            txs = self.executor.submit(self._tx_cards, intents, local, settings, tx_deadline, read_deadline,
+                                       check_args, buy_waiting) if intents else None
             # Both start above; collecting builder reads first preserves their
             # shorter budget even when a custom adapter ignores its deadline.
             cards = self.wait(reads, deadline, [Card(target, 'unreachable') for target in wanted]) if reads else []
-            tx_cards = self.wait(txs, hook_deadline,
-                [project(card, intent, stock_swap=settings.ask_when.get('stock_swap_above_usd') is not None)
+            fallback = [project(card, intent, stock_swap=settings.ask_when.get('stock_swap_above_usd') is not None)
                  if settings.tx_check == 'on' else card
-                 for card, intent in zip(local, intents)]) if txs else []
+                 for card, intent in zip(local, intents)]
+            tx_cards = self.wait(txs, hook_deadline, None) if txs else []
+            if tx_cards is None and buy_waiting.is_set():
+                tx_cards = self.wait(txs, hook_deadline + settings.toll_wait_max_seconds, None)
+            if tx_cards is None:
+                tx_cards = fallback
             # Only a positive per-address registry answer establishes a known
             # spender. HEY builder presence alone does not establish that role.
             known = {card.target.lower() for card in cards if card.kind == 'network'
@@ -153,8 +159,9 @@ class Service:
                        "rh-preflight could not complete this check")
             return {"action": "block", "message": message}
 
-    def _tx_cards(self, intents, local, settings, deadline, builder_deadline=None, args=None):
+    def _tx_cards(self, intents, local, settings, deadline, builder_deadline=None, args=None, buy_waiting=None):
         cards = []
+        bought_targets = []
         builder_deadline = builder_deadline if builder_deadline is not None else deadline
         with Pool(max_workers=16) as pool:
             # Simulation and code reads start together under separate budgets.
@@ -195,7 +202,9 @@ class Service:
             def start_buy(target):
                 if target and settings.sources.get('toll', 'on') == 'on' and target not in before_buys:
                     before_buys[target] = pool.submit(self.network.clients['toll'].buy_check,
-                                                     target, deadline, settings.toll_key_header)
+                                                     target, deadline, settings.toll_key_header,
+                                                     settings.toll_wait_max_seconds,
+                                                     buy_waiting.set if buy_waiting is not None else None)
             for intent in intents:
                 start_buy(bought_address(intent))
             for intent, card, simulation, trade, spec in zip(intents, local, simulations, trades, specs):
@@ -259,13 +268,17 @@ class Service:
                 if settings.tx_check == 'off':
                     composed = Card(composed.target, composed.kind, {**composed.data,
                         'unchecked': False, 'lines': [line for line in composed.data['lines'] if not line.startswith('Toll')] + ['transaction simulation switched off']})
+                cards.append(composed)
+                bought_targets.append(bought)
+            # Finish every ordinary source under its original deadline before
+            # collecting the only read allowed to wait longer.
+            for composed, bought in zip(cards, bought_targets):
                 if bought in before_buys:
-                    reading = budget_result(before_buys[bought], deadline - .005, None)
+                    reading = budget_result(before_buys[bought], deadline + settings.toll_wait_max_seconds - .005, None)
                     if reading and reading.line:
                         lines = composed.data['lines']
                         index = lines.index('Toll · https://t0ll.xyz') if 'Toll · https://t0ll.xyz' in lines else len(lines)
                         lines.insert(index, reading.line)
-                cards.append(composed)
         return cards
 
     def transform_tool_result(self, tool_name, args, result, **kwargs):
@@ -337,7 +350,8 @@ class Service:
                                      all_sources=all_sources, deadline=deadline)
             cards = [budget_result(future, deadline, (Card(target, 'unreachable'), 0.0, True))
                      for target, future in zip(targets, cores)]
-            early = budget_result(neighbours, deadline, [Card(target, 'network', {'base': Card(target, 'unreachable'), 'sources': []}) for target in targets])
+            end = deadline + (settings.toll_wait_max_seconds if all_sources and settings.sources.get('toll', 'on') == 'on' else 0)
+            early = budget_result(neighbours, end, [Card(target, 'network', {'base': Card(target, 'unreachable'), 'sources': []}) for target in targets])
         result = []
         for (base, elapsed, asked), prepared in zip(cards, early):
             if not addresses(base.target) and base.kind == "agent":

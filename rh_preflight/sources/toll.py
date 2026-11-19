@@ -2,6 +2,7 @@
 import json
 from dataclasses import dataclass, replace
 import threading
+import time
 import re
 import unicodedata
 from urllib.parse import quote
@@ -9,6 +10,7 @@ from .common import plural, Absent, Keyless, Reading, field, money
 from ..card import link
 from ..extract import ADDRESS
 from ..hey import Unavailable
+from ..settings import toll_header
 
 TOOLS = {'agent': ('check_agent', 'id'), 'hook': ('check_hook', 'address'), 'stock': ('stock_token', 'id')}
 NUMBER = r'[0-9]+(?:\.[0-9]+)?'
@@ -26,6 +28,7 @@ BUY_BUDGET_MAX_MS = 25000
 class BeforeBuyReading(Reading):
     """Only the validated, Toll-attributed before-buy projection may carry prose."""
     decision: str = ''
+    wait_seconds: int | None = None
 
 
 def parse_before_buy(data, target):
@@ -65,8 +68,10 @@ def parse_before_buy(data, target):
             in_reasons = False
     if len(reasons) > 3 or (word in {'WARN', 'BLOCK'} and not reasons):
         raise ValueError()
+    wait_seconds = None
     if word == 'WAIT':
         waits = re.findall(r'Call pre_buy_check again in ([0-9]{1,8}) s\b', body)
+        wait_seconds = int(waits[0]) if len(waits) == 1 else None
         detail = 'still reading' + (f', ask again in {waits[0]} s' if len(waits) == 1 else '')
     elif word == 'ALLOW':
         detail = 'nothing against was found in what was read'
@@ -88,7 +93,8 @@ def parse_before_buy(data, target):
         if not page or not reports[0].startswith('Full report: https://t0ll.xyz/check/'):
             raise ValueError()
         detail += ' · https://t0ll.xyz/check/' + target.lower()
-    return BeforeBuyReading('Toll', 'present', f'Toll before buy: {word} · {detail}', decision=word)
+    return BeforeBuyReading('Toll', 'present', f'Toll before buy: {word} · {detail}',
+                            decision=word, wait_seconds=wait_seconds)
 
 
 def toll_key():
@@ -106,9 +112,10 @@ class Client(Keyless):
     probe_target = 'NVDA'
     accept = 'application/json, text/event-stream'
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args, sleep=None, **kwargs):
         super().__init__(*args, **kwargs)
         self.tx_headers = threading.local()
+        self.sleep = sleep if sleep is not None else time.sleep
 
     def request_headers(self, path):
         # Send the optional partner key only on the exact production host
@@ -119,7 +126,8 @@ class Client(Keyless):
             return {}
         key = toll_key()
         if key:
-            return {getattr(self.tx_headers, 'key_header', 'x-toll-pass'): key}
+            header = toll_header(getattr(self.tx_headers, 'key_header', 'x-toll-pass'))
+            return {header: 'Bearer ' + key if header == 'Authorization' else key}
         return {}
 
     def _read(self, path, deadline, payload=None):
@@ -199,7 +207,8 @@ class Client(Keyless):
     def reader_path(target):
         return '/api/markets/stock/' + quote(target, safe='')
 
-    def fetch(self, target, deadline, kind='stock', coin_findings='silent', before_buy=False, key_header='x-toll-pass'):
+    def fetch(self, target, deadline, kind='stock', coin_findings='silent', before_buy=False,
+              key_header='x-toll-pass', wait_max_seconds=30, on_wait=None):
         if kind == 'stock':
             if not isinstance(target, str) or not re.fullmatch(r'[A-Za-z0-9.]{1,60}|0x[0-9a-fA-F]{40}', target):
                 return Reading(self.label, 'unlisted', '')
@@ -213,7 +222,7 @@ class Client(Keyless):
                 # Not a Stock Token: Toll's free coin check, fixed Figures lines only.
                 coin = self.coin(target, deadline) if coin_findings == 'line' else Reading(self.label, 'unlisted', '')
                 if before_buy:
-                    buy = self.before_buy(target, deadline, key_header)
+                    buy = self.before_buy(target, deadline, key_header, wait_max_seconds, on_wait)
                     if buy.line:
                         return replace(buy, line='\n'.join(line for line in (coin.line, buy.line) if line))
                 return coin
@@ -228,15 +237,18 @@ class Client(Keyless):
         data = self.read('/mcp', deadline, payload=payload)
         return self.parse(data, kind)
 
-    def before_buy(self, target, deadline, key_header='x-toll-pass'):
+    def before_buy(self, target, deadline, key_header='x-toll-pass', wait_max_seconds=30, on_wait=None):
         """The caller has established a non-stock 404 under this deadline."""
         silent = Reading(self.label, 'unlisted', '')
         if not isinstance(target, str) or not ADDRESS.fullmatch(target):
             return silent
         target = target.lower()
         flight_key = ('before_buy', target)
-        if not self.inflight.acquire(flight_key, timeout=max(0, deadline - self.clock())):
-            return silent
+        retry_deadline = deadline + wait_max_seconds
+        joined = not self.inflight.acquire(flight_key, timeout=0)
+        if joined:
+            if not self.inflight.acquire(flight_key, timeout=max(0, deadline - self.clock())):
+                return silent
         try:
             with self.lock:
                 kept = getattr(self, '_before_buys', {}).get(target)
@@ -246,19 +258,39 @@ class Client(Keyless):
                         seconds = int(match[1]) * (60 if match[2] == 'min' else 1) + elapsed
                         return f'from a read {seconds // 60} min ago' if seconds >= 60 else f'from a read {seconds} s ago'
                     return replace(kept[1], line=re.sub(r'from a read ([0-9]+) (s|min) ago', age, kept[1].line))
-            left = (deadline - self.clock() - BUDGET_ROUND_TRIP) * 1000
-            if self.clock() >= deadline or left != left:
+            # A caller joining this flight must not start another WAIT loop.
+            # Whole answers above are shared; an unfinished or failed read is silent.
+            if joined:
                 return silent
-            budget = max(BUDGET_MIN_MS, round(min(BUY_BUDGET_MAX_MS, left)))
-            payload = {'jsonrpc': '2.0', 'id': 1, 'method': 'tools/call',
-                       'params': {'name': 'pre_buy_check', 'arguments': {'address': target, 'budget_ms': budget}}}
             self.tx_headers.key_header = key_header
-            status, data = self._read('/mcp', deadline, payload)
-            if status != 200:
-                return silent
-            reading = parse_before_buy(data, target)
-            if self.clock() >= deadline:
-                return silent
+            waited, waits = 0, 0
+            call_deadline = deadline
+            for attempt in range(3):
+                left = (call_deadline - self.clock() - BUDGET_ROUND_TRIP) * 1000
+                if self.clock() >= call_deadline or left != left:
+                    return silent
+                budget = max(BUDGET_MIN_MS, round(min(BUY_BUDGET_MAX_MS, left)))
+                payload = {'jsonrpc': '2.0', 'id': 1, 'method': 'tools/call',
+                           'params': {'name': 'pre_buy_check', 'arguments': {'address': target, 'budget_ms': budget}}}
+                status, data = self._read('/mcp', call_deadline, payload)
+                if status != 200:
+                    return silent
+                reading = parse_before_buy(data, target)
+                if self.clock() >= call_deadline:
+                    return silent
+                seconds = reading.wait_seconds
+                if (reading.decision != 'WAIT' or attempt == 2 or wait_max_seconds == 0 or seconds is None
+                        or seconds > wait_max_seconds - waited or self.clock() + seconds >= retry_deadline):
+                    break
+                if on_wait is not None:
+                    on_wait()
+                self.sleep(seconds)
+                waited += seconds
+                waits += 1
+                call_deadline = retry_deadline
+            if waits:
+                detail = f'after one wait of {waited} s' if waits == 1 else f'after {waits} waits totalling {waited} s'
+                reading = replace(reading, line=reading.line + ' · ' + detail)
             if reading.decision != 'WAIT':
                 with self.lock:
                     cache = self.__dict__.setdefault('_before_buys', {})
@@ -272,10 +304,11 @@ class Client(Keyless):
             self.tx_headers.__dict__.pop('key_header', None)
             self.inflight.release(flight_key)
 
-    def buy_check(self, target, deadline, key_header='x-toll-pass'):
+    def buy_check(self, target, deadline, key_header='x-toll-pass', wait_max_seconds=30, on_wait=None):
         """Establish non-stock membership first; failures add no extra line."""
         try:
-            reading = self.fetch(target, deadline, before_buy=True, key_header=key_header)
+            reading = self.fetch(target, deadline, before_buy=True, key_header=key_header,
+                                 wait_max_seconds=wait_max_seconds, on_wait=on_wait)
             if isinstance(reading, BeforeBuyReading):
                 return reading
         except (Unavailable, Absent, KeyError, TypeError, ValueError, AttributeError, IndexError, OverflowError):

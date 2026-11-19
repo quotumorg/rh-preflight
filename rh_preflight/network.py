@@ -8,6 +8,7 @@ from .extract import ADDRESS, walk, objects
 from .sources import priors, sherwood, hookr, chain, wormhole, toll, dexscreener, geckoterminal, offrouter, sentinelhood, trnch, borro, hoodlock
 from .sources.common import field, Reading
 from .budget import Pool as BudgetPool, result as budget_result
+from .settings import toll_header
 
 MODULES = {"priors": priors, "sherwood": sherwood, "hookr": hookr, "chain": chain, "wormhole": wormhole,
            "toll": toll, "dexscreener": dexscreener, "geckoterminal": geckoterminal, "offrouter": offrouter, "sentinelhood": sentinelhood, "hoodlock": hoodlock,
@@ -52,6 +53,7 @@ class Network:
                 kwargs['coin_findings'] = settings.toll_coin_findings
                 kwargs['before_buy'] = all_sources
                 kwargs['key_header'] = settings.toll_key_header
+                kwargs['wait_max_seconds'] = settings.toll_wait_max_seconds
             reading = self.clients[name].lookup(target, deadline=deadline, **kwargs)
             return replace(reading, elapsed=max(0.0, time.monotonic() - start))
 
@@ -111,7 +113,12 @@ class Network:
                         futures.append((name, target, future))
                 if enabled('borro'):
                     def stock_read(target, membership):
-                        ticker = membership.result().stock_ticker if membership else None
+                        # Membership must not wait for a non-stock before-buy
+                        # retry. The keyed stock route shares the same HTTP read.
+                        if membership and all_sources:
+                            ticker = self.clients['toll'].lookup(target, deadline=deadline).stock_ticker
+                        else:
+                            ticker = membership.result().stock_ticker if membership else None
                         if ticker:
                             return lookup('borro', target, stock_ticker=ticker)
                         return Reading('Borro', 'unlisted', '', asked=False)
@@ -156,15 +163,21 @@ class Network:
                 budget_result(future, deadline - .005, None)
             def completed(name, target, future):
                 fallback = self.clients[name].unavailable(target)
-                return budget_result(future, deadline - .005, fallback)
+                end = deadline + (settings.toll_wait_max_seconds if name == 'toll' and all_sources else 0)
+                return budget_result(future, end - .005, fallback)
             results = [('chain', target, completed('chain', target, future)) for target, future in chains.items()]
-            results += [(name, target, completed(name, target, future)) for name, target, future in futures]
+            # Collect ordinary sources under their original deadline before
+            # waiting longer for Toll's before-buy read.
+            ordinary = {index: completed(name, target, future)
+                        for index, (name, target, future) in enumerate(futures) if name != 'toll'}
             if trnch_batch is not None:
                 batch = budget_result(trnch_batch, deadline - .005, {})
                 results.extend(('trnch', target, batch.get(target, self.clients['trnch'].unavailable(target)))
                                for target in targets)
-            for future in extra:
-                results.extend(budget_result(future, deadline, []))
+            extras = [row for future in extra for row in budget_result(future, deadline, [])]
+            results += [(name, target, completed(name, target, future) if name == 'toll' else ordinary[index])
+                        for index, (name, target, future) in enumerate(futures)]
+            results.extend(extras)
         if not cards:
             return []
         composed = []
@@ -231,7 +244,11 @@ class Network:
         with ThreadPoolExecutor(max_workers=4) as pool:
             futures = {name: pool.submit(client.probe) for name, client in self.clients.items()
                        if settings.sources.get(name, 'on') == 'on'}
-            return {name: {"enabled": True, **futures[name].result(), "cache": client.stats()}
+            result = {name: {"enabled": True, **futures[name].result(), "cache": client.stats()}
                     if name in futures else {"enabled": False, "reachable": None, "latency_ms": None,
                                              "cache": client.stats()}
                     for name, client in self.clients.items()}
+        result['toll']['key_header'] = toll_header(settings.toll_key_header)
+        if not isinstance(settings.toll_key_header, str) or settings.toll_key_header.lower() not in {'x-toll-pass', 'authorization'}:
+            result['toll']['warning'] = 'toll_key_header is not supported by Toll; using x-toll-pass'
+        return result

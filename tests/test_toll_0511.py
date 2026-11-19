@@ -146,10 +146,10 @@ def test_whole_cache_is_independent_case_insensitive_bounded_and_expires():
     assert len(toll._before_buys) == 512
 
 
-def test_wait_has_one_call_each_time_and_is_never_cached():
+def test_wait_with_retries_off_has_one_call_each_time_and_is_never_cached():
     toll, calls = stub(CAPTURE[HISS]['response'])
     for _ in range(2):
-        assert 'WAIT' in toll.buy_check(HISS, time.monotonic() + 5).line
+        assert 'WAIT' in toll.buy_check(HISS, time.monotonic() + 5, wait_max_seconds=0).line
     assert len([p for p, body in calls if p == '/mcp']) == 2
     assert not getattr(toll, '_before_buys', {})
     assert all(key[0] != '/mcp' for key in toll.cache)

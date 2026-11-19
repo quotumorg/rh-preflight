@@ -12,6 +12,11 @@ DEFAULT_PATTERNS = [
 ]
 
 
+def toll_header(name):
+    """Only the two partner authentication forms Toll accepts."""
+    return "Authorization" if isinstance(name, str) and name.lower() == "authorization" else "x-toll-pass"
+
+
 @dataclass(frozen=True)
 class Settings:
     mode: str = "ask_when"
@@ -25,6 +30,7 @@ class Settings:
     tool_patterns: list[str] = field(default_factory=lambda: DEFAULT_PATTERNS.copy())
     tx_check: str = "on"
     toll_key_header: str = "x-toll-pass"
+    toll_wait_max_seconds: float = 30.0
     ask_payout_other: bool = True
     ask_hookr_refused: bool = True
     toll_coin_findings: str = "silent"
@@ -56,8 +62,9 @@ class Settings:
                 continue
             if name not in {"payee_no_priors_record", "vault_strategy_inactive", "stock_no_hey_record"} or type(setting) is not bool:
                 raise ValueError("ask_when must map rule names to booleans")
-        if not isinstance(self.toll_key_header, str) or not re.fullmatch(r'[A-Za-z][A-Za-z0-9-]{0,63}', self.toll_key_header) or self.toll_key_header.lower() in {'host', 'content-length', 'content-type', 'connection', 'user-agent', 'accept', 'x-hey-integration'}:
-            raise ValueError("toll_key_header must be an authentication header name")
+        if (isinstance(self.toll_wait_max_seconds, bool) or not isinstance(self.toll_wait_max_seconds, (float, int))
+                or not math.isfinite(self.toll_wait_max_seconds) or not 0 <= self.toll_wait_max_seconds <= 120):
+            raise ValueError("toll_wait_max_seconds must be a number from 0 to 120 seconds")
         if self.tx_check not in {"on", "off"}:
             raise ValueError("tx_check must be on or off")
         if not isinstance(self.toll_coin_findings, str) or self.toll_coin_findings not in {"line", "silent"}:

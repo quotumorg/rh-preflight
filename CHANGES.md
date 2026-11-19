@@ -1,8 +1,10 @@
 ## 0.5.11 (unreleased)
 
 print Toll's own before-buy word beside coin reads for a bought non-Stock-Token address and builder/direct-address token cards, with a validated first reason, remaining count, WAIT seconds, read age and same-token report link.
-send one MCP call under the existing deadline, source switch, cooldown and optional key header; keep parsed non-WAIT answers ten minutes per address separately from check_coin. Stock Tokens never call it.
-print validated tx actions as `Toll: ALLOW`, `Toll: WARN` or `Toll: BLOCK`. all words are informational; no approval rule changes. MCP acceptance of the key header is unverified offline.
+send the optional partner key as `x-toll-pass`, or `Authorization: Bearer <key>` when configured, on tx checks and before-buy MCP reads. other header settings use `x-toll-pass`; doctor says so without printing the key. Toll confirmed both forms on 2026-11-19.
+on WAIT, wait the stated seconds and read again, at most three calls in all. `toll_wait_max_seconds` defaults to 30, accepts 0 to 120 seconds and bounds both total sleeps and the extra read time; 0 keeps the previous WAIT line. when the next wait does not fit, print WAIT with its seconds. cards say how many waits happened. only the before-buy read gets extra time, including unattended runs; other sources keep their deadlines.
+keep one before-buy reader per address in flight and parsed non-WAIT answers ten minutes per address separately from check_coin. concurrent callers get a whole answer or no line; WAIT is not cached. Stock Tokens never call it.
+print validated tx actions as `Toll: ALLOW`, `Toll: WARN` or `Toll: BLOCK`. all words remain informational; no approval rule changes, including BLOCK.
 
 ## 0.5.10
 
