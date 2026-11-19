@@ -1,3 +1,10 @@
+## 0.5.12
+
+add a read-only mcp server over stdio: `python -m rh_preflight.mcp` or the `rh-preflight-mcp` command. it runs from any mcp client without Hermes Agent and has no runtime dependencies.
+two tools: `builder_card` returns the same public card as the plugin tool; `tx_check` takes an unsigned `to` plus `data` or `value`, or a `tx_hash` on chain 4663, and returns `action` (`pass`, `ask`, `block` or `note`), `advisory: true`, the card and the rules. it never approves, signs or sends anything and keeps no ledger.
+the mcp path and the transfer hook share one check, so both give the same card and decision. settings come from `RH_PREFLIGHT_<SETTING_NAME>` or `--setting name=value` with the plugin's validation. the optional Toll key is read only from `TOLL_API_KEY` in the server environment.
+`server.json` is an unsubmitted registry draft; no package is published.
+
 ## 0.5.11
 
 print Toll's own before-buy word beside coin reads for a bought non-Stock-Token address and builder/direct-address token cards, with a validated first reason, remaining count, WAIT seconds, read age and same-token report link.
