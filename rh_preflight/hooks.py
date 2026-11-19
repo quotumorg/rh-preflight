@@ -27,15 +27,18 @@ from .stock_swap import annotate as annotate_stock_swap, restrict_transactions
 from .budget import Pool, result as budget_result
 
 
-# Hermes stops a pre_tool_call callback at 30 s; the whole hook path stays below
-# HOOK_LIMIT. Network reads end by HOOK_NETWORK and the ledger waits at most
-# LEDGER_WAIT, ending a second before the limit.
+# Hermes stops a pre_tool_call callback at 30 s. The hook stops waiting for
+# network results by HOOK_NETWORK; preparation and history have outer deadlines.
+# A running transport can outlive its Future wait. The hook never joins it.
 HOOK_LIMIT = 25.0
 HOOK_NETWORK = 20.0
 LEDGER_WAIT = 2.0
 
 # A bounded dispatcher also contains a custom source that ignores its deadline.
 CHECKS = ThreadPoolExecutor(max_workers=8, thread_name_prefix="rh-preflight")
+# Separate pools avoid a hook waiting on its own occupied dispatcher.
+PREPARATIONS = ThreadPoolExecutor(max_workers=8, thread_name_prefix="rh-hook-prepare")
+JOURNALS = ThreadPoolExecutor(max_workers=4, thread_name_prefix="rh-hook-journal")
 
 
 class Service:
@@ -69,12 +72,11 @@ class Service:
                 call_id = str(id(args))
         return (kw.get("session_id", ""), kw.get("task_id", ""), call_id, tool_name)
 
-    def check(self, tool_name, args, settings=None, hook=False):
+    def check(self, tool_name, args, settings=None, hook=False, started=None):
         """Read and present a decision, without approvals or ledger writes."""
         settings = settings or self._settings()
         # Leave a margin below Hermes's fail-closed 30-second hook limit.
-        started = self.clock()
-        # In a hook, check() starts right after hook entry.
+        started = self.clock() if started is None else started
         limit = HOOK_NETWORK if hook else HOOK_LIMIT
         deadline = started + min(settings.timeout, limit)
         intents = tx_intents(args, settings.assume_chain, tool_name)
@@ -152,29 +154,65 @@ class Service:
                  for card, rules in zip(cards, associations)]
         return cards, decision
 
+    def _prepare_hook(self, tool_name, args, kwargs, entered):
+        settings = self._settings()
+        if self.clock() >= entered + HOOK_NETWORK:
+            raise TimeoutError()
+        checked = self.check(tool_name, args, settings, hook=True, started=entered)
+        if checked is None:
+            return None
+        cards, decision = checked
+        message = "\n\n".join(c.render() for c in cards)
+        ledger_rules = tuple(SIGNATURE_TAKE_RULE + ': ' + rule
+                             if rule == SIGNATURE_TAKE_REASON else rule
+                             for rule in decision.rules)
+        return settings, cards, decision, message, ledger_rules, self._key(tool_name, args, kwargs)
+
     def pre_tool_call(self, tool_name, args, **kwargs):
         entered = self.clock()
+        end = entered + HOOK_LIMIT - 1
         try:
-            settings = self._settings()
-            checked = self.check(tool_name, args, settings, hook=True)
-            if checked is None:
-                return None
-            cards, decision = checked
-            message = "\n\n".join(c.render() for c in cards)
-            ledger_rules = tuple(SIGNATURE_TAKE_RULE + ': ' + rule
-                                 if rule == SIGNATURE_TAKE_REASON else rule
-                                 for rule in decision.rules)
+            prepared = PREPARATIONS.submit(self._prepare_hook, tool_name, args, kwargs, entered)
             try:
-                check_id = self.ledger.add(kwargs.get("session_id") or kwargs.get("task_id", ""),
-                                           tool_name, cards, ledger_rules, settings.mode, decision.action,
-                                           timeout=max(0.0, min(LEDGER_WAIT, entered + HOOK_LIMIT - 1 - self.clock())))
-            except sqlite3.OperationalError:
-                # A busy ledger skips the history row; the decision still stands.
+                values = prepared.result(timeout=max(0.0, min(end, entered + HOOK_NETWORK + 1) - self.clock()))
+            except TimeoutError:
+                prepared.cancel()
+                raise
+            if values is None:
+                return None
+            settings, cards, decision, message, ledger_rules, key = values
+            if self.clock() >= end:
+                raise TimeoutError()
+            journal_wait = max(0.0, min(LEDGER_WAIT, end - self.clock()))
+
+            def journal():
+                # Queue time consumes the same budget as the database operations.
+                return self.ledger.add(kwargs.get("session_id") or kwargs.get("task_id", ""),
+                                       tool_name, cards, ledger_rules, settings.mode, decision.action,
+                                       timeout=max(0.0, min(journal_wait, end - self.clock())))
+            write = JOURNALS.submit(journal)
+            try:
+                check_id = write.result(timeout=max(0.0, min(journal_wait, end - self.clock())))
+            except (sqlite3.OperationalError, TimeoutError) as error:
+                if isinstance(error, sqlite3.OperationalError) and (
+                    getattr(error, "sqlite_errorcode", 0) & 255
+                ) not in (sqlite3.SQLITE_BUSY, sqlite3.SQLITE_LOCKED):
+                    raise
+                write.cancel()
+                # History is not transaction coverage. Keep the completed decision
+                # and give every ask a new approval identity.
                 check_id = uuid.uuid4().hex
-            with self.lock:
-                self.pending[self._key(tool_name, args, kwargs)] = message
+                message += "\ncheck history unavailable; the completed policy decision still applies"
+            if not self.lock.acquire(timeout=max(0.0, end - self.clock())):
+                raise TimeoutError()
+            try:
+                if self.clock() >= end:
+                    raise TimeoutError()
+                self.pending[key] = message
                 while len(self.pending) > 512:
                     self.pending.pop(next(iter(self.pending)))
+            finally:
+                self.lock.release()
             if decision.action == "ask":
                 # Hermes calls this directive 'approve'; it REQUESTS a human decision.
                 # A unique key prevents a previous session/always answer bypassing a new check.

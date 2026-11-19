@@ -4,6 +4,7 @@ from datetime import datetime, timezone
 import json
 from pathlib import Path
 import sqlite3
+import time
 import uuid
 
 
@@ -18,19 +19,32 @@ class Ledger:
         self.directory = Path(directory) if directory is not None else None
 
     def _connect(self, timeout=5):
+        end = time.monotonic() + timeout
         directory = self.directory if self.directory is not None else data_dir()
         directory.mkdir(parents=True, exist_ok=True)
         conn = sqlite3.connect(directory / "checks.db", timeout=timeout)
         conn.row_factory = sqlite3.Row
-        conn.execute("PRAGMA journal_mode=WAL")
-        conn.execute("""CREATE TABLE IF NOT EXISTS checks (
-            id TEXT PRIMARY KEY, time TEXT NOT NULL, session TEXT NOT NULL,
-            tool_name TEXT NOT NULL, targets TEXT NOT NULL, cards TEXT NOT NULL,
-            rules TEXT NOT NULL, decision TEXT, mode TEXT NOT NULL, disposition TEXT NOT NULL
-        )""")
+        try:
+            self._remaining(conn, end)
+            conn.execute("PRAGMA journal_mode=WAL")
+            self._remaining(conn, end)
+            conn.execute("""CREATE TABLE IF NOT EXISTS checks (
+                id TEXT PRIMARY KEY, time TEXT NOT NULL, session TEXT NOT NULL,
+                tool_name TEXT NOT NULL, targets TEXT NOT NULL, cards TEXT NOT NULL,
+                rules TEXT NOT NULL, decision TEXT, mode TEXT NOT NULL, disposition TEXT NOT NULL
+            )""")
+        except Exception:
+            conn.close()
+            raise
         return conn
 
+    @staticmethod
+    def _remaining(conn, end):
+        milliseconds = max(0, int((end - time.monotonic()) * 1000))
+        conn.execute(f"PRAGMA busy_timeout={milliseconds}")
+
     def add(self, session, tool_name, cards, rules, mode, disposition, timeout=5):
+        end = time.monotonic() + timeout
         from .stock_swap import PREFIX, RULE
         rules = [RULE + ': ' + rule if rule.startswith(PREFIX) else rule for rule in rules]
         from .take import PREFIX as TAKE_PREFIX, RULE as TAKE_RULE
@@ -39,6 +53,7 @@ class Ledger:
         conn = self._connect(timeout)
         try:
             with conn:
+                self._remaining(conn, end)
                 conn.execute("INSERT INTO checks VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", (
                     check_id, datetime.now(timezone.utc).isoformat(), session or "",
                     tool_name, json.dumps([c.target for c in cards]),

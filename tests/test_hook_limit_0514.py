@@ -100,8 +100,11 @@ def test_ledger_wait_ends_before_the_hook_limit(tmp_path, spent, expected):
         return [Card(A, 'identifier')], type('D', (), {'rules': (), 'action': 'ask'})()
     service.check = check
     service.ledger.add = lambda *args, timeout: waits.append(timeout) or 'id'
-    service.pre_tool_call('swap', ARGS)
-    assert waits == [pytest.approx(expected)]
+    result = service.pre_tool_call('swap', ARGS)
+    if spent >= HOOK_LIMIT - 1:
+        assert waits == [] and result['action'] == 'block'
+    else:
+        assert waits == [pytest.approx(expected)]
 
 
 def test_locked_ledger_keeps_the_decision_without_waiting_past_the_limit(tmp_path):
@@ -122,6 +125,7 @@ def test_locked_ledger_keeps_the_decision_without_waiting_past_the_limit(tmp_pat
         holder.rollback()
         holder.close()
     assert result['action'] == 'approve' and result['rule_key'].startswith('rh-preflight:')
+    assert 'history unavailable' in result['message']
     assert elapsed < 1 and service.ledger.rows() == []
 
 
