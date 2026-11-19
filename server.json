@@ -6,12 +6,12 @@
     "url": "https://github.com/quotumorg/rh-preflight",
     "source": "github"
   },
-  "version": "0.5.13",
+  "version": "0.5.14",
   "packages": [
     {
       "registryType": "pypi",
       "identifier": "rh-preflight-mcp",
-      "version": "0.5.13",
+      "version": "0.5.14",
       "runtimeHint": "uvx",
       "transport": {
         "type": "stdio"

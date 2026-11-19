@@ -1,3 +1,7 @@
+## 0.5.14
+
+a toll before-buy WAIT inside the Hermes Agent hook now ends within 25 seconds of hook entry, below the host's 30-second cutoff, so one slow answer no longer blocks later tool calls. `builder_card` and the mcp server keep the full `toll_wait_max_seconds`. `builder_card` rejects an `address` that is not 40 hex characters instead of reading it as a project name, and the tls warning names the unreadable `SSL_CERT_FILE` or `REQUESTS_CA_BUNDLE` variable without printing its path.
+
 ## 0.5.13
 
 packaging only, no code change. the README carries the `mcp-name` line the official mcp registry checks, and a hand-run publish workflow uploads `rh-preflight-mcp` to pypi and the server to the registry through github oidc, with no stored tokens.
