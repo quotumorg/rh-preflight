@@ -60,81 +60,90 @@ class Service:
                 call_id = str(id(args))
         return (kw.get("session_id", ""), kw.get("task_id", ""), call_id, tool_name)
 
+    def check(self, tool_name, args, settings=None):
+        """Read and present a decision, without approvals or ledger writes."""
+        settings = settings or self._settings()
+        # Leave a margin below Hermes's fail-closed 30-second hook limit.
+        started = self.clock()
+        deadline = started + min(settings.timeout, 25.0)
+        intents = tx_intents(args, settings.assume_chain, tool_name)
+        local = [local_card(intent) for intent in intents]
+        # A failed detector pass has no complete targets. Do not re-enter
+        # failed parsers or perform source reads against partial arguments.
+        check_args = {} if any(i.get('detection_failed') for i in intents) else args
+        if settings.ask_when.get('stock_swap_above_usd') is not None:
+            restrict_transactions(intents, check_args, settings, tool_name)
+        targets = extract(tool_name, check_args, settings)
+        wanted = list(targets.addresses + targets.repos)
+        payees, agents, pools = identifiers(check_args)
+        if chain_context(check_args, settings.assume_chain):
+            wanted = list(dict.fromkeys(wanted + payees))[:5]
+            if not wanted and (agents or pools):
+                wanted = ["agent #" + agents[0] if agents else pools[0]]
+        if not wanted and not intents and chain_context(check_args, settings.assume_chain) and settings.sources.get("sherwood", "on") == "on":
+            # The registry is a public list. Only a known vault causes a bundle or core lookup.
+            candidates = addresses(check_args)
+            def vaults():
+                return [target for target in candidates
+                        if self.network.clients["sherwood"].lookup(target, deadline=deadline).state == "present"]
+            discovery = self.executor.submit(vaults)
+            wanted = self.wait(discovery, deadline, candidates)
+        if not wanted and not intents:
+            return None
+        required = []
+        if settings.ask_unmeasured or settings.ask_quiet:
+            required.append("activity_measured")
+        if settings.ask_quiet:
+            required.append("meaningful_ships_30d")
+        if settings.ask_not_verified:
+            required.append("verified_builder")
+        # Local signature decoding above always precedes any Toll request.
+        margin = min(.02, settings.timeout * .1, settings.tx_timeout * .1)
+        read_deadline = deadline - margin
+        tx_enabled = (settings.tx_check == 'on' and settings.sources.get('toll', 'on') == 'on'
+                      and any(intent['payload'] is not None for intent in intents))
+        hookr_enabled = (settings.tx_check == 'on' and settings.sources.get('hookr', 'on') == 'on'
+                         and any(str((i.get('payload') or {}).get('to', '')).lower() == ROUTER for i in intents))
+        tx_deadline = started + settings.tx_timeout - margin if tx_enabled or hookr_enabled else read_deadline
+        hook_deadline = max(deadline, tx_deadline + margin)
+        reads = self.executor.submit(self._read_cards, wanted, tool_name, check_args, settings, required=required, deadline=read_deadline) if wanted else None
+        buy_waiting = threading.Event()
+        txs = self.executor.submit(self._tx_cards, intents, local, settings, tx_deadline, read_deadline,
+                                   check_args, buy_waiting) if intents else None
+        # Both start above; collecting builder reads first preserves their
+        # shorter budget even when a custom adapter ignores its deadline.
+        cards = self.wait(reads, deadline, [Card(target, 'unreachable') for target in wanted]) if reads else []
+        fallback = [project(card, intent, stock_swap=settings.ask_when.get('stock_swap_above_usd') is not None)
+             if settings.tx_check == 'on' else card
+             for card, intent in zip(local, intents)]
+        tx_cards = self.wait(txs, hook_deadline, None) if txs else []
+        if tx_cards is None and buy_waiting.is_set():
+            tx_cards = self.wait(txs, hook_deadline + settings.toll_wait_max_seconds, None)
+        if tx_cards is None:
+            tx_cards = fallback
+        # Only a positive per-address registry answer establishes a known
+        # spender. HEY builder presence alone does not establish that role.
+        known = {card.target.lower() for card in cards if card.kind == 'network'
+                 and any(r.source in {'Priors', 'Hookr'} and r.state == 'present'
+                         for r in card.data.get('sources', []))}
+        for tx_card in tx_cards:
+            for approval in tx_card.data['approvals']:
+                approval['known'] = approval.get('known', False) or approval['spender'] in known
+        cards = annotate_stock_swap(tx_cards + cards, check_args, settings, tool_name)
+        checked_at = datetime.now(timezone.utc)
+        decision = evaluate(cards, settings, unattended=self.presence(), now=checked_at)
+        associations = target_rules(cards, settings, checked_at) if len(cards) > 1 else [None]
+        cards = [present(card, decision, rule_targets=rules)
+                 for card, rules in zip(cards, associations)]
+        return cards, decision
+
     def pre_tool_call(self, tool_name, args, **kwargs):
         try:
             settings = self._settings()
-            # Leave a margin below Hermes's fail-closed 30-second hook limit.
-            started = self.clock()
-            deadline = started + min(settings.timeout, 25.0)
-            intents = tx_intents(args, settings.assume_chain, tool_name)
-            local = [local_card(intent) for intent in intents]
-            # A failed detector pass has no complete targets. Do not re-enter
-            # failed parsers or perform source reads against partial arguments.
-            check_args = {} if any(i.get('detection_failed') for i in intents) else args
-            if settings.ask_when.get('stock_swap_above_usd') is not None:
-                restrict_transactions(intents, check_args, settings, tool_name)
-            targets = extract(tool_name, check_args, settings)
-            wanted = list(targets.addresses + targets.repos)
-            payees, agents, pools = identifiers(check_args)
-            if chain_context(check_args, settings.assume_chain):
-                wanted = list(dict.fromkeys(wanted + payees))[:5]
-                if not wanted and (agents or pools):
-                    wanted = ["agent #" + agents[0] if agents else pools[0]]
-            if not wanted and not intents and chain_context(check_args, settings.assume_chain) and settings.sources.get("sherwood", "on") == "on":
-                # The registry is a public list. Only a known vault causes a bundle or core lookup.
-                candidates = addresses(check_args)
-                def vaults():
-                    return [target for target in candidates
-                            if self.network.clients["sherwood"].lookup(target, deadline=deadline).state == "present"]
-                discovery = self.executor.submit(vaults)
-                wanted = self.wait(discovery, deadline, candidates)
-            if not wanted and not intents:
+            checked = self.check(tool_name, args, settings)
+            if checked is None:
                 return None
-            required = []
-            if settings.ask_unmeasured or settings.ask_quiet:
-                required.append("activity_measured")
-            if settings.ask_quiet:
-                required.append("meaningful_ships_30d")
-            if settings.ask_not_verified:
-                required.append("verified_builder")
-            # Local signature decoding above always precedes any Toll request.
-            margin = min(.02, settings.timeout * .1, settings.tx_timeout * .1)
-            read_deadline = deadline - margin
-            tx_enabled = (settings.tx_check == 'on' and settings.sources.get('toll', 'on') == 'on'
-                          and any(intent['payload'] is not None for intent in intents))
-            hookr_enabled = (settings.tx_check == 'on' and settings.sources.get('hookr', 'on') == 'on'
-                             and any(str((i.get('payload') or {}).get('to', '')).lower() == ROUTER for i in intents))
-            tx_deadline = started + settings.tx_timeout - margin if tx_enabled or hookr_enabled else read_deadline
-            hook_deadline = max(deadline, tx_deadline + margin)
-            reads = self.executor.submit(self._read_cards, wanted, tool_name, check_args, settings, required=required, deadline=read_deadline) if wanted else None
-            buy_waiting = threading.Event()
-            txs = self.executor.submit(self._tx_cards, intents, local, settings, tx_deadline, read_deadline,
-                                       check_args, buy_waiting) if intents else None
-            # Both start above; collecting builder reads first preserves their
-            # shorter budget even when a custom adapter ignores its deadline.
-            cards = self.wait(reads, deadline, [Card(target, 'unreachable') for target in wanted]) if reads else []
-            fallback = [project(card, intent, stock_swap=settings.ask_when.get('stock_swap_above_usd') is not None)
-                 if settings.tx_check == 'on' else card
-                 for card, intent in zip(local, intents)]
-            tx_cards = self.wait(txs, hook_deadline, None) if txs else []
-            if tx_cards is None and buy_waiting.is_set():
-                tx_cards = self.wait(txs, hook_deadline + settings.toll_wait_max_seconds, None)
-            if tx_cards is None:
-                tx_cards = fallback
-            # Only a positive per-address registry answer establishes a known
-            # spender. HEY builder presence alone does not establish that role.
-            known = {card.target.lower() for card in cards if card.kind == 'network'
-                     and any(r.source in {'Priors', 'Hookr'} and r.state == 'present'
-                             for r in card.data.get('sources', []))}
-            for tx_card in tx_cards:
-                for approval in tx_card.data['approvals']:
-                    approval['known'] = approval.get('known', False) or approval['spender'] in known
-            cards = annotate_stock_swap(tx_cards + cards, check_args, settings, tool_name)
-            checked_at = datetime.now(timezone.utc)
-            decision = evaluate(cards, settings, unattended=self.presence(), now=checked_at)
-            associations = target_rules(cards, settings, checked_at) if len(cards) > 1 else [None]
-            cards = [present(card, decision, rule_targets=rules)
-                     for card, rules in zip(cards, associations)]
+            cards, decision = checked
             message = "\n\n".join(c.render() for c in cards)
             ledger_rules = tuple(SIGNATURE_TAKE_RULE + ': ' + rule
                                  if rule == SIGNATURE_TAKE_REASON else rule

@@ -1,0 +1,26 @@
+[build-system]
+requires = ["setuptools>=77"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "rh-preflight-mcp"
+dynamic = ["version"]
+description = "read-only Robinhood Chain checks by quotum with HEY Research Lab"
+readme = "README.md"
+requires-python = ">=3.11"
+license = "MIT"
+license-files = ["LICENSE"]
+authors = [{name = "quotum and HEY Research Lab"}]
+dependencies = []
+
+[project.scripts]
+rh-preflight-mcp = "rh_preflight.mcp:main"
+
+[project.urls]
+Repository = "https://github.com/quotumorg/rh-preflight"
+
+[tool.setuptools.packages.find]
+include = ["rh_preflight", "rh_preflight.*"]
+
+[tool.setuptools.dynamic]
+version = {attr = "rh_preflight.__version__"}

@@ -1,0 +1,155 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "io.github.quotumorg/rh-preflight",
+  "description": "read-only Robinhood Chain builder and transaction checks by quotum with HEY Research Lab",
+  "repository": {
+    "url": "https://github.com/quotumorg/rh-preflight",
+    "source": "github"
+  },
+  "version": "0.5.12",
+  "packages": [
+    {
+      "registryType": "pypi",
+      "identifier": "rh-preflight-mcp",
+      "version": "0.5.12",
+      "runtimeHint": "uvx",
+      "transport": {
+        "type": "stdio"
+      },
+      "environmentVariables": [
+        {
+          "name": "RH_PREFLIGHT_MODE",
+          "description": "optional plugin setting override for mode; see README for type and default",
+          "isRequired": false,
+          "isSecret": false
+        },
+        {
+          "name": "RH_PREFLIGHT_QUIET_DAYS",
+          "description": "optional plugin setting override for quiet_days; see README for type and default",
+          "isRequired": false,
+          "isSecret": false
+        },
+        {
+          "name": "RH_PREFLIGHT_ASK_QUIET",
+          "description": "optional plugin setting override for ask_quiet; see README for type and default",
+          "isRequired": false,
+          "isSecret": false
+        },
+        {
+          "name": "RH_PREFLIGHT_ASK_UNMEASURED",
+          "description": "optional plugin setting override for ask_unmeasured; see README for type and default",
+          "isRequired": false,
+          "isSecret": false
+        },
+        {
+          "name": "RH_PREFLIGHT_ASK_NO_RECORD",
+          "description": "optional plugin setting override for ask_no_record; see README for type and default",
+          "isRequired": false,
+          "isSecret": false
+        },
+        {
+          "name": "RH_PREFLIGHT_ASK_NOT_VERIFIED",
+          "description": "optional plugin setting override for ask_not_verified; see README for type and default",
+          "isRequired": false,
+          "isSecret": false
+        },
+        {
+          "name": "RH_PREFLIGHT_ALLOW_UNATTENDED",
+          "description": "optional plugin setting override for allow_unattended; see README for type and default",
+          "isRequired": false,
+          "isSecret": false
+        },
+        {
+          "name": "RH_PREFLIGHT_ASSUME_CHAIN",
+          "description": "optional plugin setting override for assume_chain; see README for type and default",
+          "isRequired": false,
+          "isSecret": false
+        },
+        {
+          "name": "RH_PREFLIGHT_TOOL_PATTERNS",
+          "description": "optional plugin setting override for tool_patterns; see README for type and default",
+          "isRequired": false,
+          "isSecret": false
+        },
+        {
+          "name": "RH_PREFLIGHT_TX_CHECK",
+          "description": "optional plugin setting override for tx_check; see README for type and default",
+          "isRequired": false,
+          "isSecret": false
+        },
+        {
+          "name": "RH_PREFLIGHT_TOLL_KEY_HEADER",
+          "description": "optional plugin setting override for toll_key_header; see README for type and default",
+          "isRequired": false,
+          "isSecret": false
+        },
+        {
+          "name": "RH_PREFLIGHT_TOLL_WAIT_MAX_SECONDS",
+          "description": "optional plugin setting override for toll_wait_max_seconds; see README for type and default",
+          "isRequired": false,
+          "isSecret": false
+        },
+        {
+          "name": "RH_PREFLIGHT_ASK_PAYOUT_OTHER",
+          "description": "optional plugin setting override for ask_payout_other; see README for type and default",
+          "isRequired": false,
+          "isSecret": false
+        },
+        {
+          "name": "RH_PREFLIGHT_ASK_HOOKR_REFUSED",
+          "description": "optional plugin setting override for ask_hookr_refused; see README for type and default",
+          "isRequired": false,
+          "isSecret": false
+        },
+        {
+          "name": "RH_PREFLIGHT_TOLL_COIN_FINDINGS",
+          "description": "optional plugin setting override for toll_coin_findings; see README for type and default",
+          "isRequired": false,
+          "isSecret": false
+        },
+        {
+          "name": "RH_PREFLIGHT_ON_UNCHECKED",
+          "description": "optional plugin setting override for on_unchecked; see README for type and default",
+          "isRequired": false,
+          "isSecret": false
+        },
+        {
+          "name": "RH_PREFLIGHT_TX_TIMEOUT",
+          "description": "optional plugin setting override for tx_timeout; see README for type and default",
+          "isRequired": false,
+          "isSecret": false
+        },
+        {
+          "name": "RH_PREFLIGHT_TIMEOUT",
+          "description": "optional plugin setting override for timeout; see README for type and default",
+          "isRequired": false,
+          "isSecret": false
+        },
+        {
+          "name": "RH_PREFLIGHT_HEY_CACHE_SECONDS",
+          "description": "optional plugin setting override for hey_cache_seconds; see README for type and default",
+          "isRequired": false,
+          "isSecret": false
+        },
+        {
+          "name": "RH_PREFLIGHT_SOURCES",
+          "description": "optional plugin setting override for sources; see README for type and default",
+          "isRequired": false,
+          "isSecret": false
+        },
+        {
+          "name": "RH_PREFLIGHT_ASK_WHEN",
+          "description": "optional plugin setting override for ask_when; see README for type and default",
+          "isRequired": false,
+          "isSecret": false
+        },
+        {
+          "name": "TOLL_API_KEY",
+          "description": "optional: your own Toll partner key for transaction simulation and before-buy reads",
+          "isRequired": false,
+          "isSecret": true
+        }
+      ]
+    }
+  ]
+}

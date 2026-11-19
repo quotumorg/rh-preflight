@@ -112,10 +112,11 @@ class Client(Keyless):
     probe_target = 'NVDA'
     accept = 'application/json, text/event-stream'
 
-    def __init__(self, *args, sleep=None, **kwargs):
+    def __init__(self, *args, sleep=None, key_provider=None, **kwargs):
         super().__init__(*args, **kwargs)
         self.tx_headers = threading.local()
         self.sleep = sleep if sleep is not None else time.sleep
+        self.key_provider = key_provider
 
     def request_headers(self, path):
         # Send the optional partner key only on the exact production host
@@ -124,7 +125,7 @@ class Client(Keyless):
         if (path not in {'/api/tx/check', '/mcp'} or urlsplit(self.base_url).hostname != 't0ll.xyz'
                 or path == '/mcp' and not hasattr(self.tx_headers, 'key_header')):
             return {}
-        key = toll_key()
+        key = (self.key_provider or toll_key)()
         if key:
             header = toll_header(getattr(self.tx_headers, 'key_header', 'x-toll-pass'))
             return {header: 'Bearer ' + key if header == 'Authorization' else key}
