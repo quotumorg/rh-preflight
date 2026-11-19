@@ -57,6 +57,115 @@ Toll: official Robinhood Stock Token NVDA, ISIN US67066G1040, status ASSET_STATU
 Borro: NVDA lending market present, lending fees 0.000300%/year before BORRO drip, short borrow fees 0.026200%/year, Borro short desk price $176.77 vs feed $176.59 at 2026-11-09T18:22:24Z · https://borro.markets
 ```
 
+## mcp over stdio
+
+runs from any mcp client, without hermes. python 3.11 or later. no runtime dependencies.
+
+from this checkout:
+
+```sh
+python -m rh_preflight.mcp
+```
+
+or install the checkout with `python -m pip install .` and run `rh-preflight-mcp`.
+from a release tag:
+
+```sh
+uvx --from git+https://github.com/quotumorg/rh-preflight@v0.5.12 rh-preflight-mcp
+```
+
+the mcp entry point ships from v0.5.12. nothing here publishes a package or starts a hosted endpoint.
+
+claude desktop, in `claude_desktop_config.json`:
+
+```json
+{
+  "mcpServers": {
+    "rh-preflight": {
+      "command": "python3",
+      "args": ["-m", "rh_preflight.mcp"],
+      "env": {"PYTHONPATH": "/absolute/path/to/rh-preflight"}
+    }
+  }
+}
+```
+
+claude code, from the checkout, with that python environment available to the client:
+
+```sh
+claude mcp add --transport stdio --env "PYTHONPATH=$PWD" rh-preflight -- python3 -m rh_preflight.mcp
+```
+
+cursor, in `.cursor/mcp.json`:
+
+```json
+{
+  "mcpServers": {
+    "rh-preflight": {
+      "command": "python3",
+      "args": ["-m", "rh_preflight.mcp"],
+      "env": {"PYTHONPATH": "/absolute/path/to/rh-preflight"}
+    }
+  }
+}
+```
+
+replace the checkout path and, if needed, `python3` with the absolute path to python 3.11 or later. after installing the package, the command can be `rh-preflight-mcp` with empty `args` and no `PYTHONPATH`.
+
+- `builder_card`: string fields `address`, `project` and `repo_url`; provide at least one. `address` and `repo_url` cannot be combined. returns the same public card as the plugin tool.
+- `tx_check`: unsigned `to` plus `data` or `value`, optional `from`, and optional `chainId` fixed to 4663. `value` is wei, as a uint256 integer, decimal string or hex quantity. `data` is even-length hex prefixed with `0x`, at most 262144 characters. alternatively pass `tx_hash`. if both are present, the supplied fields must match. no signed bytes, wallet keys or arbitrary rpc methods.
+
+```json
+{"to":"0x000000000000000000000000000000000000dead","data":"0x","value":"0","chainId":4663}
+```
+
+`tx_check` uses the same intent extraction, transaction cards, source reads and decision code as a hypothetical `transfer` hook call. calldata determines approvals and swaps. it returns `action` (`pass`, `ask`, `block` or `note`), `advisory: true`, the unchanged decision text, cards and rules. the card labels remain `go`, `ask`, `stop` and `note`. no human approval loop or local ledger is created. the client decides whether to continue; calling this tool does not enforce a gate around other tools.
+
+hash lookup verifies chain 4663 and reads only `eth_getTransactionByHash`. signatures in the rpc response are discarded. the resulting intent is checked against current state, not replayed at its historical block. missing, conflicting or unreadable transactions return a tool error with `action: block`. hash resolution has one builder timeout before the shared check budgets start. contract-creation transactions without `to` are not supported.
+
+settings use the plugin defaults and validation. set `RH_PREFLIGHT_<SETTING_NAME>` in the launching environment, or repeat `--setting name=value`; arguments take precedence. strings are plain text; booleans, numbers, lists and maps use json. no config, dotenv, hermes profile or secret store is read.
+
+
+the complete setting and environment names are below. pass each setting as `--setting name=value`. defaults are the plugin defaults; `sources` and `ask_when` are empty maps. the default action regex list is shown in the settings table below.
+
+| setting name | environment variable | default |
+| :--- | :--- | :--- |
+| `mode` | `RH_PREFLIGHT_MODE` | `"ask_when"` |
+| `quiet_days` | `RH_PREFLIGHT_QUIET_DAYS` | `30` |
+| `ask_quiet` | `RH_PREFLIGHT_ASK_QUIET` | `true` |
+| `ask_unmeasured` | `RH_PREFLIGHT_ASK_UNMEASURED` | `true` |
+| `ask_no_record` | `RH_PREFLIGHT_ASK_NO_RECORD` | `true` |
+| `ask_not_verified` | `RH_PREFLIGHT_ASK_NOT_VERIFIED` | `false` |
+| `allow_unattended` | `RH_PREFLIGHT_ALLOW_UNATTENDED` | `false` |
+| `assume_chain` | `RH_PREFLIGHT_ASSUME_CHAIN` | `null` |
+| `tool_patterns` | `RH_PREFLIGHT_TOOL_PATTERNS` | `action regex list` |
+| `tx_check` | `RH_PREFLIGHT_TX_CHECK` | `"on"` |
+| `toll_key_header` | `RH_PREFLIGHT_TOLL_KEY_HEADER` | `"x-toll-pass"` |
+| `toll_wait_max_seconds` | `RH_PREFLIGHT_TOLL_WAIT_MAX_SECONDS` | `30.0` |
+| `ask_payout_other` | `RH_PREFLIGHT_ASK_PAYOUT_OTHER` | `true` |
+| `ask_hookr_refused` | `RH_PREFLIGHT_ASK_HOOKR_REFUSED` | `true` |
+| `toll_coin_findings` | `RH_PREFLIGHT_TOLL_COIN_FINDINGS` | `"silent"` |
+| `on_unchecked` | `RH_PREFLIGHT_ON_UNCHECKED` | `"ask"` |
+| `tx_timeout` | `RH_PREFLIGHT_TX_TIMEOUT` | `15.0` |
+| `timeout` | `RH_PREFLIGHT_TIMEOUT` | `4.0` |
+| `hey_cache_seconds` | `RH_PREFLIGHT_HEY_CACHE_SECONDS` | `600` |
+| `sources` | `RH_PREFLIGHT_SOURCES` | `{}` |
+| `ask_when` | `RH_PREFLIGHT_ASK_WHEN` | `{}` |
+
+the additional environment variable `TOLL_API_KEY` is optional and has no default key.
+
+```sh
+python -m rh_preflight.mcp --setting timeout=4 --setting tx_timeout=15 --setting toll_wait_max_seconds=0 --setting 'sources={"offrouter":"off"}'
+```
+
+builder reads default to 4 seconds, transaction reads to 15, and toll before-buy retries may add up to 30 by default, with a configurable maximum of 120 seconds. transaction budgets cap at 25 seconds; the builder setting accepts up to 30 and the shared hook caps its deadline at 25. these are the plugin's existing limits. `RH_PREFLIGHT_ON_UNCHECKED` defaults to `ask`.
+
+set your own `TOLL_API_KEY` in the server environment only if you have toll partner access. when unset, toll transaction simulation makes no request and the card retains the plugin's `Toll: not simulated` gap. public toll reads and other sources still run. `RH_PREFLIGHT_TOLL_KEY_HEADER` uses `Authorization` case-insensitively for a bearer header; all other values fall back to `x-toll-pass`. the key is never a tool argument, command-line option or response field, and is sent only to toll's existing allowed host and routes.
+
+stdio uses one utf-8 json-rpc message per line. logs and help use stderr. initialize, send `notifications/initialized`, then call `tools/list` or `tools/call`; `ping` also works before initialization. supported revisions: `2025-11-25`, `2025-06-18`, `2025-03-26`, `2024-11-05`. tools are read-only. revisions `2025-06-18` and `2025-11-25` get `structuredContent` as well as the same serialized json in text content; older revisions get text content. unsupported revisions negotiate to `2025-11-25`. tool failures set `isError`; malformed protocol requests use json-rpc errors. requests run serially, no background tasks or batch messages. each frame is limited to 1 mib. closing stdin ends the process after any active bounded check.
+
+`server.json` is an unsubmitted registry draft for `io.github.quotumorg/rh-preflight`. its prospective pypi package `rh-preflight-mcp` is a placeholder, not a claim that it is published. its version matches the release. the registry entry and the pypi package are not published yet. streamable http is deferred; there is no hosted endpoint.
+
 ## Quickstart
 
 Requires Hermes Agent **0.23.0 or later**, with 0.23.0 checked locally.
@@ -387,7 +496,7 @@ The ledger uses `plugins.plugin_storage.plugin_data_dir` to locate durable state
 
 HEY Research Lab plus ten Robinhood Chain project integrations are implemented and covered by offline tests. The historical survey totals in `docs/SOURCES.md` are author-reported and the complete survey dataset is not bundled. Saved responses verify parsing, not present source availability. Detection is limited to the tools and literal arguments described above; this is not a universal transaction interceptor. Full Desktop rendering still needs visual verification in a running host.
 
-Package and manifest version are `0.5.11`, with `requires_hermes: ">=0.23.0"`. A catalog submission must repeat that floor and version, declare `builder_card` and the three hooks from `plugin.yaml`, and pin both code and banner URL to the final reviewed forty-character commit SHA. There is no catalog entry in this repository yet. Public repository access, joint review, the catalog PR, demo video and entry form remain release steps.
+Package and manifest version are `0.5.12`, with `requires_hermes: ">=0.23.0"`. A catalog submission must repeat that floor and version, declare `builder_card` and the three hooks from `plugin.yaml`, and pin both code and banner URL to the final reviewed forty-character commit SHA. There is no catalog entry in this repository yet. Public repository access, joint review, the catalog PR, demo video and entry form remain release steps.
 
 ## Offline checks
 
