@@ -227,7 +227,7 @@ def test_ca_override_fallback_once_and_doctor(variable, mode, ca_environment, mo
         assert output == ''
     else:
         assert len(output.splitlines()) == 1
-        assert variable in output and str(bundle) in output
+        assert variable in output and str(bundle) not in output
         assert 'make the bundle readable or unset the variable' in output
         assert check['failures'] == [{'variable': variable, 'path': str(bundle),
                                       'fix': 'make the bundle readable or unset the variable'}]

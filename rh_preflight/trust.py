@@ -29,7 +29,7 @@ def configuration():
                 failures.append({'variable': name, 'path': path,
                                  'fix': 'make the bundle readable or unset the variable'})
         if failures:
-            overrides = ', '.join(f"{item['variable']}={item['path']!r}" for item in failures)
+            overrides = ', '.join(item['variable'] for item in failures)
             print(f'rh-preflight: warning: {overrides} missing or unreadable; '
                   'using the default TLS trust store; make the bundle readable or unset the variable',
                   file=sys.stderr)

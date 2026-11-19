@@ -8,7 +8,8 @@ SCHEMA = {
     "name": "builder_card",
     "description": "Read a public network card for a chain 4663 address, project name or slug, or exact registered GitHub repository. Returns source facts and gaps.",
     "parameters": {"type": "object", "properties": {
-        "address": {"type": "string", "description": "A 40-hex address on chain 4663"},
+        "address": {"type": "string", "pattern": "^0x[0-9a-fA-F]{40}$",
+                    "description": "A 40-hex address on chain 4663"},
         "project": {"type": "string", "description": "A project name, $TICKER or exact slug"},
         "repo_url": {"type": "string", "description": "A GitHub repository root URL"},
     }, "anyOf": [{"required": ["address"]}, {"required": ["repo_url"]}, {"required": ["project"]}], "additionalProperties": False},

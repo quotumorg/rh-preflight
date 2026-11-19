@@ -142,6 +142,8 @@ def validate_arguments(name, args):
             raise ToolError('builder_card arguments must be strings')
         if not any(key in args for key in ('address', 'project', 'repo_url')):
             raise ToolError('provide an address, project or repo_url')
+        if 'address' in args and not re.fullmatch(ADDRESS, args['address']):
+            raise ToolError('invalid address')
         return
     if 'chainId' in args and (type(args['chainId']) is not int or args['chainId'] != 4663):
         raise ToolError('chainId must be 4663')

@@ -244,7 +244,8 @@ def test_bad_tool_arguments_never_reach_service(args):
     assert 'synthetic-do-not-echo' not in json.dumps(result)
 
 
-@pytest.mark.parametrize('args', [{}, {'address': 12}, {'project': []}, {'repo_url': None}, {'unknown': 'x'}])
+@pytest.mark.parametrize('args', [{}, {'address': 12}, {'project': []}, {'repo_url': None}, {'unknown': 'x'},
+                                  {'address': '0xNOTHEX'}, {'address': 'pons'}, {'address': '0x' + 'a' * 41}])
 def test_builder_invalid_schema_inputs_are_tool_errors(args):
     server = initialized()
     assert call(server, 'builder_card', args)['isError']
