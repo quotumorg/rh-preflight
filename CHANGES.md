@@ -1,3 +1,7 @@
+## 0.5.13
+
+packaging only, no code change. the README carries the `mcp-name` line the official mcp registry checks, and a hand-run publish workflow uploads `rh-preflight-mcp` to pypi and the server to the registry through github oidc, with no stored tokens.
+
 ## 0.5.12
 
 add a read-only mcp server over stdio: `python -m rh_preflight.mcp` or the `rh-preflight-mcp` command. it runs from any mcp client without Hermes Agent and has no runtime dependencies.
