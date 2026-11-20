@@ -1,0 +1,119 @@
+{
+  "synthetic": true,
+  "provenance": {
+    "capture": "hookr.fun/docs/integrations/income.html",
+    "example": "made-up figures, token response shape",
+    "changes": "synthetic addresses, seven-day window and 100 units of an underlying project coin; not a live trace",
+    "attribution": "local sidecar contract derived from integrate-indexers; not an upstream response"
+  },
+  "schema": "rh-preflight/hookr-income/v1",
+  "identity": {
+    "chainId": 4663,
+    "token": "0x1111111111111111111111111111111111111111",
+    "tokenizer": "0x3333333333333333333333333333333333333333",
+    "generation": "2026-10-29",
+    "observedBlock": "112383272",
+    "doors": [
+      "0x2222222222222222222222222222222222222222"
+    ],
+    "creator": "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "deployer": "0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+    "relatedWallets": [
+      "0xcccccccccccccccccccccccccccccccccccccccc"
+    ],
+    "relationshipsComplete": true
+  },
+  "income": {
+    "status": "ready",
+    "subject": {
+      "kind": "token",
+      "token": "0x1111111111111111111111111111111111111111"
+    },
+    "window": {
+      "days": 7,
+      "from": 1793867270,
+      "through": 1794472070,
+      "throughBlock": "112383272",
+      "recordStarts": 1792418719,
+      "cut": false
+    },
+    "days": [
+      {
+        "date": "2026-11-11",
+        "income": []
+      },
+      {
+        "date": "2026-11-12",
+        "income": [
+          {
+            "currency": "0x4444444444444444444444444444444444444444",
+            "symbol": "OWN",
+            "decimals": 18,
+            "amount": "100000000000000000000",
+            "bySource": {
+              "door": "100000000000000000000"
+            }
+          }
+        ]
+      }
+    ],
+    "totals": [
+      {
+        "currency": "0x4444444444444444444444444444444444444444",
+        "symbol": "OWN",
+        "decimals": 18,
+        "amount": "100000000000000000000",
+        "bySource": {
+          "door": "100000000000000000000"
+        }
+      }
+    ],
+    "lines": [
+      {
+        "source": "door",
+        "currency": "0x4444444444444444444444444444444444444444",
+        "symbol": "OWN",
+        "decimals": 18,
+        "amount": "100000000000000000000",
+        "token": "0x1111111111111111111111111111111111111111",
+        "txHash": "0x6666666666666666666666666666666666666666666666666666666666666666",
+        "blockNumber": "112382972",
+        "time": 1794471470,
+        "explorer": "https://robin.etherscan.io/tx/0x6666666666666666666666666666666666666666666666666666666666666666"
+      }
+    ],
+    "linesOmitted": 0,
+    "notCounted": [],
+    "rule": "Door income is what a revenue token's doors forwarded plus what the Rules paid into the token for it or its doors, less Hookr's leg, and a wallet's lines are payments made, never credits (https://hookr.fun/docs/integrations/income)."
+  },
+  "attributions": [
+    {
+      "line": {
+        "source": "door",
+        "token": "0x1111111111111111111111111111111111111111",
+        "txHash": "0x6666666666666666666666666666666666666666666666666666666666666666",
+        "blockNumber": "112382972",
+        "time": 1794471470,
+        "currency": "0x4444444444444444444444444444444444444444",
+        "amount": "100000000000000000000"
+      },
+      "allocations": [
+        {
+          "amount": "100000000000000000000",
+          "complete": true,
+          "basis": "payer-trace",
+          "path": [
+            {
+              "from": "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+              "to": "0x2222222222222222222222222222222222222222",
+              "currency": "0x4444444444444444444444444444444444444444",
+              "amount": "100000000000000000000",
+              "txHash": "0x7777777777777777777777777777777777777777777777777777777777777777",
+              "blockNumber": "112382900"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

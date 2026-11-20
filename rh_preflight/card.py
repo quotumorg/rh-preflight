@@ -99,8 +99,18 @@ class Card:
         ids.extend(text(v) for v in self.data.get("evidence", []) if isinstance(v, str))
         return list(dict.fromkeys(ids))
 
-    def render(self, *, include_cache_label=True):
+    def income(self):
+        from .income import classify
+        data = self.data.get('hookr_income')
+        if 'hookr_income' not in self.data and self.kind == 'network':
+            return self.data['base'].income()
+        return classify(self.target, data)
+
+    def render(self, *, include_cache_label=True, include_income=True):
         rendered = self._render(include_cache_label=include_cache_label)
+        income = self.income() if include_income else None
+        if income is not None:
+            rendered += '\n' + '\n'.join(income['lines'])
         if self.data.get("context_only") or not include_cache_label or self.cached_read_at is None or self.cache_clock is None:
             return rendered
         minutes = max(0, int((self.cache_clock() - self.cached_read_at) // 60))
@@ -143,7 +153,7 @@ class Card:
                                 rule == 'your rule: ask before every detected action'))
             elif len(decision.rules) > 1 or (decision.rules and (decision.action == "block" or decision.rules[0] not in heading[0])):
                 heading.extend(decision.rules)
-            base = d["base"].render(include_cache_label=include_cache_label).splitlines()
+            base = d["base"].render(include_cache_label=include_cache_label, include_income=False).splitlines()
             if d["base"].data.get('context_only') and (d.get('lines') or any(r.line for r in d.get('sources', []))):
                 base = []
             citation = d.get("citation")
@@ -253,6 +263,9 @@ class Card:
                 extra['rule_targets'] = self.data['rule_targets']
         if 'take' in self.data:
             extra['take'] = self.data['take']
+        income = self.income()
+        if income is not None:
+            extra['hookr_income'] = income
         base = self.data.get('base') if self.kind == 'network' else self
         if base is not None and base.data.get('context_only'):
             extra.update(context_only=True, context_reason=base.data.get('context_reason'))
@@ -260,13 +273,16 @@ class Card:
                 "digest": self.digest, "evidence_ids": self.evidence_ids}
 
 
-def token_card(target, payload):
+def token_card(target, payload, *, hookr_income=None):
     # Deliberate projection: market readings and the upstream disclaimer are omitted.
     keep = ("contract_address", "hey_project_name", "project_link", "hey_project_url", "hey_status_label", "hey_status",
             "verified_builder", "latest_meaningful_ship", "meaningful_ships_30d", "latest_change",
             "latest_change_state", "as_of", "activity_measured", "activity_applies_to_token", "repo_url",
             "last_commit")
-    return Card(target, "token", {k: payload.get(k) for k in keep})
+    data = {k: payload.get(k) for k in keep}
+    if hookr_income is not None:
+        data['hookr_income'] = hookr_income
+    return Card(target, "token", data)
 
 
 def contract_card(target, payload):
