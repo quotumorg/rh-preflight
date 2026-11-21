@@ -111,6 +111,10 @@ class Card:
         income = self.income() if include_income else None
         if income is not None:
             rendered += '\n' + '\n'.join(income['lines'])
+        elif include_income:
+            from .income import unknown_window_text
+            if unknown := unknown_window_text(self.data.get('hookr_income')):
+                rendered += '\n' + unknown
         if self.data.get("context_only") or not include_cache_label or self.cached_read_at is None or self.cache_clock is None:
             return rendered
         minutes = max(0, int((self.cache_clock() - self.cached_read_at) // 60))
@@ -265,7 +269,8 @@ class Card:
             extra['take'] = self.data['take']
         income = self.income()
         if income is not None:
-            extra['hookr_income'] = income
+            from .income import private_facts
+            extra['hookr_income'] = private_facts(income)
         base = self.data.get('base') if self.kind == 'network' else self
         if base is not None and base.data.get('context_only'):
             extra.update(context_only=True, context_reason=base.data.get('context_reason'))

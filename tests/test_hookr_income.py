@@ -17,7 +17,10 @@ RELAY = '0x' + 'ee' * 20
 
 
 def fixture():
-    return json.loads(FIXTURE.read_text())
+    data = json.loads(FIXTURE.read_text())
+    data['identity']['hubRules'] = 'eoa-no-hubs/v1'
+    data['identity']['accounts'] = {a: {'code': '0x', 'hub': False} for a in (EXTERNAL, RELAY)}
+    return data
 
 
 class IncomeTests(unittest.TestCase):
@@ -37,52 +40,53 @@ class IncomeTests(unittest.TestCase):
     def classification(self):
         return self.check()['sources'][0]['classification']
 
-    def test_creator_own_coin_warns_and_renders(self):
+    def test_legacy_creator_own_coin_is_unknown_and_renders(self):
         result = self.check()
-        self.assertEqual(result['severity'], 'WARN')
-        self.assertEqual(self.classification(), 'creator or deployer wallet')
+        self.assertEqual(result['severity'], 'INFO')
+        self.assertEqual(self.classification(), 'unknown')
         line = result['lines'][0]
-        self.assertIn('warn: hookr income', line)
+        self.assertIn('hookr income', line)
+        self.assertNotIn('warn:', line)
         self.assertIn('100 own', line)
-        self.assertIn('creator or deployer wallet', line)
+        self.assertIn('exact payment provenance unavailable', line)
         self.assertNotIn('independent customer revenue established', line)
 
-    def test_creator_other_asset_also_warns(self):
+    def test_legacy_creator_other_asset_is_unknown(self):
         # Synthetic stablecoin address. No price or real deployment is asserted.
         for row in self.data['income']['lines']:
             row.update(currency='0x' + '55' * 20, symbol='USDG', decimals=6)
         attr = self.data['attributions'][0]
         attr['line']['currency'] = '0x' + '55' * 20
         self.allocation()['path'][0]['currency'] = '0x' + '55' * 20
-        self.assertEqual(self.check()['severity'], 'WARN')
+        self.assertEqual(self.check()['severity'], 'INFO')
 
     def test_deployer_case_insensitive(self):
         self.allocation()['path'][0]['from'] = '0x' + 'BB' * 20
-        self.assertEqual(self.classification(), 'creator or deployer wallet')
+        self.assertEqual(self.classification(), 'unknown')
 
-    def test_external_payer_is_information_never_pass(self):
+    def test_legacy_complete_flag_alone_is_unknown_never_pass(self):
         self.allocation()['path'][0]['from'] = EXTERNAL
         result = self.check()
-        self.assertEqual(self.classification(), 'external payer')
+        self.assertEqual(self.classification(), 'unknown')
         self.assertEqual(result['severity'], 'INFO')
         self.assertNotIn('pass', ' '.join(result['lines']))
 
-    def test_creator_through_intermediary_is_self_funded_loop(self):
+    def test_creator_through_intermediary_without_relationship_proof_is_unknown(self):
         last = self.allocation()['path'][0]
         first = {**last, 'to': RELAY, 'blockNumber': '112382899', 'txHash': '0x' + '88' * 32}
         last['from'] = RELAY
         self.allocation()['path'].insert(0, first)
-        self.assertEqual(self.classification(), 'self-funded loop')
-        self.assertEqual(self.check()['severity'], 'WARN')
+        self.assertEqual(self.classification(), 'unknown')
+        self.assertEqual(self.check()['severity'], 'INFO')
 
-    def test_external_payer_through_relay_keeps_the_economic_payer(self):
+    def test_legacy_external_path_retains_private_payer_but_not_external_claim(self):
         last = self.allocation()['path'][0]
         first = {**last, 'from': EXTERNAL, 'to': RELAY,
                  'blockNumber': '112382899', 'txHash': '0x' + '88' * 32}
         last['from'] = RELAY
         self.allocation()['path'].insert(0, first)
         result = self.check()['sources'][0]
-        self.assertEqual(result['classification'], 'external payer')
+        self.assertEqual(result['classification'], 'unknown')
         self.assertEqual(result['payer'], EXTERNAL)
 
     def test_creator_as_collection_intermediary_does_not_prove_self_funding(self):
@@ -93,13 +97,16 @@ class IncomeTests(unittest.TestCase):
         self.assertEqual(self.classification(), 'unknown')
         self.assertEqual(self.check()['severity'], 'INFO')
 
-    def test_related_agent_wallet_is_self_funded(self):
+    def test_related_wallet_label_alone_is_unknown(self):
         self.allocation()['path'][0]['from'] = self.data['identity']['relatedWallets'][0]
-        self.assertEqual(self.classification(), 'self-funded loop')
+        self.assertEqual(self.classification(), 'unknown')
 
-    def test_recycled_token_funds_are_self_funded(self):
-        self.allocation()['path'][0]['from'] = self.token
-        self.assertEqual(self.classification(), 'self-funded loop')
+    def test_graph_only_return_is_unknown_without_balance_accounting(self):
+        last = self.allocation()['path'][0]
+        first = {**last, 'from': self.token, 'to': RELAY, 'blockNumber': '112382899', 'txHash': '0x' + '88' * 32}
+        last['from'] = RELAY
+        self.allocation()['path'].insert(0, first)
+        self.assertEqual(self.classification(), 'unknown')
 
     def test_api_lines_without_payer_history_are_unknown(self):
         self.data.pop('attributions')
@@ -115,9 +122,9 @@ class IncomeTests(unittest.TestCase):
                 self.assertEqual(self.classification(), 'unknown')
                 obj[key] = True
 
-    def test_creator_still_warns_with_incomplete_relationships(self):
+    def test_legacy_creator_is_unknown_with_incomplete_relationships(self):
         self.data['identity']['relationshipsComplete'] = False
-        self.assertEqual(self.check()['severity'], 'WARN')
+        self.assertEqual(self.check()['severity'], 'INFO')
 
     def test_lp_owner_and_claim_beneficiary_are_not_payers(self):
         for basis in ('lp-fees', 'claim', 'tx-sender'):
@@ -125,7 +132,7 @@ class IncomeTests(unittest.TestCase):
                 self.allocation()['basis'] = basis
                 self.assertEqual(self.classification(), 'unknown')
 
-    def test_mixed_income_and_unknown_remainder_keep_creator_warning(self):
+    def test_mixed_legacy_paths_and_remainder_remain_unknown(self):
         first = self.allocation()
         first['amount'] = '40000000000000000000'
         second = copy.deepcopy(first)
@@ -134,9 +141,9 @@ class IncomeTests(unittest.TestCase):
         self.data['attributions'][0]['allocations'].append(second)
         result = self.check()
         self.assertEqual([s['classification'] for s in result['sources']],
-                         ['creator or deployer wallet', 'external payer', 'unknown'])
+                         ['unknown', 'unknown', 'unknown'])
         self.assertEqual(sum(int(s['amount']) for s in result['sources']), 10 ** 20)
-        self.assertEqual(result['severity'], 'WARN')
+        self.assertEqual(result['severity'], 'INFO')
         self.assertFalse(result['coverage']['complete'])
 
     def test_bad_or_unbound_attribution_never_establishes_a_payer(self):
@@ -166,14 +173,14 @@ class IncomeTests(unittest.TestCase):
         self.data['attributions'].append(copy.deepcopy(self.data['attributions'][0]))
         self.assertEqual(self.classification(), 'unknown')
 
-    def test_partial_coverage_is_visible_and_does_not_erase_warning(self):
+    def test_partial_coverage_is_visible_for_unknown_legacy_paths(self):
         income = self.data['income']
         income['status'] = 'partial'
         income['window']['cut'] = True
         income['linesOmitted'] = 9
         income['notCounted'] = [{'reason': 'synthetic excluded asset'}]
         result = self.check()
-        self.assertEqual(result['severity'], 'WARN')
+        self.assertEqual(result['severity'], 'INFO')
         self.assertFalse(result['coverage']['complete'])
         self.assertEqual(result['coverage']['linesOmitted'], 9)
         self.assertEqual(result['coverage']['recordStarts'], income['window']['recordStarts'])
@@ -232,8 +239,9 @@ class IncomeTests(unittest.TestCase):
 
     def test_render_and_public_include_offline_result(self):
         card = Card(self.token, 'missing', {'hookr_income': self.data})
-        self.assertIn('warn: hookr income', card.render())
-        self.assertEqual(card.public()['hookr_income']['severity'], 'WARN')
+        self.assertIn('hookr income', card.render())
+        self.assertNotIn('warn:', card.render())
+        self.assertEqual(card.public()['hookr_income']['severity'], 'INFO')
         self.assertEqual(card.render().count('100 own'), 1)
 
     def test_render_without_evidence_is_unchanged(self):
@@ -243,17 +251,23 @@ class IncomeTests(unittest.TestCase):
         self.assertNotIn('hookr_income', missing.public())
 
     def test_direct_creator_deposit_warns_outside_door_income(self):
+        # Synthetic matched native payment, not the legacy token/door fixture.
         row = self.data['income']['lines'].pop()
-        row.update(source='direct-transfer', to=self.token)
+        row.update(source='direct-transfer', to=self.token, currency='0x' + '00' * 20, symbol='ETH')
         self.data['funding'] = [row]
-        self.data['attributions'][0]['line']['source'] = 'direct-transfer'
-        self.allocation()['path'][0]['to'] = self.token
+        self.data['attributions'][0]['line'] = copy.deepcopy(row)
+        part = self.allocation()
+        part.update(directFunding=True, destination=self.token)
+        part['path'] = [{'from': self.data['identity']['creator'], 'to': self.token,
+                         'currency': row['currency'], 'amount': row['amount'],
+                         'txHash': row['txHash'], 'blockNumber': row['blockNumber'],
+                         'time': row['time'], 'kind': 'txlist', 'nativeFundingVerified': True}]
         result = self.check()
         self.assertIsNotNone(result)
         self.assertEqual(result['severity'], 'WARN')
         self.assertEqual(result['sources'][0]['source'], 'direct-transfer')
         self.assertIn('excluded from door income', result['lines'][0])
-        self.assertIn('100 own', result['lines'][0])
+        self.assertIn('100 eth', result['lines'][0])
 
     def test_bonus_stays_separate_from_door_income(self):
         row = self.data['income']['lines'].pop()
@@ -291,7 +305,7 @@ class IncomeTests(unittest.TestCase):
     def test_token_factory_accepts_only_explicit_offline_evidence(self):
         from rh_preflight.card import token_card
         explicit = token_card(self.token, {}, hookr_income=self.data)
-        self.assertEqual(explicit.income()['severity'], 'WARN')
+        self.assertEqual(explicit.income()['severity'], 'INFO')
         upstream = token_card(self.token, {'hookr_income': self.data})
         self.assertIsNone(upstream.income())
 
@@ -330,7 +344,7 @@ class IncomeTests(unittest.TestCase):
         base = Card(self.token, 'missing', {'hookr_income': self.data})
         wrapper = Card(self.token, 'network', {'base': base, 'sources': []})
         self.assertEqual(wrapper.render().count('100 own'), 1)
-        self.assertEqual(wrapper.public()['hookr_income']['severity'], 'WARN')
+        self.assertEqual(wrapper.public()['hookr_income']['severity'], 'INFO')
         self.assertIn('ask', wrapper.render().splitlines()[0])
 
     def test_existing_token_and_transaction_cards_are_unchanged_without_income(self):
@@ -349,7 +363,8 @@ class IncomeTests(unittest.TestCase):
         command = [sys.executable, '-B', '-m', 'rh_preflight.income', '--token', self.token]
         good = subprocess.run(command, input=json.dumps(self.data), text=True, capture_output=True)
         self.assertEqual(good.returncode, 0, good.stderr)
-        self.assertIn('warn: hookr income', good.stdout)
+        self.assertIn('hookr income', good.stdout)
+        self.assertNotIn('warn:', good.stdout)
         missing = subprocess.run(command, input='{}', text=True, capture_output=True)
         self.assertEqual(missing.returncode, 0, missing.stderr)
         self.assertEqual(missing.stdout, '')
