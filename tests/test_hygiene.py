@@ -70,7 +70,7 @@ def test_all_authored_user_facing_strings_follow_wording_rule():
                 if path.name == 'trnch.py' and node.value in {
                     'passed the rug screen, live in the Heat',
                     'no rug, no dump on record · first seen ',
-                    'rugged', 'dumped', 'blocked · '}:
+                    'rugged', 'dumped', 'blocked · ', 'DUMPED'}:
                     continue
                 if path.name == 'card.py' and node.value == (
                     r'Agent Wormhole has not observed this token; that is not a verdict'

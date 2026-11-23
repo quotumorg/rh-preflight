@@ -365,3 +365,20 @@ def test_all_captured_batch_pages_keep_verified_rugged_and_unknown_facts():
     assert readings[ROWS[0]['token']].state == 'unlisted'
     assert 'Rugged: liquidity pulled.' in source_line(readings[RUGGED['token']])
     assert all(r.state in {'present', 'unlisted'} for r in readings.values())
+
+
+CATEGORY_ROWS = json.loads((FIXTURES / 'batch-categories-2026-11-23.json').read_text())['results']
+
+
+@pytest.mark.parametrize('row', [r for r in CATEGORY_ROWS if r['status'] == 'kept_out'],
+                         ids=lambda r: r['category'] + '-' + r['token'][:8])
+@pytest.mark.parametrize('summary', [True, False])
+def test_published_category_codes_reach_the_card(row, summary):
+    data = row if summary else {k: v for k, v in row.items()
+                                if k not in ('summary', 'verified', 'tokenUrl')}
+    line = source_line(single(data))
+    if not summary and (row['rugged'] or row['dumped']):
+        assert line == 'Trnch: ' + ('rugged' if row['rugged'] else 'dumped') + ' · ' + row['tokenUrl']
+        return
+    assert 'blocked · ' + row['category'] + ' · ' in line
+    assert 'omitted' not in line and line.endswith('/token/' + row['token'])

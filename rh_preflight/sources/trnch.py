@@ -10,6 +10,17 @@ from ..hey import Unavailable, RateLimited
 from .common import Keyless, Reading, field
 
 
+# Public risk categories as Trnch publishes them (trnch.fun/llms-full.txt).
+# Only these exact codes skip the wording filter; any other string keeps it.
+CATEGORIES = frozenset({
+    'SCAM_CONTRACT', 'LINKED_TO_PAST_RUG', 'HEAVY_SELL_TAX', 'CANNOT_SELL',
+    'COORDINATED_LAUNCH', 'COPYCAT', 'LIQUIDITY_PULLED', 'DUMPED', 'OTHER_RISK'})
+
+
+def category(value):
+    return value if value in CATEGORIES else field(value)
+
+
 @dataclass(frozen=True)
 class TrnchReading(Reading):
     """Provenance for the narrowly allowed Trnch wording on a card."""
@@ -161,7 +172,7 @@ class Client(Keyless):
         elif data['status'] == 'seen':
             phrase = 'no rug, no dump on record · first seen ' + field(data['seenAt'])
         elif data['status'] == 'kept_out':
-            phrase = 'blocked · ' + field(data['category'])
+            phrase = 'blocked · ' + category(data['category'])
         elif data['status'] == 'unknown':
             phrase = 'not screened yet'
         else:
@@ -179,7 +190,7 @@ class Client(Keyless):
             if data['status'] == 'unknown':
                 details.append('not screened yet')
             elif data['status'] == 'kept_out':
-                details.append('blocked · ' + field(data['category']))
+                details.append('blocked · ' + category(data['category']))
             elif data['status'] == 'seen' and not (data['rugged'] or data['dumped']):
                 details.append('first seen ' + field(data['seenAt']))
             if verified and not re.search(r'\bverified\b', description, re.I):

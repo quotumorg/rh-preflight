@@ -19,8 +19,10 @@ _TRNCH_WORDING = re.compile(
 
 
 def _trnch_attribution(value):
+    from .sources.trnch import CATEGORIES
     match = _TRNCH_WORDING.fullmatch(value)
-    return bool(match and not any(WORDING.search(part) for part in match.groups() if part))
+    return bool(match and not any(WORDING.search(part) for part in match.groups()
+                                  if part and part not in CATEGORIES))
 
 
 def source_line(reading):
