@@ -1,3 +1,7 @@
+## 0.5.17
+
+Trnch's published risk categories reach the card as written. `DUMPED` hit the wording filter and a kept-out token printed `blocked · source text omitted by the wording rule`; the nine published codes (SCAM_CONTRACT, LINKED_TO_PAST_RUG, HEAVY_SELL_TAX, CANNOT_SELL, COORDINATED_LAUNCH, COPYCAT, LIQUIDITY_PULLED, DUMPED, OTHER_RISK) now pass as is, any other category string keeps the filter.
+
 ## 0.5.16
 
 add a live Hookr income read on chain 4663: `python3 -m rh_preflight.hookr_live --token <address> --public`, with `ETHERSCAN_API_KEY` in the environment; `--card` puts the result on the token card and `--json` writes the private evidence. it reads the token's Hookr income record, the pool's swap and Donate logs and `hookr_pool_yield`, and reports per currency `traced X% of income by value`.
