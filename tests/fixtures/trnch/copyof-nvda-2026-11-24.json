@@ -1,0 +1,78 @@
+{
+ "captured": "2026-11-24",
+ "source": "GET https://trnch.fun/api/bot/v1/check?token=<address>",
+ "copies": [
+  {
+   "token": "0xa3284897ad7c8fed700b04f573cf64e4f6c10f2c",
+   "chainId": 4663,
+   "status": "kept_out",
+   "category": "COPYCAT",
+   "rugged": false,
+   "dumped": false,
+   "seenAt": "2026-10-14T02:11:18.565Z",
+   "creator": {
+    "history": "first_launch",
+    "tokensInHeat": "none"
+   },
+   "builder": null,
+   "meaning": "Trnch keeps this token out of the Heat and will not trade it",
+   "verified": false,
+   "summary": "Flagged: copy of the NVDA Stock Token.",
+   "copyOf": {
+    "symbol": "NVDA",
+    "officialAddress": "0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec"
+   },
+   "launchpad": null,
+   "tokenUrl": "https://trnch.fun/token/0xa3284897ad7c8fed700b04f573cf64e4f6c10f2c",
+   "cardUrl": "https://trnch.fun/api/og/token?address=0xa3284897ad7c8fed700b04f573cf64e4f6c10f2c",
+   "trackRecord": "https://trnch.fun/tia",
+   "heat": "https://trnch.fun/heat",
+   "license": "Free to display and relay with a link to the token on trnch (tokenUrl). Attribution required. Terms: https://docs.trnch.fun/legal/terms"
+  },
+  {
+   "token": "0x1076f47f9632d726cf0ff93ad1616c45cbb8b94d",
+   "chainId": 4663,
+   "status": "kept_out",
+   "category": "COPYCAT",
+   "rugged": false,
+   "dumped": false,
+   "seenAt": null,
+   "creator": null,
+   "builder": null,
+   "meaning": "Trnch keeps this token out of the Heat and will not trade it",
+   "verified": false,
+   "summary": "Flagged: copy of the NVDA Stock Token.",
+   "copyOf": {
+    "symbol": "NVDA",
+    "officialAddress": "0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec"
+   },
+   "launchpad": null,
+   "tokenUrl": "https://trnch.fun/token/0x1076f47f9632d726cf0ff93ad1616c45cbb8b94d",
+   "cardUrl": "https://trnch.fun/api/og/token?address=0x1076f47f9632d726cf0ff93ad1616c45cbb8b94d",
+   "trackRecord": "https://trnch.fun/tia",
+   "heat": "https://trnch.fun/heat",
+   "license": "Free to display and relay with a link to the token on trnch (tokenUrl). Attribution required. Terms: https://docs.trnch.fun/legal/terms"
+  }
+ ],
+ "official": {
+  "token": "0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec",
+  "chainId": 4663,
+  "status": "seen",
+  "category": null,
+  "rugged": false,
+  "dumped": false,
+  "seenAt": "2026-10-13T12:45:55.619Z",
+  "creator": null,
+  "builder": null,
+  "meaning": "spotted by Trnch, not in the Heat",
+  "verified": true,
+  "summary": "Verified by trnch.",
+  "copyOf": null,
+  "launchpad": null,
+  "tokenUrl": "https://trnch.fun/token/0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec",
+  "cardUrl": "https://trnch.fun/api/og/token?address=0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec",
+  "trackRecord": "https://trnch.fun/tia",
+  "heat": "https://trnch.fun/heat",
+  "license": "Free to display and relay with a link to the token on trnch (tokenUrl). Attribution required. Terms: https://docs.trnch.fun/legal/terms"
+ }
+}

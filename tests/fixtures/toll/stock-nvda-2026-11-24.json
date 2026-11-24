@@ -1,0 +1,503 @@
+{
+ "ticker": "NVDA",
+ "name": "NVIDIA",
+ "address": "0xd0601CE157Db5bdC3162BbaC2a2C8aF5320D9EEC",
+ "isin": "US67066G1040",
+ "status": "ASSET_STATUS_ACTIVE",
+ "tradable": true,
+ "page": "https://t0ll.xyz/markets/NVDA",
+ "session": "overnight",
+ "registry": {
+  "source": "https://api.robinhood.com/rhj/assets",
+  "as_of": "2026-11-24T07:05:03.249Z",
+  "stale": false,
+  "multiplier": 1.0007751591646306,
+  "multiplier_raw": "1.000775159164630595",
+  "pending_multiplier": null,
+  "pending_effective_at": null,
+  "multiplier_matches_chain": true
+ },
+ "prices": {
+  "reference": {
+   "source": "latestRoundData() on each feed's proxy, Robinhood Chain (4663)",
+   "as_of": "2026-11-24T07:56:09.948Z",
+   "stale": false,
+   "usd": 163.38621795,
+   "status": "fresh",
+   "kind": "reference",
+   "updated_at": "2026-11-24T07:22:50.000Z",
+   "age_s": 1999,
+   "heartbeat_s": 86400,
+   "feed": "0x379EC4f7C378F34a1B47E4F3cbeBCbAC3E8E9F15"
+  },
+  "chain": {
+   "source": "pool data via DexScreener (the pool list and liquidity); each USDG pool's price read from its own tick on Robinhood Chain (Uniswap v3 slot0 / v4 PoolManager)",
+   "as_of": "2026-11-24T07:56:10.096Z",
+   "stale": false,
+   "usd": 163.7511227243878,
+   "pool": {
+    "pid": "0xd4eb21209c4d6093f80b5b84f5c45cc093ea14a3",
+    "venue": "v3",
+    "quote": "USDG",
+    "depth_usd": 2400547.99
+   },
+   "deepest_venue": "v3",
+   "spread_pct": 827.61,
+   "pools": [
+    {
+     "pid": "0xd4eb21209c4d6093f80b5b84f5c45cc093ea14a3",
+     "venue": "v3",
+     "quote": "USDG",
+     "price_usd": 163.7511227243878,
+     "price_src": "chain",
+     "depth_usd": 2400547.99
+    },
+    {
+     "pid": "0x62ab521f71431f78ac374cdbadc6cda3c8916b6c",
+     "venue": "v3",
+     "quote": "WETH",
+     "price_usd": 163.79,
+     "price_src": "dexscreener",
+     "depth_usd": 1371012.5
+    },
+    {
+     "pid": "0xda14bf8a87711e1f30dbe620f2df3fdf371f7503f1a72202d15631f657651ec0",
+     "venue": "v4",
+     "quote": "SPY",
+     "price_usd": 163.78,
+     "price_src": "dexscreener",
+     "depth_usd": 706385.22
+    },
+    {
+     "pid": "0xc0be1cb0f674d9737c72b2a63fc542361185b807",
+     "venue": "v3",
+     "quote": "WETH",
+     "price_usd": 164.1,
+     "price_src": "dexscreener",
+     "depth_usd": 747253.36
+    },
+    {
+     "pid": "0xa1513da56f71b83d98124d645828a14a191b8010",
+     "venue": "v3",
+     "quote": "USDG",
+     "price_usd": 163.7511227243878,
+     "price_src": "chain",
+     "depth_usd": 384940.81
+    },
+    {
+     "pid": "0xb944cec30bd4175855215d767adc81f39e5f7e2b",
+     "venue": "v3",
+     "quote": "USDG",
+     "price_usd": 163.53839520389084,
+     "price_src": "chain",
+     "depth_usd": 144425.83
+    },
+    {
+     "pid": "0x71f9660f9535e3e81d720696a58ea80274da8b2c6eb7c3acb22611d977439a5c",
+     "venue": "v4",
+     "quote": "ETH",
+     "price_usd": 163.77,
+     "price_src": "dexscreener",
+     "depth_usd": 79873.31
+    },
+    {
+     "pid": "0xbc6426cdbce142dfbff33303dc0923509f61eedc",
+     "venue": "v3",
+     "quote": "USDG",
+     "price_usd": 1484.14,
+     "price_src": "dexscreener",
+     "depth_usd": 1151236.12
+    },
+    {
+     "pid": "0x7990aad9e8fb048f49a155a7df5603db0366f0657035b78eb4196395cccb3dcd",
+     "venue": "v4",
+     "quote": "USDG",
+     "price_usd": 163.70200721100062,
+     "price_src": "chain",
+     "depth_usd": 243923.62
+    },
+    {
+     "pid": "0x3bb34a44f1b2b5f32c034c38a53065a521a47b199700fa9bd19d60985ff24bf1",
+     "venue": "v4",
+     "quote": "USDG",
+     "price_usd": 163.65290642932095,
+     "price_src": "chain",
+     "depth_usd": 373604.17
+    },
+    {
+     "pid": "0xee141c6878256984d5b8f88c4b70aa3d29226d50",
+     "venue": "v3",
+     "quote": "WETH",
+     "price_usd": 163.83,
+     "price_src": "dexscreener",
+     "depth_usd": 44576.64
+    },
+    {
+     "pid": "0xc277560df3689a401ba7dedd7626168b234ceb5e",
+     "venue": "v3",
+     "quote": "USDG",
+     "price_usd": 163.8493979639661,
+     "price_src": "chain",
+     "depth_usd": 128239.75
+    },
+    {
+     "pid": "0x18a5af4e442f8be68968cc1f00d537f8af2d12cd",
+     "venue": "v3",
+     "quote": "USDG",
+     "price_usd": 163.78387458644391,
+     "price_src": "chain",
+     "depth_usd": 42998.86
+    },
+    {
+     "pid": "0xdac1904d823f7d6bcaaf431ceee40c934fed321b",
+     "venue": "v3",
+     "quote": "USDG",
+     "price_usd": 163.76749783666025,
+     "price_src": "chain",
+     "depth_usd": 43987.68
+    },
+    {
+     "pid": "0x6444a8e0b267406a15db74ca00c4a24bdfa81ed3180f5b6d0851f8ed6f4f29c5",
+     "venue": "v4",
+     "quote": "USDG",
+     "price_usd": 163.7511227243878,
+     "price_src": "chain",
+     "depth_usd": 50335.77
+    },
+    {
+     "pid": "0xbc9a4d9b684273b5842ccca1b987a582941eb8726997ef57856209e5289f81de",
+     "venue": "v4",
+     "quote": "USDG",
+     "price_usd": 159.99601213175305,
+     "price_src": "chain",
+     "depth_usd": 20000.08
+    },
+    {
+     "pid": "0xf253847c7f46c7ba100cdc316a0df6b0e9b0a840",
+     "venue": "v3",
+     "quote": "USDG",
+     "price_usd": 164.21,
+     "price_src": "dexscreener",
+     "depth_usd": 7153.15
+    },
+    {
+     "pid": "0xaa8039d8e39d2bbcae23762e71f5a12162875a61848f0d96914c827f61877ef6",
+     "venue": "v4",
+     "quote": "ETH",
+     "price_usd": 160.23,
+     "price_src": "dexscreener",
+     "depth_usd": 35778.14
+    },
+    {
+     "pid": "0xf8996e22ac7a67fae741830ad83b3b4d5e5de203",
+     "venue": "v3",
+     "quote": "WETH",
+     "price_usd": 163.79,
+     "price_src": "dexscreener",
+     "depth_usd": 6098.44
+    },
+    {
+     "pid": "0xbc732a1a0baabce2574ec2bca24fccad8e2c38a061a37cefc17a2fd12809394f",
+     "venue": "v4",
+     "quote": "SPY",
+     "price_usd": 163.67,
+     "price_src": "dexscreener",
+     "depth_usd": 19858.68
+    },
+    {
+     "pid": "0x647836c4965c512f0d82a2128abe7826eacf5a79d2dbed252a89ba5c591d1e87",
+     "venue": "v4",
+     "quote": "WETH",
+     "price_usd": 163.36,
+     "price_src": "dexscreener",
+     "depth_usd": 7386.62
+    },
+    {
+     "pid": "0x0092f73b6821098f66eea758cf7eeb0f834c2303",
+     "venue": "v3",
+     "quote": "USDG",
+     "price_usd": 163.5874616287674,
+     "price_src": "chain",
+     "depth_usd": 6324.29
+    },
+    {
+     "pid": "0x362fe643ce7fc42493f5144e238a71ce62f1bd72",
+     "venue": "v3",
+     "quote": "USDG",
+     "price_usd": 163.65,
+     "price_src": "dexscreener",
+     "depth_usd": 1107.41
+    },
+    {
+     "pid": "0xedaf5b20d883a50a01411912f1977077d3d94b01f6e5996f6cd14aaecc1a2a35",
+     "venue": "v4",
+     "quote": "ETH",
+     "price_usd": 163.89,
+     "price_src": "dexscreener",
+     "depth_usd": 1923.59
+    },
+    {
+     "pid": "0xf124b911ec33be6ecdc1b157f1b28515e40289992ce7928cccc2eda6cb6f13f2",
+     "venue": "v4",
+     "quote": "USDG",
+     "price_usd": 163.52204299959087,
+     "price_src": "chain",
+     "depth_usd": 5076.39
+    },
+    {
+     "pid": "0x942eb2607eb6d7e3210f7ad987e409185a24c7af",
+     "venue": "v3",
+     "quote": "USDG",
+     "price_usd": 163.59,
+     "price_src": "dexscreener",
+     "depth_usd": 2767.79
+    },
+    {
+     "pid": "0x8c8b873ec71a88499c2b0463abd4d28d7b2c9b37be53a1786afc556b16c0c6d0",
+     "venue": "v4",
+     "quote": "USDG",
+     "price_usd": 163.44030650067543,
+     "price_src": "chain",
+     "depth_usd": 3037.67
+    },
+    {
+     "pid": "0xe2ece3c800a5304cd538658884905779465d54e1e0966ca3bcdd8b424e998740",
+     "venue": "v4",
+     "quote": "ETH",
+     "price_usd": 164.54,
+     "price_src": "dexscreener",
+     "depth_usd": 4885.48
+    },
+    {
+     "pid": "0xdfa5c01b17a38708c5b92899e3e4a85869d0c139",
+     "venue": "v3",
+     "quote": "USDG",
+     "price_usd": 163.47299619637863,
+     "price_src": "chain",
+     "depth_usd": 1024.29
+    },
+    {
+     "pid": "0xd2e82b66536108045b03671c58f7ef2d8ea03b0b",
+     "venue": "v3",
+     "quote": "USDG",
+     "price_usd": 163.6,
+     "price_src": "dexscreener",
+     "depth_usd": 535.82
+    }
+   ],
+   "read": true,
+   "behind": false,
+   "head_at": "2026-11-24T07:56:09.000Z"
+  },
+  "differences": {
+   "chain_vs_reference_pct": null,
+   "note": "a corporate action is in progress"
+  }
+ },
+ "token": {
+  "source": "Robinhood Chain (4663): totalSupply, totalSupplyUI, uiMultiplier, newUIMultiplier, effectiveAt, oraclePaused",
+  "as_of": "2026-11-24T07:56:09.854Z",
+  "stale": false,
+  "supply_tokens": 126981.09974754,
+  "supply_shares": 127079.53031074417,
+  "ui_multiplier": 1.0007751591646306,
+  "new_ui_multiplier": 1.0007751591646306,
+  "effective_at": "2026-09-10T00:00:30.000Z",
+  "oracle_paused": false,
+  "read": true,
+  "holders": null
+ },
+ "corporate_actions": {
+  "source": "https://api.robinhood.com/rhj/corporate-actions",
+  "as_of": "2026-11-24T07:05:03.331Z",
+  "stale": false,
+  "read": true,
+  "in_progress": true,
+  "items": [
+   {
+    "id": "0x00000000000000000000000000000000915f477416294f5099a5e0e09f327ce5",
+    "ticker": "NVDA",
+    "type": "cash dividend",
+    "raw_type": "CORPORATE_ACTION_TYPE_CASH_DIVIDEND",
+    "status": "in progress",
+    "process_date": "2026-12-23",
+    "rate": "0.25",
+    "ratio": null,
+    "address": "0xd0601CE157Db5bdC3162BbaC2a2C8aF5320D9EEC"
+   }
+  ]
+ },
+ "company": {
+  "state": "ok",
+  "cik": "0001045810",
+  "name": "NVIDIA CORP",
+  "sic": "3674",
+  "industry": "Semiconductors & Related Devices",
+  "exchanges": [
+   "Nasdaq"
+  ],
+  "tickers": [
+   "NVDA"
+  ],
+  "fiscal_year_end": "01-31",
+  "filings": [
+   {
+    "form": "8-K",
+    "filed": "2026-11-23",
+    "report_date": "2026-11-22",
+    "accession": "0001045810-26-000090",
+    "url": "https://www.sec.gov/Archives/edgar/data/1045810/000104581026000090/nvda-20261122.htm",
+    "description": "8-K"
+   },
+   {
+    "form": "8-K",
+    "filed": "2026-11-17",
+    "report_date": "2026-11-17",
+    "accession": "0001045810-26-000088",
+    "url": "https://www.sec.gov/Archives/edgar/data/1045810/000104581026000088/nvda-20261117.htm",
+    "description": "8-K"
+   },
+   {
+    "form": "8-K",
+    "filed": "2026-11-12",
+    "report_date": "2026-11-11",
+    "accession": "0001045810-26-000082",
+    "url": "https://www.sec.gov/Archives/edgar/data/1045810/000104581026000082/nvda-20261111.htm",
+    "description": "8-K"
+   },
+   {
+    "form": "8-K",
+    "filed": "2026-09-03",
+    "report_date": "2026-09-02",
+    "accession": "0001045810-26-000078",
+    "url": "https://www.sec.gov/Archives/edgar/data/1045810/000104581026000078/nvda-20260902.htm",
+    "description": "8-K"
+   },
+   {
+    "form": "10-Q",
+    "filed": "2026-08-26",
+    "report_date": "2026-07-26",
+    "accession": "0001045810-26-000075",
+    "url": "https://www.sec.gov/Archives/edgar/data/1045810/000104581026000075/nvda-20260726.htm",
+    "description": "10-Q"
+   },
+   {
+    "form": "8-K",
+    "filed": "2026-08-26",
+    "report_date": "2026-08-26",
+    "accession": "0001045810-26-000073",
+    "url": "https://www.sec.gov/Archives/edgar/data/1045810/000104581026000073/nvda-20260826.htm",
+    "description": "8-K"
+   },
+   {
+    "form": "8-K",
+    "filed": "2026-08-17",
+    "report_date": "2026-08-17",
+    "accession": "0001045810-26-000069",
+    "url": "https://www.sec.gov/Archives/edgar/data/1045810/000104581026000069/nvda-20260817.htm",
+    "description": "8-K"
+   },
+   {
+    "form": "8-K",
+    "filed": "2026-07-02",
+    "report_date": "2026-06-28",
+    "accession": "0001045810-26-000060",
+    "url": "https://www.sec.gov/Archives/edgar/data/1045810/000104581026000060/nvda-20260628.htm",
+    "description": "8-K"
+   },
+   {
+    "form": "8-K",
+    "filed": "2026-06-30",
+    "report_date": "2026-06-24",
+    "accession": "0001045810-26-000056",
+    "url": "https://www.sec.gov/Archives/edgar/data/1045810/000104581026000056/nvda-20260624.htm",
+    "description": "8-K"
+   },
+   {
+    "form": "8-K",
+    "filed": "2026-06-18",
+    "report_date": "2026-06-15",
+    "accession": "0001193125-26-275783",
+    "url": "https://www.sec.gov/Archives/edgar/data/1045810/000119312526275783/d48176d8k.htm",
+    "description": "8-K"
+   },
+   {
+    "form": "10-Q",
+    "filed": "2026-05-20",
+    "report_date": "2026-04-26",
+    "accession": "0001045810-26-000052",
+    "url": "https://www.sec.gov/Archives/edgar/data/1045810/000104581026000052/nvda-20260426.htm",
+    "description": "10-Q"
+   },
+   {
+    "form": "8-K",
+    "filed": "2026-05-20",
+    "report_date": "2026-05-20",
+    "accession": "0001045810-26-000051",
+    "url": "https://www.sec.gov/Archives/edgar/data/1045810/000104581026000051/nvda-20260520.htm",
+    "description": "8-K"
+   }
+  ],
+  "edgar_url": "https://www.sec.gov/cgi-bin/browse-edgar?action=getcompany&CIK=0001045810&type=&dateb=&owner=include&count=40",
+  "files_abroad": false,
+  "source": "https://data.sec.gov/submissions/CIK0001045810.json",
+  "as_of": "2026-11-24T04:06:41.526Z",
+  "stale": false
+ },
+ "fundamentals": {
+  "state": "ok",
+  "note": null,
+  "ttm_label": "TTM to 2026-07-26",
+  "currency": "USD",
+  "revenue": 302969000000,
+  "net_income": 192879000000,
+  "eps_diluted": 7.94,
+  "eps_basis": "TTM net income / latest diluted weighted shares",
+  "market_cap_usd": 3934557943946,
+  "pe": 20.56,
+  "valuation_note": null,
+  "last_filing": {
+   "form": "10-Q",
+   "filed": "2026-08-26",
+   "url": "https://www.sec.gov/Archives/edgar/data/1045810/000104581026000075/0001045810-26-000075-index.htm"
+  },
+  "source": "https://data.sec.gov/api/xbrl/companyfacts/CIK0001045810.json",
+  "as_of": "2026-11-23T08:57:48.985Z",
+  "more": "https://t0ll.xyz/api/markets/fundamentals/NVDA"
+ },
+ "while_closed": null,
+ "multiplier": {
+  "shares_per_token": 1.0007751591646306,
+  "since": "2026-09-10T00:00:30.000Z",
+  "changed_days_ago": 75,
+  "recent": false,
+  "pending": null,
+  "source": "ERC-8056 uiMultiplier / newUIMultiplier / effectiveAt, read on chain"
+ },
+ "activity": {
+  "holders": 198749,
+  "holders_as_of": "2026-11-24T07:47:09Z",
+  "holders_label": "holders (GeckoTerminal, as of 2026-11-24 07:47 UTC; includes pools and custody contracts)",
+  "volume_24h_usd": 66277552.530703,
+  "volume_label": "24 h volume, every pool (GeckoTerminal)",
+  "source": "https://api.geckoterminal.com/api/v2/networks/robinhood/tokens/0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec (/info for holders)",
+  "as_of": "2026-11-24T07:48:16.546Z",
+  "stale": false
+ },
+ "for_agents": {
+  "mcp": "stock_token {\"id\": \"NVDA\"}",
+  "api": "https://t0ll.xyz/api/markets/stock/NVDA",
+  "x402": "https://t0ll.xyz/api/x402/stock/NVDA",
+  "x402_price_usdg": "0.02"
+ },
+ "about": "Robinhood Stock Tokens are debt securities issued by Robinhood Assets (Jersey) Ltd, not shares.",
+ "disclaimer": "Information only, not advice. Toll is not affiliated with Robinhood or Chainlink. Stock Tokens are not offered to US persons and are restricted elsewhere; this data is not an offer.",
+ "quota": {
+  "used": 3,
+  "limit": 50,
+  "left": 47,
+  "tier": "free",
+  "reset": "2026-11-25T00:00:00.000Z",
+  "mode": "on"
+ }
+}

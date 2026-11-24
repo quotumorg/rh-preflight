@@ -1,3 +1,7 @@
+## unreleased
+
+name the official token on a Trnch copy. Trnch's check now returns `copyOf` (ticker and official address) for a copied token. The card adds `copy of NVDA · official 0x… (per Trnch, confirmed by Toll)` only when Toll's free stock route lists that address as the official Stock Token with the same ticker; when Toll is off, unreachable, not a Stock Token or disagrees, it adds `copy of NVDA per Trnch` and no address. The official token itself, malformed `copyOf` and a `copyOf` naming the checked token add nothing. A ticker the wording rule matches adds nothing. Confirmation is one Toll stock read per copy under the same deadline, cached for sixty seconds and subject to Toll's Retry-After cooldown; tokens resolved from names confirm with your Toll setting too. No rule, setting or default changes. Tests on live 2026-11-24 captures of two NVDA copies, the official NVDA token and Toll's NVDA answer.
+
 ## 0.5.17
 
 Trnch's published risk categories reach the card as written. `DUMPED` hit the wording filter and a kept-out token printed `blocked · source text omitted by the wording rule`; the nine published codes (SCAM_CONTRACT, LINKED_TO_PAST_RUG, HEAVY_SELL_TAX, CANNOT_SELL, COORDINATED_LAUNCH, COPYCAT, LIQUIDITY_PULLED, DUMPED, OTHER_RISK) now pass as is, any other category string keeps the filter.

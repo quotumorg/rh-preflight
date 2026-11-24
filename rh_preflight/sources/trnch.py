@@ -26,6 +26,36 @@ class TrnchReading(Reading):
     """Provenance for the narrowly allowed Trnch wording on a card."""
     summary_line: str | None = None
     verified: bool | None = None
+    copy_of: tuple[str, str] | None = None
+
+
+def copy_of(value, target):
+    """Trnch's named official token for a copy, as (symbol, address)."""
+    if not isinstance(value, dict):
+        return None
+    from ..card import WORDING
+    symbol, address = value.get('symbol'), value.get('officialAddress')
+    if (isinstance(symbol, str) and re.fullmatch(r'[A-Z0-9.]{1,20}', symbol) and not WORDING.search(symbol)
+            and isinstance(address, str) and ADDRESS.fullmatch(address)
+            and address.lower() != target):
+        return symbol, address.lower()
+    return None
+
+
+def with_copy(reading, confirmed):
+    """Name the copied token; print the official address only when Toll agrees."""
+    from ..card import _trnch_attribution
+    if not isinstance(reading, TrnchReading) or reading.copy_of is None:
+        return reading
+    # Extend only a line the card already relays; a filtered line stays filtered.
+    if reading.line != reading.summary_line and not _trnch_attribution(reading.line):
+        return reading
+    symbol, address = reading.copy_of
+    phrase = (f'copy of {symbol} · official {address} (per Trnch, confirmed by Toll)' if confirmed
+              else f'copy of {symbol} per Trnch')
+    head, page = reading.line.rsplit(' · ', 1)
+    line = head + ' · ' + phrase + ' · ' + page
+    return replace(reading, line=line, summary_line=line)
 
 
 def summary(value):
@@ -213,4 +243,5 @@ class Client(Keyless):
         # Store only the validated projection, never the raw response.
         modern = description is not None or verified is True or page != self.target_page(target)
         return TrnchReading(self.label, state, line,
-                            summary_line=line if modern else None, verified=verified)
+                            summary_line=line if modern else None, verified=verified,
+                            copy_of=copy_of(data.get('copyOf'), target))

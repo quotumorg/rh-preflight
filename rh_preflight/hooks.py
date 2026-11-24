@@ -441,7 +441,8 @@ class Service:
             trnch_settings = replace(settings, sources={name: 'on' if name == 'trnch' else 'off'
                                                         for name in self.network.clients})
             trnch_cards = self.network.enrich([card.data['base'] for card in result], tool_name, args,
-                                               trnch_settings, all_sources=all_sources, deadline=deadline)
+                                               trnch_settings, all_sources=all_sources, deadline=deadline,
+                                               copy_toll=settings.sources.get('toll', 'on') == 'on')
             result = [Card(card.target, 'network', {**card.data, 'source_settings': settings.sources,
                        'sources': self.network.annotate(card.data['base'], card.data['sources'] +
                                                        trnch_card.data['sources'])})

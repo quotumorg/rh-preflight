@@ -42,7 +42,7 @@ class Network:
         self.clients = {name: module.Client(base_url=(origins or {}).get(name), timeout=timeout)
                         for name, module in MODULES.items()}
 
-    def enrich(self, cards, tool_name, args, settings, all_sources=False, deadline=None):
+    def enrich(self, cards, tool_name, args, settings, all_sources=False, deadline=None, copy_toll=None):
         deadline = deadline if deadline is not None else time.monotonic() + self.timeout
         payees, agents, pools = identifiers(args)
         pay = bool(re.search('pay|x402', tool_name, re.I))
@@ -102,13 +102,34 @@ class Network:
                 options = {'has_code': True if known == 'code' else False if known == 'no_code' else None}
                 return lookup(name, target, **options)
 
-            trnch_batch = (pool.submit(self.clients['trnch'].lookup_many, targets, deadline=deadline)
+            def copy_read(reading):
+                # Trnch names the official token of a copy; its address is
+                # printed only when Toll lists it as that official Stock Token.
+                if getattr(reading, 'copy_of', None) is None:
+                    return reading
+                symbol, address = reading.copy_of
+                official = (self.clients['toll'].lookup(address, deadline=deadline - .25)
+                            if (enabled('toll') if copy_toll is None else copy_toll)
+                            and time.monotonic() < deadline - .25 else None)
+                confirmed = bool(official and official.stock_ticker == symbol
+                                 and official.stock_address == address)
+                return trnch.with_copy(reading, confirmed)
+
+            def trnch_read(target):
+                return copy_read(lookup('trnch', target))
+
+            def trnch_batch_read():
+                readings = self.clients['trnch'].lookup_many(targets, deadline=deadline)
+                return {target: copy_read(reading) for target, reading in readings.items()}
+
+            trnch_batch = (pool.submit(trnch_batch_read)
                            if enabled('trnch') and len(targets) > 1 else None)
             for target in targets:
                 prerequisites = {}
                 for name in ('sentinelhood', 'toll', 'hoodlock', 'trnch'):
                     if enabled(name) and not (name == 'trnch' and trnch_batch is not None):
-                        future = pool.submit(lookup, name, target)
+                        future = (pool.submit(trnch_read, target) if name == 'trnch'
+                                  else pool.submit(lookup, name, target))
                         prerequisites[name] = future
                         futures.append((name, target, future))
                 if enabled('borro'):
