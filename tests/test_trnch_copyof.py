@@ -151,3 +151,43 @@ def test_deferred_trnch_read_confirms_with_the_callers_toll_setting(tmp_path, to
     assert (CONFIRMED in line) is toll_on
     assert ('copy of NVDA per Trnch' in line) is not toll_on
 
+
+def toll_down(case):
+    """The real Toll client, its transport failing as t0ll.xyz did on 2026-11-24."""
+    from rh_preflight.hey import RateLimited, Unavailable
+    client = toll.Client()
+    def read(path, deadline, payload=None):
+        if case == 'http_429':
+            return 429, {'error': 'rate limited'}
+        if case == 'http_503':
+            return 503, {}
+        raise RateLimited() if case == 'rate_limited' else Unavailable()
+    client._read = read
+    client._read_once = read
+    return client
+
+
+@pytest.mark.parametrize('case', ['http_429', 'rate_limited', 'timeout', 'http_503'])
+def test_toll_unavailable_prints_no_official_address(case):
+    copy = COPIES[0]
+    rows, _ = enrich([copy], [copy['token']], toll_down(case))
+    row = rows[copy['token']]
+    assert row.line == source_line(row) == ('Trnch: ' + copy['summary'] + ' · blocked · COPYCAT · '
+                                           'copy of NVDA per Trnch · ' + copy['tokenUrl'])
+    assert NVDA not in row.line and 'confirmed by Toll' not in row.line
+
+
+def test_no_time_left_for_toll_prints_no_official_address():
+    import time
+    copy, client = COPIES[0], Toll()
+    net = Network()
+    net.clients['trnch'] = trnch_client([copy])
+    net.clients['toll'] = client
+    settings = Settings(sources={n: 'on' if n in ('trnch', 'toll') else 'off' for n in MODULES})
+    cards = net.enrich([Card(copy['token'], 'identifier')], 'read', {}, settings,
+                       deadline=time.monotonic() + .2)
+    row = next(r for r in cards[0].data['sources'] if r.source == 'Trnch')
+    assert NVDA not in client.asked
+    assert 'copy of NVDA per Trnch' in row.line
+    assert NVDA not in row.line and 'confirmed by Toll' not in row.line
+
