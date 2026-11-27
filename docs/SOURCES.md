@@ -21,7 +21,7 @@ Not probed: 1358 projects with no website in HEY (token-only listings); 3558 rea
 | 9 | HoodLock | how much supply is locked, until when, how much already withdrawn (their token Locker and Vesting contracts over RPC, ABI verified on Sourcify; HEY cites it); informational v2/v3/v4 LP positions from `https://hoodlock.tech/api/v1/lp-locks`, with validated position proof links; other lockers not read | in plugin |
 | 10 | Trnch | `https://trnch.fun/api/bot/v1/check?token={address}`; sends only the token address, live per check from the keyless API with no cache, prefetch or listing reads; attributed token check with credit to `https://trnch.fun/token/{address}` | permission granted in writing on 2026-11-10 as an exception to Trnch's terms 9.2 |
 | 11 | OffRouter | its own x402 mode, chain-specific payTo and model count | in plugin |
-| 12 | QProof (QHooks) | the saved token report: their level, sell-test taxes, top 10 share, LP lock, and checks not read shown as gaps; free `qproof_check` with `request: false`, only the token address is sent | agreed with QHooks in writing on 2026-11-27 |
+| 12 | QProof (QHooks) | the saved token report: their level, transfer tax from their sell test, pool charges, top 10 share, LP lock, and checks not read shown as gaps; free `qproof_check` with `request: false`, only the token address is sent | agreed with QHooks in writing on 2026-11-27 |
 
 OffRouter is read only for its own project. DexScreener, GeckoTerminal and raw RPC are infrastructure and do not count as ecosystem projects. Selection labels describe the saved survey, not present availability.
 

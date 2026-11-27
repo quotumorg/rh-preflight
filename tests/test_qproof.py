@@ -49,8 +49,8 @@ def test_watch_report_names_flag_taxes_gaps_and_age():
     row = client.lookup(PRIORS.upper().replace('0X', '0x'))
     assert row.state == 'present'
     assert row.line == source_line(row) == (
-        'QProof by QHooks: watch, Thin pool: 1.408 ETH · sell test buy tax 0%, sell tax 0% · '
-        '12 of 32 checks not read (gaps, not clear) · checked 2026-11-27T07:02:37.343Z, stale · '
+        'QProof by QHooks: watch, Thin pool: 1.408 ETH · transfer tax 0% (sell test) · '
+        '12 of 32 checks not read (gaps, not clear) · saved report, checked 2026-11-27 07:02 UTC · '
         'https://qhooks.com/proof/robinhood/' + PRIORS)
     assert requests == [('/mcp', {'jsonrpc': '2.0', 'id': 1, 'method': 'tools/call', 'params': {
         'name': 'qproof_check', 'arguments': {'chain': '4663', 'token': PRIORS, 'request': False}}})]
@@ -60,9 +60,9 @@ def test_clear_with_gaps_is_never_a_bare_clear():
     client, _ = wire(saved('qhooks'))
     line = client.lookup(QHOOKS).line
     assert line == (
-        'QProof by QHooks: no red flags in the 36 checks read · sell test buy tax 0%, sell tax 0% · '
-        'launch charges buy 2%, sell 2% · top 10 wallets hold 21.03% · LP locked 100% · '
-        '3 of 39 checks not read (gaps, not clear) · checked 2026-11-27T08:28:43.762Z, stale · '
+        'QProof by QHooks: no red flags in the 36 checks read · transfer tax 0% (sell test) · '
+        'pool charges buy 2%, sell 2% · top 10 wallets hold 21.03% · LP locked 100% · '
+        '3 of 39 checks not read (gaps, not clear) · saved report, checked 2026-11-27 08:28 UTC · '
         'https://qhooks.com/proof/robinhood/' + QHOOKS)
     assert 'clear,' not in line and not line.startswith('QProof by QHooks: clear')
 
@@ -74,7 +74,7 @@ def test_complete_clear_and_required_gaps():
     client, _ = wire(with_body(saved('qhooks'), complete))
     line = client.lookup(QHOOKS).line
     assert line.startswith('QProof by QHooks: no red flags in 39 checks · ')
-    assert 'not read' not in line and ', stale' not in line
+    assert 'not read' not in line and 'stale' not in line
     def required(data):
         data['verdict']['counts'].update(requiredMissing=2)
     client, _ = wire(with_body(saved('qhooks'), required))
@@ -191,7 +191,7 @@ def test_upstream_text_cannot_enter_times_or_links():
         data['links']['report'] = 'https://qhooks.com/proof/robinhood/0x' + 'cd' * 20
     client, _ = wire(with_body(saved('qhooks'), hostile))
     line = client.lookup(QHOOKS).line
-    assert 'checked not recorded, stale' in line and 'LP locked 100% ·' in line
+    assert 'saved report, check time not recorded ·' in line and 'LP locked 100% ·' in line
     assert 'now ·' not in line and 'soon' not in line
     assert line.endswith(' · https://qhooks.com/proof/robinhood/' + QHOOKS)
 
@@ -211,3 +211,20 @@ def test_cache_keeps_only_the_fields_the_line_uses():
     (stored,) = client.cache.values()
     assert len(json.dumps(stored)) < 6000
     assert client.lookup(QHOOKS).line == line
+
+
+def test_age_prints_from_one_day_and_taxes_that_differ_name_each_side():
+    def old(data):
+        data['freshness']['ageSec'] = 3 * 86400 + 5
+        data['keyNumbers'].update(buyTaxPct=0, sellTaxPct=5)
+    line = wire(with_body(saved('qhooks'), old))[0].lookup(QHOOKS).line
+    assert 'saved report, checked 2026-11-27 08:28 UTC, 3 days old ·' in line
+    assert 'transfer tax buy 0%, sell 5% (sell test) · pool charges buy 2%, sell 2%' in line
+    for age in (86399, 86400.0, float('nan'), '2 days', -1):
+        def at(data, age=age):
+            data['freshness']['ageSec'] = age
+        line = wire(with_body(saved('qhooks'), at))[0].lookup(QHOOKS).line
+        assert (', 1 day old ·' in line) is (age == 86400.0) and 'stale' not in line
+    def sell_only(data):
+        del data['keyNumbers']['buyTaxPct']
+    assert 'transfer tax sell 0% (sell test)' in wire(with_body(saved('qhooks'), sell_only))[0].lookup(QHOOKS).line

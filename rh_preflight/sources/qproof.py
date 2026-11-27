@@ -9,7 +9,7 @@ from .common import Absent, Keyless, Reading, field
 REPORT = re.compile(r'https://qhooks\.com/proof/robinhood/0x[0-9a-f]{40}(?:/[0-9a-f-]{36})?')
 LEVELS = {'clear', 'watch', 'danger', 'incomplete'}
 WHEN = re.compile(r'[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(?:[.][0-9]{1,3})?Z')
-KEPT = ('version', 'state', 'subject', 'verdict', 'keyNumbers', 'freshness', 'checkedAt', 'stale', 'links')
+KEPT = ('version', 'state', 'subject', 'verdict', 'keyNumbers', 'freshness', 'checkedAt', 'links')
 
 
 def pct(item):
@@ -93,14 +93,17 @@ class Client(Keyless):
         numbers = data.get('keyNumbers') or {}
         if numbers.get('sellable') is False:
             parts.append('sell test did not sell')
-        taxes = [f'{side} tax {pct(numbers.get(key))}' for side, key in (('buy', 'buyTaxPct'), ('sell', 'sellTaxPct'))
-                 if pct(numbers.get(key))]
+        # The token's own transfer tax (from their sell test) and the pool's charge are separate figures.
+        taxes = {side: pct(numbers.get(key)) for side, key in (('buy', 'buyTaxPct'), ('sell', 'sellTaxPct'))
+                 if pct(numbers.get(key))}
         if taxes and numbers.get('sellableBasis') == 'sell_test':
-            parts.append('sell test ' + ', '.join(taxes))
+            same = len(taxes) == 2 and taxes['buy'] == taxes['sell']
+            parts.append('transfer tax ' + (taxes['buy'] if same else ', '.join(f'{s} {v}' for s, v in taxes.items()))
+                         + ' (sell test)')
         charges = [f'{side} {pct(numbers.get(key))}' for side, key in (('buy', 'buyChargePct'), ('sell', 'sellChargePct'))
                    if pct(numbers.get(key)) and numbers.get(key)]
         if charges:
-            parts.append('launch charges ' + ', '.join(charges))
+            parts.append('pool charges ' + ', '.join(charges))
         if pct(numbers.get('top10Pct')):
             parts.append(f"top 10 wallets hold {pct(numbers['top10Pct'])}")
         if pct(numbers.get('lpLockedPct')):
@@ -111,8 +114,12 @@ class Client(Keyless):
             parts.append(f'{gaps} of {total} checks not read' + (f', {required} required' if required else '') + ' (gaps, not clear)')
         freshness = data.get('freshness') or {}
         checked = freshness.get('checkedAt') or data.get('checkedAt')
-        checked = checked if isinstance(checked, str) and WHEN.fullmatch(checked) else 'not recorded'
-        parts.append(f'checked {checked}' + (', stale' if data.get('stale') is True else ''))
+        # Their stale flag marks their own refresh window (hours), not a broken read; age is printed from one day.
+        checked = f'checked {checked[:10]} {checked[11:16]} UTC' if isinstance(checked, str) and WHEN.fullmatch(checked) \
+            else 'check time not recorded'
+        age = freshness.get('ageSec')
+        days = int(age // 86400) if type(age) in (int, float) and math.isfinite(age) and age >= 86400 else 0
+        parts.append(f'saved report, {checked}' + (f", {days} day{'s' if days > 1 else ''} old" if days else ''))
         link = (data.get('links') or {}).get('report')
         own = self.target_page(target)
         link = link if isinstance(link, str) and REPORT.fullmatch(link) and (link + '/').startswith(own + '/') else own
