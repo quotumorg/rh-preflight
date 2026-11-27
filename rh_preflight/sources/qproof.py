@@ -4,10 +4,12 @@ import math
 import re
 from ..extract import ADDRESS
 from ..hey import RateLimited, Unavailable
-from .common import Keyless, Reading, field
+from .common import Absent, Keyless, Reading, field
 
 REPORT = re.compile(r'https://qhooks\.com/proof/robinhood/0x[0-9a-f]{40}(?:/[0-9a-f-]{36})?')
 LEVELS = {'clear', 'watch', 'danger', 'incomplete'}
+WHEN = re.compile(r'[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(?:[.][0-9]{1,3})?Z')
+KEPT = ('version', 'state', 'subject', 'verdict', 'keyNumbers', 'freshness', 'checkedAt', 'stale', 'links')
 
 
 def pct(item):
@@ -32,8 +34,20 @@ class Client(Keyless):
             'name': 'qproof_check', 'arguments': {'chain': '4663', 'token': target.lower(), 'request': False}}}
 
     def _read(self, path, deadline, payload=None):
-        # Saved reports are ~100-300 KB; one attempt uses the whole deadline.
-        return self._read_once(path, deadline, payload)
+        # Saved reports are ~100-300 KB; one attempt uses the whole deadline,
+        # and only the fields the line uses stay in the cache.
+        status, envelope = self._read_once(path, deadline, payload)
+        try:
+            content = envelope['result']['content'][0]
+            data = json.loads(content['text'])
+        except (KeyError, IndexError, TypeError, ValueError, RecursionError):
+            return status, envelope
+        if isinstance(data, dict) and not envelope['result'].get('isError'):
+            kept = {key: data[key] for key in KEPT if key in data}
+            kept['report'] = None if data.get('report') is None else {}
+            content['text'] = json.dumps(kept)
+            envelope['result'] = {'content': [content]}
+        return status, envelope
 
     def report(self, target, deadline):
         envelope = self.read('/mcp', deadline, payload=self.payload(target))
@@ -41,7 +55,10 @@ class Client(Keyless):
         body = result['content'][0]['text']
         if result.get('isError'):
             raise RateLimited() if 'retryAfter' in body or 'Retry-After' in body else Unavailable()
-        data = json.loads(body)
+        try:
+            data = json.loads(body)
+        except RecursionError:
+            raise ValueError() from None
         if not isinstance(data, dict):
             raise ValueError()
         return data
@@ -61,7 +78,8 @@ class Client(Keyless):
         if level not in LEVELS:
             raise ValueError()
         total, gaps, required = counts['total'], counts['incomplete'], counts['requiredMissing']
-        if any(type(n) is not int or n < 0 for n in (total, gaps, required)) or gaps > total:
+        if (any(type(n) is not int or n < 0 for n in (total, gaps, required))
+                or gaps > total or required > gaps or level == 'clear' and gaps >= total):
             raise ValueError()
         flags = [f for f in verdict.get('flags') or [] if isinstance(f, dict) and f.get('title')]
         if flags:
@@ -86,15 +104,18 @@ class Client(Keyless):
         if pct(numbers.get('top10Pct')):
             parts.append(f"top 10 wallets hold {pct(numbers['top10Pct'])}")
         if pct(numbers.get('lpLockedPct')):
-            unlock = field(numbers.get('lpUnlockAt'), '')[:10]
+            unlock = numbers.get('lpUnlockAt')
+            unlock = unlock[:10] if isinstance(unlock, str) and WHEN.fullmatch(unlock) else ''
             parts.append(f"LP locked {pct(numbers['lpLockedPct'])}" + (f', unlocks {unlock}' if unlock else ''))
         if gaps:
             parts.append(f'{gaps} of {total} checks not read' + (f', {required} required' if required else '') + ' (gaps, not clear)')
         freshness = data.get('freshness') or {}
-        checked = field(freshness.get('checkedAt') or data.get('checkedAt'))
+        checked = freshness.get('checkedAt') or data.get('checkedAt')
+        checked = checked if isinstance(checked, str) and WHEN.fullmatch(checked) else 'not recorded'
         parts.append(f'checked {checked}' + (', stale' if data.get('stale') is True else ''))
         link = (data.get('links') or {}).get('report')
-        link = link if isinstance(link, str) and REPORT.fullmatch(link) else self.target_page(target)
+        own = self.target_page(target)
+        link = link if isinstance(link, str) and REPORT.fullmatch(link) and (link + '/').startswith(own + '/') else own
         return Reading(self.label, 'present', ' · '.join(parts) + ' · ' + link)
 
     def probe(self):
@@ -102,6 +123,8 @@ class Client(Keyless):
         try:
             # A structured tool error for the zero address still proves the MCP answered.
             reached = 'result' in self.read('/mcp', start + self.timeout, ttl=0, payload=self.payload('0x' + '0' * 40))
+        except Absent:
+            reached = True
         except (Unavailable, KeyError, ValueError, TypeError, IndexError, AttributeError):
             reached = False
         return {'reachable': reached, 'latency_ms': round((self.clock() - start) * 1000, 2)}

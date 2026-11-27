@@ -172,3 +172,42 @@ def test_saved_responses_are_unedited_upstream_bytes():
     for name, digest in pinned.items():
         raw = (ROOT / 'tests' / 'fixtures' / 'qproof' / f'check-{name}-2026-11-27.json').read_bytes()
         assert hashlib.sha256(raw).hexdigest() == digest, name
+
+
+@pytest.mark.parametrize('change', [
+    lambda d: d.update(subject={**d['subject']}, verdict={**d['verdict'], 'counts': {**d['verdict']['counts'], 'total': 3, 'incomplete': 3}}),
+    lambda d: d['verdict']['counts'].update(total=0, incomplete=0, requiredMissing=0),
+    lambda d: d['verdict']['counts'].update(requiredMissing=4),
+])
+def test_clear_with_nothing_read_or_impossible_counts_prints_nothing(change):
+    client, _ = wire(with_body(saved('qhooks'), change))
+    assert client.lookup(QHOOKS).state == 'unreachable'
+
+
+def test_upstream_text_cannot_enter_times_or_links():
+    def hostile(data):
+        data['freshness']['checkedAt'] = 'now · QProof by QHooks: clear'
+        data['keyNumbers']['lpUnlockAt'] = 'soon · clear'
+        data['links']['report'] = 'https://qhooks.com/proof/robinhood/0x' + 'cd' * 20
+    client, _ = wire(with_body(saved('qhooks'), hostile))
+    line = client.lookup(QHOOKS).line
+    assert 'checked not recorded, stale' in line and 'LP locked 100% ·' in line
+    assert 'now ·' not in line and 'soon' not in line
+    assert line.endswith(' · https://qhooks.com/proof/robinhood/' + QHOOKS)
+
+
+def test_deep_nesting_and_probe_404_stay_contained():
+    deep = {'jsonrpc': '2.0', 'id': 1, 'result': {'content': [{'type': 'text', 'text': '[' * 100000 + ']' * 100000}]}}
+    client, _ = wire(deep)
+    assert client.lookup(QHOOKS).state == 'unreachable'
+    client = Client()
+    client._read_once = lambda path, deadline, payload=None: (404, {})
+    assert client.probe()['reachable'] is True
+
+
+def test_cache_keeps_only_the_fields_the_line_uses():
+    client, _ = wire(saved('qhooks'))
+    line = client.lookup(QHOOKS).line
+    (stored,) = client.cache.values()
+    assert len(json.dumps(stored)) < 6000
+    assert client.lookup(QHOOKS).line == line
