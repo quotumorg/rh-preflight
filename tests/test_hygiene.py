@@ -67,6 +67,9 @@ def test_all_authored_user_facing_strings_follow_wording_rule():
                 if path.name == 'wormhole.py' and node.value in {
                     'verdict', ' has not observed this token; that is not a verdict · '}:
                     continue
+                # QProof's response field name is read, never printed.
+                if path.name == 'qproof.py' and node.value == 'verdict':
+                    continue
                 if path.name == 'trnch.py' and node.value in {
                     'passed the rug screen, live in the Heat',
                     'no rug, no dump on record · first seen ',
@@ -118,7 +121,8 @@ def test_public_files_contain_no_local_paths_or_long_dashes():
         raw_toll = path.parent == ROOT / 'tests' / 'fixtures' / 'toll' and path.name in {
             'openapi-2026-11-19.json', 'llms-2026-11-19.txt', 'mcp-tools-list-2026-11-19.txt',
             'pre-buy-check-2026-11-19.json', 'pre-buy-check-2026-11-19-r2.json'}
-        if not (raw_057 or raw_toll):
+        raw_qproof = path.parent == ROOT / 'tests' / 'fixtures' / 'qproof' and path.suffix == '.json'
+        if not (raw_057 or raw_toll or raw_qproof):
             assert not any(chr(code) in content for code in (0x2013, 0x2014)), path.name
         # Build the local-home prefixes so the guard itself stays portable.
         assert not re.search("/" + "(?:Users|home)/[A-Za-z]", content), path.name
@@ -197,7 +201,7 @@ def test_joint_credit_on_public_surfaces():
     readme = (ROOT / 'README.md').read_text()
     assert readme.splitlines()[2] == 'rh-preflight by [quotum](https://quotum.org) with [HEY Research Lab](https://heyresearch.xyz).'
     manifest = (ROOT / 'plugin.yaml').read_text()
-    assert 'rh-preflight by quotum with HEY Research Lab. Reads builder records and ten Robinhood Chain projects; rh-preflight applies your approval rules before Hermes Agent acts on chain 4663.' in manifest
+    assert 'rh-preflight by quotum with HEY Research Lab. Reads builder records and eleven Robinhood Chain projects; rh-preflight applies your approval rules before Hermes Agent acts on chain 4663.' in manifest
     assert 'author: quotum, HEY Research Lab' in manifest
     desktop = (ROOT / 'desktop/plugin.js').read_text()
     assert desktop.count('CREDIT = "rh-preflight by quotum with HEY Research Lab"') == 1

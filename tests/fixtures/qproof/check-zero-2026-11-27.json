@@ -1,0 +1,1 @@
+{"jsonrpc":"2.0","id":1,"result":{"content":[{"type":"text","text":"{\"code\":\"agent_error_400\",\"error\":\"Invalid token.\"}"}],"structuredContent":{"code":"agent_error_400","error":"Invalid token."},"isError":true}}

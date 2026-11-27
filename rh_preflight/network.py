@@ -5,15 +5,15 @@ import time
 from dataclasses import replace
 from .card import Card, plain, text, link
 from .extract import ADDRESS, walk, objects
-from .sources import priors, sherwood, hookr, chain, wormhole, toll, dexscreener, geckoterminal, offrouter, sentinelhood, trnch, borro, hoodlock
+from .sources import priors, sherwood, hookr, chain, wormhole, toll, dexscreener, geckoterminal, offrouter, sentinelhood, trnch, borro, hoodlock, qproof
 from .sources.common import field, Reading
 from .budget import Pool as BudgetPool, result as budget_result
 from .settings import toll_header
 
 MODULES = {"priors": priors, "sherwood": sherwood, "hookr": hookr, "chain": chain, "wormhole": wormhole,
            "toll": toll, "dexscreener": dexscreener, "geckoterminal": geckoterminal, "offrouter": offrouter, "sentinelhood": sentinelhood, "hoodlock": hoodlock,
-           "trnch": trnch, "borro": borro}
-ORDER = ['Priors', 'Sentinelhood', 'HoodLock', 'Trnch', 'Agent Wormhole', 'Hookr', 'Toll', 'Borro', 'Sherwood', 'OffRouter', 'Robinhood Chain', 'DexScreener', 'GeckoTerminal']
+           "trnch": trnch, "borro": borro, "qproof": qproof}
+ORDER = ['Priors', 'Sentinelhood', 'HoodLock', 'Trnch', 'QProof', 'Agent Wormhole', 'Hookr', 'Toll', 'Borro', 'Sherwood', 'OffRouter', 'Robinhood Chain', 'DexScreener', 'GeckoTerminal']
 POOL = re.compile(r"(?<![\w])0x[0-9a-fA-F]{64}(?![\w])")
 
 
@@ -102,6 +102,13 @@ class Network:
                 options = {'has_code': True if known == 'code' else False if known == 'no_code' else None}
                 return lookup(name, target, **options)
 
+            def qproof_read(target):
+                # QProof's saved report is slow to serve, so it starts with RPC;
+                # an address RPC shows has no code drops it afterwards.
+                reading = lookup('qproof', target)
+                known = chains[target].result().state if target in chains else None
+                return replace(reading, state='unlisted', line='', asked=False) if known == 'no_code' else reading
+
             def copy_read(reading):
                 # Trnch names the official token of a copy; its address is
                 # printed only when Toll lists it as that official Stock Token.
@@ -144,6 +151,8 @@ class Network:
                             return lookup('borro', target, stock_ticker=ticker)
                         return Reading('Borro', 'unlisted', '', asked=False)
                     futures.append(('borro', target, pool.submit(stock_read, target, prerequisites.get('toll'))))
+                if enabled('qproof'):
+                    futures.append(('qproof', target, pool.submit(qproof_read, target)))
                 for name in ('wormhole', 'dexscreener', 'geckoterminal'):
                     if enabled(name):
                         future = pool.submit(address_read, name, target) if name != 'geckoterminal' else pool.submit(lookup, name, target)

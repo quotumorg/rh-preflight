@@ -23,20 +23,20 @@ def test_unmatched_and_negative_answers_are_different():
     rows = [replace(row, line='Borro has no lending market for NVDA · https://borro.markets')
             if row.source == 'Borro' else row for row in rows]
     card = network_card(rows)
-    assert checked_coverage(card) == ('11 sources · 8 answered · '
+    assert checked_coverage(card) == ('12 sources · 9 answered · '
         '3 not for this target: Hookr, Toll, Sherwood')
 
 
 def test_empty_buckets_and_settings_precedence():
     assert checked_coverage(network_card(base=Card(NVDA, 'identifier'))) == (
-        '11 sources · 11 not for this target: ' + ', '.join((
-            'HEY', 'Priors', 'Sentinelhood', 'HoodLock', 'Trnch',
+        '12 sources · 12 not for this target: ' + ', '.join((
+            'HEY', 'Priors', 'Sentinelhood', 'HoodLock', 'Trnch', 'QProof',
             'Agent Wormhole', 'Hookr', 'Toll', 'Borro', 'Sherwood', 'OffRouter')))
     card = network_card(all_readings() + [Reading('OffRouter', 'unreachable', '', elapsed=2)],
                         offrouter=True, source_settings={'offrouter': 'off'})
-    assert checked_coverage(card) == '11 sources · 10 answered · off: OffRouter'
+    assert checked_coverage(card) == '12 sources · 11 answered · off: OffRouter'
     card = network_card(all_readings() + [Reading('OffRouter', 'timeout', '', elapsed=2)], offrouter=True)
-    assert checked_coverage(card) == '11 sources · 10 answered · silent: OffRouter (unreachable; 2.0 s)'
+    assert checked_coverage(card) == '12 sources · 11 answered · silent: OffRouter (unreachable; 2.0 s)'
 
 
 @pytest.mark.parametrize('base_kind', ['missing', 'agent'])

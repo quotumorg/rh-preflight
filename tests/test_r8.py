@@ -28,7 +28,7 @@ def checked_coverage(card):
     line = coverage(card)
     parts = line.split(' · ')
     total = int(parts[0].removesuffix(' sources'))
-    assert total == 11
+    assert total == 12
     answered = 0
     named = []
     for part in parts[1:]:
@@ -118,7 +118,7 @@ def test_real_hook_decision_ledger_and_transform(tmp_path, mode, target, away, l
     directive = app.pre_tool_call('swap', args)
     stored = app.ledger.rows()[0]['cards'][0]
     assert stored['card'].splitlines()[0] == stored['answer']
-    assert stored['coverage'].startswith('11 sources · 1 answered · off: ')
+    assert stored['coverage'].startswith('12 sources · 1 answered · off: ')
     assert stored['answer'].startswith(label + ' · ')
     assert not stored['answer'].startswith('if Hermes')
     transformed = app.transform_tool_result('swap', args, 'result')
@@ -148,7 +148,7 @@ def all_readings():
 
 def test_all_answered_and_plumbing_excluded():
     readings = all_readings() + [Reading('RPC', 'unreachable', ''), Reading('DexScreener', 'unreachable', ''), Reading('GeckoTerminal', 'rate_limited', '')]
-    assert checked_coverage(network_card(readings)) == '11 sources · 11 answered'
+    assert checked_coverage(network_card(readings)) == '12 sources · 12 answered'
 
 
 @pytest.mark.parametrize('state,reason', [
@@ -159,7 +159,7 @@ def test_all_answered_and_plumbing_excluded():
 def test_silent_and_measured_elapsed(tmp_path, state, reason):
     readings = [replace(r, state=state, elapsed=4.0) if r.source == 'Borro' else r for r in all_readings()]
     card = present(network_card(readings), Decision('pass', ()))
-    expected = f'11 sources · 10 answered · silent: Borro ({reason}; 4.0 s)'
+    expected = f'12 sources · 11 answered · silent: Borro ({reason}; 4.0 s)'
     assert checked_coverage(card) == expected
     assert 'Borro: record' in card.render()
     ledger = Ledger(tmp_path)
@@ -184,9 +184,9 @@ def test_silent_partition_precedence_and_named_order(state):
     reason = {'timeout': 'unreachable', 'rate_limited': 'rate limited',
               'payment_required': 'payment required'}.get(state, state)
     assert checked_coverage(card) == (
-        '11 sources · 2 not for this target: Hookr, Toll · silent: HEY (4.0 s), ' +
+        '12 sources · 2 not for this target: Hookr, Toll · silent: HEY (4.0 s), ' +
         ', '.join(f'{name} ({reason}; 0.1 s)' for name in
-                  ('Priors', 'HoodLock', 'Trnch', 'Agent Wormhole', 'Sherwood', 'OffRouter')) +
+                  ('Priors', 'HoodLock', 'Trnch', 'QProof', 'Agent Wormhole', 'Sherwood', 'OffRouter')) +
         ' · off: Sentinelhood, Borro')
 
 
@@ -220,13 +220,13 @@ def test_settings_off_not_applicable_no_record_and_offrouter():
             replace(r, state='unlisted', line='') if r.source == 'Sherwood' else r for r in all_readings()]
     card = network_card(rows, source_settings={'borro': 'off'})
     line = checked_coverage(card)
-    assert line == '11 sources · 9 answered · 1 not for this target: Sherwood · off: Borro'
+    assert line == '12 sources · 10 answered · 1 not for this target: Sherwood · off: Borro'
     assert 'off: Borro' in line and 'not for this target: Sherwood' in line
     own = network_card(all_readings() + [Reading('OffRouter', 'present', '')], offrouter=True)
-    assert checked_coverage(own) == '11 sources · 11 answered'
+    assert checked_coverage(own) == '12 sources · 12 answered'
     assert 'OffRouter' in checked_coverage(network_card([]))
     rows = [replace(r, asked=False, state='unlisted') if r.source == 'Borro' else r for r in all_readings()]
-    assert checked_coverage(network_card(rows)) == '11 sources · 10 answered · 1 not for this target: Borro'
+    assert checked_coverage(network_card(rows)) == '12 sources · 11 answered · 1 not for this target: Borro'
 
 
 def test_source_timer_is_monotonic_and_original_deadline(monkeypatch):

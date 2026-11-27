@@ -1,4 +1,4 @@
-HEY Research Lab is co-author and the first source. Its builder record links to what HEY read. rh-preflight decides go / ask / stop under the owner's rules. The catalog has 11 sources: HEY Research Lab plus ten Robinhood Chain projects.
+HEY Research Lab is co-author and the first source. Its builder record links to what HEY read. rh-preflight decides go / ask / stop under the owner's rules. The catalog has 12 sources: HEY Research Lab plus eleven Robinhood Chain projects.
 
 # Source selection
 
@@ -6,7 +6,7 @@ HEY snapshot 2026-11-08: 5426 projects, 3352 with a token on 4663, 4068 with a w
 
 Not probed: 1358 projects with no website in HEY (token-only listings); 3558 reachable hosts with no agent interface at all count as NO (not in the table).
 
-## Chosen sources: HEY Research Lab plus ten Robinhood Chain projects
+## Chosen sources: HEY Research Lab plus eleven Robinhood Chain projects
 
 | # | project | card line (one question each) | stage at selection |
 |---|---|---|---|
@@ -21,6 +21,7 @@ Not probed: 1358 projects with no website in HEY (token-only listings); 3558 rea
 | 9 | HoodLock | how much supply is locked, until when, how much already withdrawn (their token Locker and Vesting contracts over RPC, ABI verified on Sourcify; HEY cites it); informational v2/v3/v4 LP positions from `https://hoodlock.tech/api/v1/lp-locks`, with validated position proof links; other lockers not read | in plugin |
 | 10 | Trnch | `https://trnch.fun/api/bot/v1/check?token={address}`; sends only the token address, live per check from the keyless API with no cache, prefetch or listing reads; attributed token check with credit to `https://trnch.fun/token/{address}` | permission granted in writing on 2026-11-10 as an exception to Trnch's terms 9.2 |
 | 11 | OffRouter | its own x402 mode, chain-specific payTo and model count | in plugin |
+| 12 | QProof (QHooks) | the saved token report: their level, sell-test taxes, top 10 share, LP lock, and checks not read shown as gaps; free `qproof_check` with `request: false`, only the token address is sent | agreed with QHooks in writing on 2026-11-27 |
 
 OffRouter is read only for its own project. DexScreener, GeckoTerminal and raw RPC are infrastructure and do not count as ecosystem projects. Selection labels describe the saved survey, not present availability.
 
@@ -44,7 +45,7 @@ cards project stable warning codes, decoded fields and simulation facts. Hookr c
 
 ## Coverage
 
-The second card line partitions 11 sources, HEY Research Lab plus ten Robinhood Chain projects, into exactly one bucket each. OffRouter is read only for its own target. RPC, DexScreener and GeckoTerminal are infrastructure and do not enter the count. Empty buckets are omitted.
+The second card line partitions 12 sources, HEY Research Lab plus eleven Robinhood Chain projects, into exactly one bucket each. OffRouter is read only for its own target. RPC, DexScreener and GeckoTerminal are infrastructure and do not enter the count. Empty buckets are omitted.
 
 - `answered`: a per-target reply, including no record, not seen or no lending market. Trnch `unknown` is an answered no-record reply with its explicit token-page line.
 - `not for this target: names`: an unmatched registry, an inapplicable source or a request skipped because it does not apply. Borro without official Stock Token membership belongs here.

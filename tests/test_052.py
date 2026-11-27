@@ -44,7 +44,7 @@ def assert_source_parity(card):
 @pytest.mark.parametrize('prefix', ['', 'if Hermes swapped this now: ', 'if Hermes Agent swapped this now: '])
 def test_desktop_answer_color(label, color, prefix):
     card = {'target': 'agent:31337', 'answer': prefix + label + ' · your rule',
-            'coverage': '11 sources · 11 answered', 'card': ''}
+            'coverage': '12 sources · 11 answered', 'card': ''}
     heading = section_for(card)['children'][0]
     assert heading['children'] == card['answer']
     assert heading['style']['background'] == color
@@ -87,19 +87,19 @@ def test_desktop_silent_reasons_and_no_answered_bucket(state, reason):
     assert_source_parity(card)
     buckets = desktop_eval('buckets(row)', coverage(card))
     assert buckets[0] == {'name': 'HEY', 'kind': 'silent', 'reason': '1.5 s'}
-    assert buckets[8] == {'name': 'Borro', 'kind': 'silent', 'reason': reason + '; 4.0 s'}
-    assert all(b['kind'] == 'other' for b in buckets[1:8] + buckets[9:])
+    assert buckets[9] == {'name': 'Borro', 'kind': 'silent', 'reason': reason + '; 4.0 s'}
+    assert all(b['kind'] == 'other' for b in buckets[1:9] + buckets[10:])
     all_other = network_card(base=Card('agent:31337', 'identifier'))
     assert {b['kind'] for b in desktop_eval('buckets(row)', coverage(all_other))} == {'other'}
     assert_source_parity(all_other)
     all_off = network_card(source_settings={name.lower().replace('agent ', ''): 'off' for name in PROJECTS[1:]})
-    assert [b['kind'] for b in desktop_eval('buckets(row)', coverage(all_off))] == ['answered'] + ['off'] * 10
+    assert [b['kind'] for b in desktop_eval('buckets(row)', coverage(all_off))] == ['answered'] + ['off'] * 11
     assert_source_parity(all_off)
 
 
 @pytest.mark.parametrize('value', [None, '', 'garbage', '<script>alert(1)</script>',
-                                  ' 11 sources', '11 source', '11 sources external',
-                                  'prefix 11 sources', 'HEY not queried for agent or pool ids'])
+                                  ' 12 sources', '11 source', '12 sources external',
+                                  'prefix 12 sources', 'HEY not queried for agent or pool ids'])
 def test_desktop_unrecognized_coverage_has_no_buckets_bar_or_list(value):
     assert desktop_eval('buckets(row)', value) is None
     card = {'target': '<img src=x>', 'answer': 'external', 'coverage': value,
@@ -111,8 +111,8 @@ def test_desktop_unrecognized_coverage_has_no_buckets_bar_or_list(value):
 
 
 def test_desktop_empty_and_malformed_named_buckets_do_not_throw():
-    for line in ('11 sources', '11 sources · silent: ', '11 sources · off: ',
-                 '11 sources · silent: Hookrx (1.0 s), ', '11 sources · arbitrary text'):
+    for line in ('12 sources', '12 sources · silent: ', '12 sources · off: ',
+                 '12 sources · silent: Hookrx (1.0 s), ', '12 sources · arbitrary text'):
         assert desktop_eval('buckets(row)', line) == [
             {'name': name, 'kind': 'answered'} for name in PROJECTS]
 
@@ -131,9 +131,9 @@ def test_desktop_source_list_bar_and_legacy_fallback(legacy):
     section = section_for(card)
     gradient = section['children'][1]['style']['backgroundImage']
     assert gradient.startswith('linear-gradient(90deg, ')
-    assert gradient.count('transparent ') == 22
+    assert gradient.count('transparent ') == 24
     items = section['children'][4]['children']
-    assert len(items) == 11
+    assert len(items) == 12
     names = ['HEY Research Lab', *PROJECTS[1:]]
     assert [item['children'][1]['children'] for item in items] == names
     for name, item in zip(PROJECTS, items):
@@ -323,7 +323,7 @@ def test_desktop_structured_sources_work_without_recognized_coverage():
     card['card'] = 'no source lines'
     section = section_for(card)
     assert 'style' not in section['children'][1]
-    assert len(section['children'][4]['children']) == 11
+    assert len(section['children'][4]['children']) == 12
     assert section['children'][4]['children'][1]['children'][3]['href'] == 'https://example.org'
 
 

@@ -18,7 +18,7 @@ def colored(text):
 
 def setup(parser):
     sub = parser.add_subparsers(dest="rh_preflight_command", required=True)
-    card = sub.add_parser("card", help="rh-preflight by quotum with HEY Research Lab; read builder records plus ten Robinhood Chain projects")
+    card = sub.add_parser("card", help="rh-preflight by quotum with HEY Research Lab; read builder records plus eleven Robinhood Chain projects")
     card.add_argument("target", nargs="?")
     card.add_argument("--project", help="An exact HEY project slug")
     sub.add_parser("log", help="Show the latest checks")

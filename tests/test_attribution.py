@@ -74,7 +74,7 @@ def test_saved_citation_keeps_upstream_name_and_uses_comma():
 def test_collection_has_source_lines_without_policy_or_coverage():
     collection = card_readings()
     assert collection.render().splitlines() == [r.line for r in collection.sources if r.line]
-    assert '11 sources' not in collection.render()
+    assert '12 sources' not in collection.render()
     assert not any(line.startswith(('go ·', 'ask ·', 'stop ·')) for line in collection.render().splitlines())
 
 
@@ -161,7 +161,7 @@ def test_saved_priors_keeps_answer_coverage_and_citation():
     view = cards()[0].render().splitlines()
     assert view[:2] == [
         'if Hermes Agent swapped this now: go · no rule of yours fired',
-        '11 sources · 8 answered · 1 not for this target: Borro · off: Sherwood, OffRouter',
+        '12 sources · 8 answered · 1 not for this target: Borro · off: QProof, Sherwood, OffRouter',
     ]
     payload = json.loads(capture_path('hey-builder_status-addr.json').read_text())
     assert view[-1] == payload['citation']['text']

@@ -15,5 +15,5 @@ def register(ctx):
     ctx.register_command("rh-preflight", handler=lambda raw, **kw: commands.card_command(service, raw, **kw),
                          description="rh-preflight by quotum with HEY Research Lab; read a network card of source records under your approval rules",
                          args_hint="<address|repository-url|project>")
-    ctx.register_cli_command(name="rh-preflight", help="rh-preflight by quotum with HEY Research Lab; read builder records plus ten Robinhood Chain projects and local checks",
+    ctx.register_cli_command(name="rh-preflight", help="rh-preflight by quotum with HEY Research Lab; read builder records plus eleven Robinhood Chain projects and local checks",
                              setup_fn=cli.setup, handler_fn=lambda args: cli.run(service, args))

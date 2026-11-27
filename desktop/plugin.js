@@ -17,7 +17,7 @@ function humanResponse(row) {
   return Object.hasOwn(responses, row.decision) ? responses[row.decision] : 'not recorded'
 }
 
-const PROJECTS = ['HEY', 'Priors', 'Sentinelhood', 'HoodLock', 'Trnch', 'Agent Wormhole', 'Hookr', 'Toll', 'Borro', 'Sherwood', 'OffRouter']
+const PROJECTS = ['HEY', 'Priors', 'Sentinelhood', 'HoodLock', 'Trnch', 'QProof', 'Agent Wormhole', 'Hookr', 'Toll', 'Borro', 'Sherwood', 'OffRouter']
 const OUTCOME = { go: '#15803d', ask: '#b45309', stop: '#b91c1c', note: '#4b5563' }
 const BUCKET = {
   answered: { color: '#15803d', label: 'answered' },
@@ -46,7 +46,9 @@ function buckets(coverage) {
       if (entry && PROJECTS.includes(entry[1])) state[entry[1]] = { kind, reason: entry[2] }
     }
   }
-  return PROJECTS.map(name => ({ name, ...(state[name] ?? { kind: 'answered' }) }))
+  // Rows recorded before QProof joined count 11 sources and never asked it.
+  const names = parts[0] === '11 sources' ? PROJECTS.filter(name => name !== 'QProof') : PROJECTS
+  return names.map(name => ({ name, ...(state[name] ?? { kind: 'answered' }) }))
 }
 
 function coverageStyle(list) {
@@ -128,7 +130,7 @@ function Checks({ ctx }) {
     children: [
       jsx('h1', { className: 'mb-2 text-2xl font-semibold', children: 'rh-preflight' }),
       jsxs('p', { className: 'mb-2 text-(--ui-text-secondary)', children: [CREDIT, ' · ', jsx('a', { href: 'https://heyresearch.xyz', className: 'underline underline-offset-2', children: 'heyresearch.xyz' })] }),
-      jsx('p', { className: 'mb-6 text-(--ui-text-secondary)', children: '11 sources: HEY Research Lab plus ten Robinhood Chain projects. HEY Research Lab supplies a builder record with links to what HEY read. rh-preflight decides go / ask / stop under your rules; each check shows the recorded human response.' }),
+      jsx('p', { className: 'mb-6 text-(--ui-text-secondary)', children: '12 sources: HEY Research Lab plus eleven Robinhood Chain projects. HEY Research Lab supplies a builder record with links to what HEY read. rh-preflight decides go / ask / stop under your rules; each check shows the recorded human response.' }),
       jsx('button', {
         type: 'button', onClick: () => query.refetch(), disabled: query.isFetching,
         className: 'mb-6 rounded border border-(--ui-stroke-secondary) px-3 py-2 focus-visible:outline focus-visible:outline-(--ui-accent) disabled:opacity-50',

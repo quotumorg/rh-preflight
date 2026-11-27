@@ -2,7 +2,7 @@
 
 import re
 
-PROJECTS = ('HEY', 'Priors', 'Sentinelhood', 'HoodLock', 'Trnch',
+PROJECTS = ('HEY', 'Priors', 'Sentinelhood', 'HoodLock', 'Trnch', 'QProof',
             'Agent Wormhole', 'Hookr', 'Toll', 'Borro', 'Sherwood', 'OffRouter')
 SILENT = {'unreachable': 'unreachable', 'refused': 'refused',
           'rate_limited': 'rate limited', 'payment_required': 'payment required',

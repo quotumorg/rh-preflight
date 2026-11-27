@@ -47,7 +47,7 @@ class Settings:
                 or ttl < 0 or (isinstance(ttl, float) and not math.isfinite(ttl))):
             ttl = 600
         object.__setattr__(self, "hey_cache_seconds", min(ttl, 86400))
-        known_sources = {"priors", "sherwood", "hookr", "chain", "wormhole", "toll", "dexscreener", "geckoterminal", "offrouter", "sentinelhood", "borro", "hoodlock", "trnch"}
+        known_sources = {"priors", "sherwood", "hookr", "chain", "wormhole", "toll", "dexscreener", "geckoterminal", "offrouter", "sentinelhood", "borro", "hoodlock", "trnch", "qproof"}
         # Ignore retired or unknown source keys in existing user configs.
         object.__setattr__(self, "sources", {name: setting for name, setting in self.sources.items()
                                             if name in known_sources})

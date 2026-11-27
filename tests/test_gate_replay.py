@@ -60,7 +60,7 @@ def test_hook_uses_only_exact_matching_captures(tmp_path):
         assert directive['message'].startswith('ask · your rule: no HEY record\n')
         assert 'HEY Research Lab: no published project' in directive['message']
         assert 'Sentinelhood: no contract at this address, block 110264826' in directive['message']
-        assert '11 sources · 2 answered · off:' in directive['message']
+        assert '12 sources · 2 answered · off:' in directive['message']
         hey_read.assert_called_once()
         sentinel_read.assert_called_once()
         with pytest.raises(AssertionError, match='uncaptured reads'):

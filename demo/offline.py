@@ -20,7 +20,7 @@ def main():
                  ('plugin_install', {'url': REPO})]
         print("rh-preflight by quotum with HEY Research Lab · https://heyresearch.xyz")
         print("invented records from a local fake HEY server, not HEY data")
-        print("11 sources: HEY Research Lab plus ten Robinhood Chain projects")
+        print("12 sources: HEY Research Lab plus eleven Robinhood Chain projects")
         asked = 0
         for index, (tool, args) in enumerate(calls):
             directive = service.pre_tool_call(tool, args, session_id='example-session', tool_call_id=str(index))

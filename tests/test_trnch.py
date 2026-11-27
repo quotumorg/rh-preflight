@@ -115,7 +115,7 @@ def test_unknown_is_answered_no_record_and_has_no_policy_rule():
     assert row.state == 'unlisted' and row.asked
     card = Card(data['token'], 'network', {'base': Card(data['token'], 'identifier'), 'sources': [row],
         'source_settings': {n: 'off' for n in MODULES if n != 'trnch'}})
-    assert coverage(card).startswith('11 sources · 1 answered · 1 not for this target: HEY · off:')
+    assert coverage(card).startswith('12 sources · 1 answered · 1 not for this target: HEY · off:')
     for data in samples():
         client, _ = wire(data)
         row = client.lookup(data['token'])
