@@ -22,8 +22,12 @@ def saved(name):
     return json.loads((ROOT / 'tests' / 'fixtures' / 'qproof' / f'check-{name}-2026-11-27.json').read_text())
 
 
-def wire(envelope):
+SAVED_AT = 1795806000.0  # 2026-11-27 19:00 UTC, when the fixtures were read
+
+
+def wire(envelope, wall=SAVED_AT):
     client = Client()
+    client.wall = lambda: wall
     requests = []
     def read(path, deadline, payload=None):
         requests.append((path, payload))
@@ -214,17 +218,31 @@ def test_cache_keeps_only_the_fields_the_line_uses():
 
 
 def test_age_prints_from_one_day_and_taxes_that_differ_name_each_side():
-    def old(data):
-        data['freshness']['ageSec'] = 3 * 86400 + 5
+    def taxes(data):
         data['keyNumbers'].update(buyTaxPct=0, sellTaxPct=5)
-    line = wire(with_body(saved('qhooks'), old))[0].lookup(QHOOKS).line
+    at = 1795768123.762  # checkedAt of the qhooks fixture
+    line = wire(with_body(saved('qhooks'), taxes), wall=at + 3 * 86400 + 5)[0].lookup(QHOOKS).line
     assert 'saved report, checked 2026-11-27 08:28 UTC, 3 days old ·' in line
     assert 'transfer tax buy 0%, sell 5% (sell test) · pool charges buy 2%, sell 2%' in line
-    for age in (86399, 86400.0, float('nan'), '2 days', -1):
-        def at(data, age=age):
-            data['freshness']['ageSec'] = age
-        line = wire(with_body(saved('qhooks'), at))[0].lookup(QHOOKS).line
-        assert (', 1 day old ·' in line) is (age == 86400.0) and 'stale' not in line
+    for wall, shown in ((at + 86399, ''), (at + 86400, ', 1 day old'), (at - 999, ''), (at + 4000 * 86400, '')):
+        line = wire(saved('qhooks'), wall=wall)[0].lookup(QHOOKS).line
+        assert f'checked 2026-11-27 08:28 UTC{shown} ·' in line and 'stale' not in line
     def sell_only(data):
         del data['keyNumbers']['buyTaxPct']
     assert 'transfer tax sell 0% (sell test)' in wire(with_body(saved('qhooks'), sell_only))[0].lookup(QHOOKS).line
+
+
+def test_their_age_counts_only_without_a_time_and_bad_times_are_not_recorded():
+    def no_time(data, age):
+        data['freshness'].update(checkedAt=None, ageSec=age)
+        data['checkedAt'] = '2026-19-45T99:99:00Z'
+    for age, shown in ((2 * 86400, ', 2 days old'), (1e300, ''), (float('nan'), ''), (True, ''), ('2 days', ''), (-1, '')):
+        line = wire(with_body(saved('qhooks'), lambda d, age=age: no_time(d, age)))[0].lookup(QHOOKS).line
+        assert f'saved report, check time not recorded{shown} ·' in line and '2026-19' not in line
+
+
+def test_failed_sell_test_prints_no_tax():
+    def unsold(data):
+        data['keyNumbers']['sellable'] = False
+    line = wire(with_body(saved('qhooks'), unsold))[0].lookup(QHOOKS).line
+    assert 'sell test did not sell · pool charges buy 2%, sell 2%' in line and 'transfer tax' not in line

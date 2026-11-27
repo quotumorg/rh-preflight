@@ -2,6 +2,8 @@
 import json
 import math
 import re
+import time
+from datetime import datetime, timezone
 from ..extract import ADDRESS
 from ..hey import RateLimited, Unavailable
 from .common import Absent, Keyless, Reading, field
@@ -22,6 +24,7 @@ class Client(Keyless):
     origin = 'https://qhooks.com'
     label = 'QProof'
     page = 'https://qhooks.com/qproof'
+    wall = staticmethod(time.time)
 
     def target_page(self, target=None, **kwargs):
         return (self.origin + '/proof/robinhood/' + target.lower()
@@ -96,7 +99,7 @@ class Client(Keyless):
         # The token's own transfer tax (from their sell test) and the pool's charge are separate figures.
         taxes = {side: pct(numbers.get(key)) for side, key in (('buy', 'buyTaxPct'), ('sell', 'sellTaxPct'))
                  if pct(numbers.get(key))}
-        if taxes and numbers.get('sellableBasis') == 'sell_test':
+        if taxes and numbers.get('sellableBasis') == 'sell_test' and numbers.get('sellable') is not False:
             same = len(taxes) == 2 and taxes['buy'] == taxes['sell']
             parts.append('transfer tax ' + (taxes['buy'] if same else ', '.join(f'{s} {v}' for s, v in taxes.items()))
                          + ' (sell test)')
@@ -114,11 +117,17 @@ class Client(Keyless):
             parts.append(f'{gaps} of {total} checks not read' + (f', {required} required' if required else '') + ' (gaps, not clear)')
         freshness = data.get('freshness') or {}
         checked = freshness.get('checkedAt') or data.get('checkedAt')
+        try:
+            at = datetime.strptime(checked[:19], '%Y-%m-%dT%H:%M:%S').replace(tzinfo=timezone.utc) \
+                if isinstance(checked, str) and WHEN.fullmatch(checked) else None
+        except ValueError:
+            at = None
         # Their stale flag marks their own refresh window (hours), not a broken read; age is printed from one day.
-        checked = f'checked {checked[:10]} {checked[11:16]} UTC' if isinstance(checked, str) and WHEN.fullmatch(checked) \
-            else 'check time not recorded'
-        age = freshness.get('ageSec')
-        days = int(age // 86400) if type(age) in (int, float) and math.isfinite(age) and age >= 86400 else 0
+        if at:
+            checked, age = f"checked {at:%Y-%m-%d %H:%M} UTC", self.wall() - at.timestamp()
+        else:
+            checked, age = 'check time not recorded', freshness.get('ageSec')
+        days = int(age // 86400) if type(age) in (int, float) and 86400 <= age < 3650 * 86400 else 0
         parts.append(f'saved report, {checked}' + (f", {days} day{'s' if days > 1 else ''} old" if days else ''))
         link = (data.get('links') or {}).get('report')
         own = self.target_page(target)
